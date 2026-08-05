@@ -3415,17 +3415,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     }
     return false;
   }
-  // 查重复用 / 新建分类；isColl=true 时置 is_collection（对新建或已有但未标记的一级生效）
-  // 同文件夹（收藏标记一致）下按 名称+parent 复用，避免跨文件夹误复用（点 3：只校验当前文件夹不重复）
+  // 查重复用 / 新建分类：同名同父级即视为同一标签（跨「任务夹/收藏夹」自动合并，避免同名标签割裂）；
+  // 任一入口要求收藏（isColl）则把已存在的分类升级为收藏（不降级）。
   function ensureCategory(name, parent, isColl) {
     const nm = (name || '').trim();
     if (!nm) return null;
-    let c = state.categories.find(x => x.name === nm && (x.parent || null) === (parent || null) && !!x.is_collection === !!isColl);
+    let c = state.categories.find(x => x.name === nm && (x.parent || null) === (parent || null));
     if (!c) {
       c = addCategory(nm, parent);
       if (isColl) { c.is_collection = true; persist(); }
     } else if (isColl && !c.is_collection) {
-      c.is_collection = true; persist();
+      c.is_collection = true; persist();   // 升级为收藏，避免同一标签因入口不同而分裂为两条
     }
     return c;
   }
@@ -9054,6 +9054,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     props: { items: { type: Array, required: true }, truncated: { type: Boolean, default: false } },
     components: { TaskFormCore: C.TaskFormCore },
     data() {
+      // 单条 AI 任务默认归入「任务夹」；多条（>1）默认归入「收藏夹」（需求规则）
+      const defFolder = this.items.length === 1 ? 'task' : 'collection';
       // 每条初始化为 TaskFormCore 所需的完整草稿形状（缺省字段安全兜底），勾选态默认全选
       const drafts = this.items.map((it) => {
         const cy = it.cycle ? (typeof it.cycle === 'string' ? { type: it.cycle, rule: '' } : it.cycle) : null;
@@ -9061,7 +9063,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         let parsedTags = [], tagInput = '', hasLevel3 = false, level3Chain = null;
         let category_id = it.category_id || null, parent_category = it.parent_category || '';
         if (it.tags) {
-          const pr = window.MPStore.parseTagString(it.tags, false);
+          const pr = window.MPStore.parseTagString(it.tags, defFolder === 'collection');
           parsedTags = pr.parsed; tagInput = it.tags;
           category_id = pr.category_id; parent_category = pr.parent_category;
           hasLevel3 = pr.hasLevel3; level3Chain = pr.level3Chain;
@@ -9076,7 +9078,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           material_link: it.material_link || '',
           parent_category, category_id,
           isHabit: !!it.isHabit,
-          folderType: 'collection', tagInput, parsedTags, hasLevel3, level3Chain,
+          folderType: defFolder, tagInput, parsedTags, hasLevel3, level3Chain,
           date_mode: it.date_mode || (it.date_start ? 'range' : (it.execute_date ? 'day' : '')),
           week_offset: (it.week_offset != null) ? it.week_offset : null,
           plan_year: it.plan_year || null, plan_month: it.plan_month || '', execute_date: it.execute_date || null, date_start: it.date_start || '', date_end: it.date_end || '',
@@ -9088,7 +9090,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         };
       });
       const checked = drafts.map(() => true);
-      return { drafts, checked, folderType: 'collection', newTitle: '', batchTagInput: '', batchParsedTags: [], batchLevel3Chain: null };
+      return { drafts, checked, folderType: defFolder, newTitle: '', batchTagInput: '', batchParsedTags: [], batchLevel3Chain: null };
     },
     // 浮层栈：作为弹窗登记 dismiss，系统返回优先关闭本弹窗（返回来源页，不改写路由）
     created() {
@@ -9167,13 +9169,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           this.$emit('confirm', [t._id]);
         }
       },
-      // 多条：批量确认 → 在待归档生成顶层任务（或三级标签下绑定父任务的子任务），按归属标签打标；高级设置默认空白
+      // 多条：批量确认 → 在待归档生成顶层任务（或三级标签下绑定父任务的子任务）
+      // 每条任务保留 AI 解析出的标签（category_id）/ 描述 / 时间 / 提醒；仅当用户填写「批量归属标签」时统一覆盖
       confirmBatch() {
-        const last = this.batchParsedTags[this.batchParsedTags.length - 1];
         const chain = this.batchLevel3Chain || null;
-        // 三级链存在时，父任务 / 子任务统一归属二级分类（### = 快捷创建父任务，不建三级分类）
-        const parent_category = chain ? (chain.l1 ? chain.l1._id : '') : (last && last.l2 ? last.l1._id : '');
-        const category_id = chain ? (chain.l2 ? chain.l2._id : chain.l1._id) : (last ? (last.l2 ? last.l2._id : last.l1._id) : null);
+        const last = this.batchParsedTags[this.batchParsedTags.length - 1];
+        // 批量归属标签（可选）：用户填了则作为统一标签；否则回落到每条 AI 各自解析出的标签
+        const batchParent = chain ? (chain.l1 ? chain.l1._id : '') : (last && last.l2 ? last.l1._id : '');
+        const batchCat = chain ? (chain.l2 ? chain.l2._id : chain.l1._id) : (last ? (last.l2 ? last.l2._id : last.l1._id) : null);
         const created = [];
         this.drafts.forEach((d, i) => {
           if (!this.checked[i]) return;
@@ -9185,20 +9188,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             created.push(h._id);
             return;
           }
+          // 优先保留 AI 为单条任务解析出的标签，未解析到才回落批量标签
+          const fields = Object.assign(dateFieldsFromDraft(d), {
+            title,
+            desc: d.desc || '',
+            material_notes: d.material_notes || '',
+            material_link: d.material_link || '',
+            category_id: d.category_id || batchCat || null,
+            parent_category: d.parent_category || batchParent || '',
+            is_template: this.folderType === 'template',
+            is_collection: this.folderType === 'collection',
+            enable_remind: !!d.enable_remind,
+            remind_time: d.remind_time || '',
+            cycle: d.cycle || null,
+            cycle_end_date: d.cycle_end_date || '',
+            progress_info: d.progress_info,
+            isEmergency: !!d.isEmergency,
+          });
           if (chain) {
-            const r = this.$store.addTaskUnderLevel3({
-              title, category_id, parent_category,
-              is_template: this.folderType === 'template', is_collection: this.folderType === 'collection',
-              desc: d.desc || '', material_notes: d.material_notes || '', material_link: d.material_link || '',
-              enable_remind: !!d.enable_remind, remind_time: d.remind_time || '',
-              cycle: d.cycle || null, cycle_end_date: d.cycle_end_date || '',
-              progress_info: d.progress_info, date_mode: d.date_mode || '', plan_year: d.plan_year || null, plan_month: d.plan_month || null,
-              execute_date: d.execute_date || null, date_start: d.date_start || '', date_end: d.date_end || '',
-            }, chain);
+            const r = this.$store.addTaskUnderLevel3(fields, chain);
             created.push(r.parentId);
           } else {
-            const t = this.$store.addTask({ title, category_id: category_id || null, parent_category: parent_category || '',
-              is_template: this.folderType === 'template', is_collection: this.folderType === 'collection' });
+            const t = this.$store.addTask(fields);
             created.push(t._id);
           }
         });
