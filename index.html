@@ -9056,18 +9056,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() {
       // 单条 AI 任务默认归入「任务夹」；多条（>1）默认归入「收藏夹」（需求规则）
       const defFolder = this.items.length === 1 ? 'task' : 'collection';
+      // 仅单条模式才用自然语言解析标签/日期/描述等；批量（>1）模式 AI 只识别名称，避免误带标签与产生空分类
+      const isSingle = this.items.length === 1;
       // 每条初始化为 TaskFormCore 所需的完整草稿形状（缺省字段安全兜底），勾选态默认全选
       const drafts = this.items.map((it) => {
         const cy = it.cycle ? (typeof it.cycle === 'string' ? { type: it.cycle, rule: '' } : it.cycle) : null;
-        // 标签预览：优先用 AI 返回的 tags 链（支持三级），否则按 category_id 兜底
+        // 标签预览：仅单条模式解析（优先用 AI 返回的 tags 链，否则按 category_id 兜底）；批量模式不解析
         let parsedTags = [], tagInput = '', hasLevel3 = false, level3Chain = null;
         let category_id = it.category_id || null, parent_category = it.parent_category || '';
-        if (it.tags) {
+        if (isSingle && it.tags) {
           const pr = window.MPStore.parseTagString(it.tags, defFolder === 'collection');
           parsedTags = pr.parsed; tagInput = it.tags;
           category_id = pr.category_id; parent_category = pr.parent_category;
           hasLevel3 = pr.hasLevel3; level3Chain = pr.level3Chain;
-        } else if (it.category_id) {
+        } else if (isSingle && it.category_id) {
           const cat = (window.MPStore.state.categories || []).find(x => x._id === it.category_id);
           if (cat) { parsedTags = [{ l1: { _id: cat._id, name: cat.name }, l2: null }]; tagInput = '#' + cat.name; }
         }
@@ -9170,11 +9172,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
       },
       // 多条：批量确认 → 在待归档生成顶层任务（或三级标签下绑定父任务的子任务）
-      // 每条任务保留 AI 解析出的标签（category_id）/ 描述 / 时间 / 提醒；仅当用户填写「批量归属标签」时统一覆盖
+      // 需求：识别条数 > 1 时，AI 仅识别「任务名称」，绝不带入自然语言解析出的
+      //       日期 / 提醒时间 / 描述 / 标签 / 周期 / 紧急等高级设置。
+      //       仅保留用户手动填写的「批量归属标签」（batchCat/batchParent），其余一律留空。
       confirmBatch() {
         const chain = this.batchLevel3Chain || null;
         const last = this.batchParsedTags[this.batchParsedTags.length - 1];
-        // 批量归属标签（可选）：用户填了则作为统一标签；否则回落到每条 AI 各自解析出的标签
+        // 批量归属标签（可选，仅用户手动填写）：用户填了则作为统一标签；否则无标签
         const batchParent = chain ? (chain.l1 ? chain.l1._id : '') : (last && last.l2 ? last.l1._id : '');
         const batchCat = chain ? (chain.l2 ? chain.l2._id : chain.l1._id) : (last ? (last.l2 ? last.l2._id : last.l1._id) : null);
         const created = [];
@@ -9182,29 +9186,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (!this.checked[i]) return;
           const title = (d.title || '').trim();
           if (!title) return;
-          // 每日 → 转为习惯（忽略批量标签链）
-          if (d.isHabit) {
-            const h = this.$store.convertTaskToHabit({ title, desc: d.desc || '', enable_remind: !!d.enable_remind, remind_time: d.remind_time || '09:00' }, null);
-            created.push(h._id);
-            return;
-          }
-          // 优先保留 AI 为单条任务解析出的标签，未解析到才回落批量标签
-          const fields = Object.assign(dateFieldsFromDraft(d), {
+          // 批量（>1）模式：AI 只识别名称，丢弃全部 AI 派生的高级设置，仅保留手动批量标签
+          const fields = {
             title,
-            desc: d.desc || '',
-            material_notes: d.material_notes || '',
-            material_link: d.material_link || '',
-            category_id: d.category_id || batchCat || null,
-            parent_category: d.parent_category || batchParent || '',
+            desc: '',
+            material_notes: '',
+            material_link: '',
+            category_id: batchCat || null,
+            parent_category: batchParent || '',
             is_template: this.folderType === 'template',
             is_collection: this.folderType === 'collection',
-            enable_remind: !!d.enable_remind,
-            remind_time: d.remind_time || '',
-            cycle: d.cycle || null,
-            cycle_end_date: d.cycle_end_date || '',
-            progress_info: d.progress_info,
-            isEmergency: !!d.isEmergency,
-          });
+            enable_remind: false,
+            remind_time: '',
+            cycle: null,
+            cycle_end_date: '',
+            progress_info: { enable: false, media_type: 'book', progress_value: '' },
+            isEmergency: false,
+            date_mode: 'single', plan_year: null, plan_month: null, plan_week: null,
+            execute_date: null, date_start: '', date_end: '', week_offset: null, time_mode: null,
+          };
           if (chain) {
             const r = this.$store.addTaskUnderLevel3(fields, chain);
             created.push(r.parentId);
