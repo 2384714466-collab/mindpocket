@@ -6088,6 +6088,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.draft.date_mode) return 'date';
         return '';
       },
+      // 只勾了提醒时刻、却没有具体日期 / 周期：手机端无从定时投递，就地提示，避免「设了提醒收不到」
+      remindUnschedulable() {
+        if (!this.draft.enable_remind) return false;
+        if (this.draft.cycle && this.draft.cycle.type) return false;
+        return !(this.draft.execute_date || this.draft.date_start);
+      },
     },
     methods: {
       // 周期类型：每天 → 二次确认转习惯；其余 → 设置周期并清空日期（二选一）
@@ -6335,6 +6341,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <!-- 提醒时刻：可选，两种模式通用 -->
               <label class="fld check"><input type="checkbox" v-model="draft.enable_remind" /> 提醒时刻（可选）</label>
               <label class="fld" v-if="draft.enable_remind">提醒时间<input type="time" v-model="draft.remind_time" /></label>
+              <p class="tip copy-lock-tip" v-if="remindUnschedulable">⚠️ 只设了提醒时刻、没有日期或周期，手机不会收到定时推送。请在上面补一个日期或周期。</p>
               <!-- 一键清除全部时间 -->
               <button class="btn clear-time" @click="clearTime">🧹 清除全部时间</button>
             </div>
@@ -10265,7 +10272,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         sync: { enabled: false, connected: false, lastSync: 0, lastError: '', busy: false, vaultId: '', rev: 0 },
         syncPass: '', syncToken: '', syncOwner: '', syncRepo: '', syncVaultId: '',
         // 手机提醒推送（P2）：状态
-        notifyStatus: { enabled: false, count: 0, lastScheduled: 0, lastError: '' },
+        notifyStatus: { enabled: false, count: 0, added: 0, pending: 0, noDate: 0, failed: 0, lastScheduled: 0, lastError: '' },
       };
     },
     mounted() {
@@ -10917,8 +10924,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (window.MPNotify) window.MPNotify.testPush();
         this.showToast('已发送测试推送，手机 ntfy 应收到');
       },
+      notifyTestDelay() {
+        if (window.MPNotify) window.MPNotify.testDelayed(60);
+        this.showToast('已提交定时推送，1 分钟后手机应收到（可关闭应用验证）');
+      },
       notifySchedule() {
-        if (window.MPNotify) { window.MPNotify.scheduleAll(); this.showToast('已重新安排提醒'); }
+        if (!window.MPNotify) return;
+        this.showToast('正在重新安排…');
+        window.MPNotify.scheduleAll().then((n) => {
+          const st = this.notifyStatus;
+          this.showToast('本次新增安排 ' + (n || 0) + ' 条' + (st.pending ? ('，待排队 ' + st.pending + ' 条') : '') + (st.lastError ? ('；错误：' + st.lastError) : ''));
+        });
       },
       notifyDisable() {
         this.$store.state.settings.notify.enabled = false;
@@ -11251,16 +11267,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
           </div>
           <div v-else class="sync-status">
-            <div class="sync-row"><span :class="['sync-dot', notifyStatus.enabled ? 'on' : 'off']"></span><span>已启用（ntfy） · 已安排未来 {{ notifyStatus.count }} 条提醒</span></div>
+            <div class="sync-row"><span :class="['sync-dot', notifyStatus.enabled ? 'on' : 'off']"></span><span>已启用（ntfy） · 服务端已受理 {{ notifyStatus.count }} 条定时提醒</span></div>
             <div class="sync-meta">
               <div>上次安排：{{ notifyStatus.lastScheduled ? new Date(notifyStatus.lastScheduled).toLocaleString() : '—' }}</div>
+              <div v-if="notifyStatus.pending">待排队 {{ notifyStatus.pending }} 条：ntfy 免费服务只接受 3 天内的定时消息，打开本应用时会自动补发</div>
+              <div v-if="notifyStatus.noDate">未能安排 {{ notifyStatus.noDate }} 条：这些任务勾了提醒时刻但没有执行日期/周期，无法定时，请补上日期</div>
               <div v-if="notifyStatus.lastError" class="sync-err">错误：{{ notifyStatus.lastError }}</div>
             </div>
             <div class="backup-actions">
               <button class="btn primary" @click="notifyTest">发送测试推送</button>
+              <button class="btn ghost" @click="notifyTestDelay">1 分钟后定时测试</button>
               <button class="btn ghost" @click="notifySchedule">立即重新安排</button>
               <button class="btn ghost" @click="notifyDisable">关闭</button>
             </div>
+            <p class="backup-note">收不到？① 手机 ntfy App 里确认已订阅下面这个主题；② 先点「发送测试推送」验证通道，再点「1 分钟后定时测试」验证定时；③ iOS 需在系统设置里允许 ntfy 通知与横幅。</p>
             <p class="backup-note">手机端：安装 ntfy App → 订阅主题 <code>{{ $store.state.settings.notify.server }}/{{ $store.state.settings.notify.topic }}</code></p>
           </div>
         </div>
@@ -13909,9 +13929,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    *  - ntfy 仅转发提醒标题，看不到完整数据；主题用随机串，不可猜测。*/
   (function () {
     'use strict';
-    var HORIZON = 30; // 预排未来天数
+    var HORIZON = 30;            // 扫描未来天数（超出投递窗口的只计数，不发送）
     var LS_KEY = 'mindpocket:notify:scheduled';
     var DEBOUNCE = 2000;
+    var TICK = 15 * 60 * 1000;   // 定时重排：把刚进入投递窗口的提醒补发出去
+    var MAX_PER_RUN = 60;        // 单轮最多发布条数，避免一次性刷爆服务端
+    var MIN_LEAD_MS = 15000;     // ntfy 最小延迟约 10s，留 15s 余量
 
     function cfg() { return (window.MPStore && window.MPStore.state.settings.notify) || { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' }; }
     function appUrl() {
@@ -13921,71 +13944,155 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return u.toString();
       } catch (e) { return location.origin + location.pathname; }
     }
-    function loadSet() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { return []; } }
-    function saveSet(a) { try { localStorage.setItem(LS_KEY, JSON.stringify(a)); } catch (e) {} }
+    function b64url(s) {
+      return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    // 幂等表 v2：绑定「服务器+主题」签名（换主题自动作废重发），且只记录服务端确认成功的消息，
+    // 失败的下一轮会自动重试（v1 是「先记账再发送」，一次失败即永久漏发，是本次没通知的元凶之一）
+    function sigOf(c) { return (c.server || '') + '|' + (c.topic || ''); }
+    function loadSet(sig) {
+      try {
+        var raw = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+        if (!raw || raw.v !== 2 || raw.sig !== sig) return [];
+        return raw.items || [];
+      } catch (e) { return []; }
+    }
+    function saveSet(sig, items) { try { localStorage.setItem(LS_KEY, JSON.stringify({ v: 2, sig: sig, items: items })); } catch (e) {} }
 
     var MPNotify = {
-      status: { enabled: false, count: 0, lastScheduled: 0, lastError: '' },
-      _cb: null, _timer: null, _deb: null,
+      status: { enabled: false, count: 0, added: 0, pending: 0, noDate: 0, failed: 0, lastScheduled: 0, lastError: '' },
+      _cb: null, _timer: null, _deb: null, _running: null, _again: false, _bound: false,
       onStatus: function (cb) { this._cb = cb; this._emit(); },
       _emit: function () { if (this._cb) this._cb(Object.assign({}, this.status)); },
       _set: function (p) { Object.assign(this.status, p); this._emit(); },
 
+      /* 以 JSON 形式 POST 到服务器根路径：
+       *  - 不带任何自定义请求头 → 浏览器不触发 CORS 预检，令牌走 ?auth= 查询参数；
+       *  - delay 必须是「Unix 秒 / 时长 / 自然语言」，ISO8601 会被 ntfy 判为 40004 直接丢弃。
+       * 返回 Promise<{ok, reason, err}>，调用方据此决定记账与重试。 */
       publish: function (title, date, time, msgId, immediate) {
-        var c = cfg(); if (!c.enabled) return false;
+        var c = cfg();
+        if (!c.enabled) return Promise.resolve({ ok: false, reason: 'off' });
+        if (!c.topic) return Promise.resolve({ ok: false, reason: 'off' });
         var when = null;
         if (!immediate) {
           when = new Date((date || '') + 'T' + (time || '09:00'));
-          if (isNaN(when.getTime()) || when.getTime() <= Date.now()) return false; // 过去不排
+          if (isNaN(when.getTime())) return Promise.resolve({ ok: false, reason: 'baddate' });
+          if (when.getTime() <= Date.now() + MIN_LEAD_MS) return Promise.resolve({ ok: false, reason: 'past' });
         }
-        if (!c.topic) return false;
         var server = (c.server || 'https://ntfy.sh').replace(/\/+$/, '');
-        var url = server + '/' + encodeURIComponent(c.topic);
-        var h = { 'Title': 'MindPocket', 'Tags': 'alarm,calendar', 'Priority': 'default', 'Message-ID': msgId, 'Click': appUrl() };
-        if (!immediate) h['Delay'] = when.toISOString();
-        if (c.token) h['Authorization'] = 'Bearer ' + c.token;
-        fetch(url, { method: 'POST', headers: h, body: title + (time ? (' ｜ ' + time) : '') })
-          .then(function (r) { if (!r.ok) throw new Error('ntfy ' + r.status); })
-          .catch(function (e) { MPNotify._set({ lastError: String(e && e.message ? e.message : e) }); });
-        return true;
+        var url = server + '/';
+        if (c.token) { try { url += '?auth=' + b64url('Bearer ' + c.token); } catch (e) {} }
+        var body = {
+          topic: c.topic,
+          title: immediate ? '🔔 MindPocket' : ('⏰ ' + (title || '提醒')),
+          message: immediate ? (title || '测试推送') : (((date || '') + ' ' + (time || '')).trim() + ' 提醒时间到'),
+          tags: ['alarm'],
+          priority: 4,
+          click: appUrl(),
+        };
+        if (!immediate) body.delay = String(Math.floor(when.getTime() / 1000));
+        return fetch(url, { method: 'POST', body: JSON.stringify(body) })
+          .then(function (r) {
+            return r.text().then(function (txt) {
+              if (r.ok) return { ok: true };
+              var code = 0; try { code = (JSON.parse(txt) || {}).code || 0; } catch (e) {}
+              // 40006 = 延迟超出服务端上限（ntfy.sh 免费服务为 3 天）：不算失败，等进入窗口再发
+              if (code === 40006) return { ok: false, reason: 'window' };
+              return { ok: false, reason: 'http', err: 'ntfy ' + r.status + (txt ? ' ' + txt.slice(0, 120) : '') };
+            });
+          })
+          .catch(function (e) { return { ok: false, reason: 'net', err: String(e && e.message ? e.message : e) }; });
       },
 
       scheduleAll: function () {
-        var c = cfg(); if (!c.enabled) { this._set({ enabled: false }); return 0; }
+        var self = this;
+        var c = cfg();
+        if (!c.enabled || !c.topic) { this._set({ enabled: false }); return Promise.resolve(0); }
+        if (this._running) { this._again = true; return this._running; }
         var U = window.MPStore.util; var today = U.todayStr(); var end = U.addDays(today, HORIZON);
-        var kept = loadSet().filter(function (x) { return x.date >= today; });
+        var sig = sigOf(c);
+        var kept = loadSet(sig).filter(function (x) { return x.date >= today; });
         var seen = {}; kept.forEach(function (x) { seen[x.id] = true; });
-        var added = 0;
-        function tryPush(id, date, time, title) {
-          if (date < today || date > end) return;
+
+        // 1) 汇总候选（本轮去重、剔除已过期），按时间升序，近的先发
+        var jobs = [];
+        function collect(id, date, time, title) {
+          if (!date || date < today || date > end) return;
           var mid = 'mp-' + id + '-' + date + '-' + time;
           if (seen[mid]) return;
-          if (MPNotify.publish(title, date, time, mid, false)) { kept.push({ id: mid, date: date }); seen[mid] = true; added++; }
+          seen[mid] = true;
+          var ts = new Date(date + 'T' + (time || '09:00')).getTime();
+          if (isNaN(ts) || ts <= Date.now() + MIN_LEAD_MS) return;
+          jobs.push({ mid: mid, date: date, time: time, title: title, ts: ts });
         }
         var tasks = window.MPStore.state.tasks || [];
+        var noDate = 0;
         for (var i = 0; i < tasks.length; i++) {
           var t = tasks[i]; if (t.is_archived) continue;
           if (t.enable_remind && t.remind_time) {
             if (t.cycle && t.cycle.type && t.cycle.type !== 'none') {
-              var ds = today; while (ds <= end) { if (U.cycleHits(t.cycle, ds)) tryPush(t._id, ds, t.remind_time, t.title); ds = U.addDays(ds, 1); }
-            } else if (t.execute_date) { tryPush(t._id, t.execute_date, t.remind_time, t.title); }
+              var ds = today; while (ds <= end) { if (U.cycleHits(t.cycle, ds)) collect(t._id, ds, t.remind_time, t.title); ds = U.addDays(ds, 1); }
+            } else {
+              // 无执行日期时回落到区间起始日，避免「设了提醒却永远排不上」；仍无日期则计数提示用户
+              var d0 = t.execute_date || t.date_start || '';
+              if (d0) collect(t._id, d0, t.remind_time, t.title); else noDate++;
+            }
           }
           var subs = t.sub_tasks || [];
           for (var j = 0; j < subs.length; j++) {
             var s = subs[j]; if (s.is_done) continue;
-            if (s.sub_remind && s.sub_remind_time && s.sub_deadline) tryPush(t._id + ':' + s._id, s.sub_deadline, s.sub_remind_time, (t.title || '') + ' / ' + (s.title || ''));
+            if (s.sub_remind && s.sub_remind_time && s.sub_deadline) collect(t._id + ':' + s._id, s.sub_deadline, s.sub_remind_time, (t.title || '') + ' / ' + (s.title || ''));
           }
         }
-        saveSet(kept);
-        this._set({ enabled: true, count: kept.length, lastScheduled: Date.now(), lastError: '' });
-        return added;
+        jobs.sort(function (a, b) { return a.ts - b.ts; });
+
+        // 2) 顺序发布；一旦触到服务端延迟上限，后面（更远）的必然也超窗，直接留到下一轮
+        var pending = 0, failed = 0, lastErr = '', added = 0, idx = 0, windowFull = false;
+        function step() {
+          if (idx >= jobs.length) return Promise.resolve();
+          if (windowFull || added >= MAX_PER_RUN) { pending += (jobs.length - idx); idx = jobs.length; return Promise.resolve(); }
+          var j = jobs[idx++];
+          return self.publish(j.title, j.date, j.time, j.mid, false).then(function (r) {
+            if (r.ok) { kept.push({ id: j.mid, date: j.date }); added++; }
+            else if (r.reason === 'window') { windowFull = true; pending++; }
+            else if (r.reason === 'http' || r.reason === 'net') { failed++; lastErr = r.err || '推送失败'; }
+            return step();
+          });
+        }
+        this._running = step().then(function () {
+          saveSet(sig, kept);
+          self._set({
+            enabled: true, count: kept.length, added: added, pending: pending,
+            noDate: noDate, failed: failed, lastScheduled: Date.now(),
+            lastError: failed ? lastErr : '',
+          });
+          self._running = null;
+          if (self._again) { self._again = false; return self.scheduleAll(); }
+          return added;
+        });
+        return this._running;
       },
 
       testPush: function () {
         var c = cfg(); if (!c.enabled) { this._set({ lastError: '请先启用提醒推送' }); return; }
         if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
-        this.publish('这是一条测试提醒（应立即送达）', null, null, 'mp-test-' + Date.now(), true);
-        this._set({ lastError: '' });
+        var self = this;
+        this.publish('这是一条测试提醒（应立即送达）', null, null, 'mp-test-' + Date.now(), true)
+          .then(function (r) { self._set({ lastError: r.ok ? '' : (r.err || '推送失败') }); });
+      },
+
+      // 定时链路自检：60 秒后由服务端投递，用来验证「关闭应用也能准时收到」
+      testDelayed: function (sec) {
+        var c = cfg(); if (!c.enabled) { this._set({ lastError: '请先启用提醒推送' }); return; }
+        if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
+        var self = this;
+        var d = new Date(Date.now() + (sec || 60) * 1000);
+        var p2 = function (n) { return ('0' + n).slice(-2); };
+        var date = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+        var time = p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+        this.publish('定时推送自检', date, time, 'mp-testdelay-' + Date.now(), false)
+          .then(function (r) { self._set({ lastError: r.ok ? '' : (r.err || '定时推送被服务端拒绝') }); });
       },
 
       onChange: function () {
@@ -13997,8 +14104,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       init: function () {
         var c = cfg();
-        if (c.enabled && c.topic) { this.scheduleAll(); if (!this._timer) this._timer = setInterval(function () { MPNotify.scheduleAll(); }, 3600000); this._set({ enabled: true }); }
-        else this._set({ enabled: false });
+        if (c.enabled && c.topic) {
+          this.scheduleAll();
+          if (!this._timer) this._timer = setInterval(function () { MPNotify.scheduleAll(); }, TICK);
+          this._set({ enabled: true });
+        } else this._set({ enabled: false });
+        if (!this._bound) {
+          this._bound = true;
+          // 回到前台 / 网络恢复时补排：把已进入投递窗口、或上一轮失败的提醒重新发出去
+          document.addEventListener('visibilitychange', function () { if (!document.hidden) MPNotify.onChange(); });
+          window.addEventListener('online', function () { MPNotify.onChange(); });
+        }
       },
     };
 
