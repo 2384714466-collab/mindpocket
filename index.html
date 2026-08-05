@@ -5043,6 +5043,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const nthWeekday = (wd, weeks) => ymd(new Date(parseDate(nextWeekday(wd)).getTime() + weeks * 7 * 86400000));
     // 统一固定输出结构（与手动新建任务表单字段对齐；无法识别默认置空）
     const result = {
+      raw: text.trim(), // 原始输入行（未做任何剥离）；批量(>1)模式直接作为任务名称，避免拆解时间/地点词块
       title: t, desc: '', material_notes: '', material_link: '',
       category_id: null, parent_category: '', tags: '',
       date_mode: '', plan_year: null, plan_month: null,
@@ -9073,8 +9074,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const cat = (window.MPStore.state.categories || []).find(x => x._id === it.category_id);
           if (cat) { parsedTags = [{ l1: { _id: cat._id, name: cat.name }, l2: null }]; tagInput = '#' + cat.name; }
         }
+        // 名称来源：批量(>1)模式直接采用原始输入行（raw），不剥离时间/地点词块；
+        //          单条模式沿用 AI 提炼后的核心标题（it.title）
+        const rawTitle = (it.raw || it.title || '').trim();
+        const aiTitle = (it.title || '').trim();
         return {
-          title: (it.title || '').trim() || '未命名任务',
+          title: (isSingle ? aiTitle : rawTitle) || '未命名任务',
           desc: it.desc || '',
           material_notes: it.material_notes || '',
           material_link: it.material_link || '',
