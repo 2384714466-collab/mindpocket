@@ -39,10 +39,11 @@ self.addEventListener('fetch', (event) => {
       fetch(req)
         .then((res) => {
           const cp = res.clone();
-          caches.open(CACHE).then((c) => c.put('./index.html', cp)).catch(() => {});
+          // 按真实请求 URL 缓存（含子路径根地址），确保离线导航精确命中
+          caches.open(CACHE).then((c) => c.put(req, cp)).catch(() => {});
           return res;
         })
-        .catch(() => caches.match('./index.html').then((r) => r || caches.match('./')))
+        .catch(() => caches.match(req).then((r) => r || caches.match('./index.html')).then((r) => r || caches.match('./')))
     );
     return;
   }
