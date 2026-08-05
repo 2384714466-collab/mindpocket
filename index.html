@@ -13469,6 +13469,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         ];
       },
     },
+    watch: {
+      // 切换 Tab / 路由后界面回到顶部：各 Tab 独立滚动位置，避免「统计滑到底、切回今日也到底」的串台问题
+      route() {
+        this.$nextTick(() => {
+          const main = this.$el && this.$el.querySelector ? this.$el.querySelector('.app-main') : null;
+          if (main) main.scrollTop = 0;          // 兜底：若 .app-main 本身是滚动容器
+          window.scrollTo(0, 0);                 // 主滚动容器为 window/body 时的复位
+        });
+      },
+    },
     methods: {
       go(path) { location.hash = path; },
       onHash() {
