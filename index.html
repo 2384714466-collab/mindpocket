@@ -59,6 +59,7 @@ body {
 /* ---------- 多端同步（P1） ---------- */
 .sync-form { display: flex; flex-direction: column; gap: 8px; }
 .sync-form label { font-size: 12px; color: var(--sub); }
+.sync-form label.radio { display: inline-flex; align-items: center; gap: 4px; color: var(--text); }
 .sync-form input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width: 100%; box-sizing: border-box; }
 .sync-repo { display: flex; align-items: center; gap: 6px; }
 .sync-repo input { flex: 1; min-width: 0; }
@@ -1308,6 +1309,84 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-tpl-btns { display: flex; flex-direction: column; gap: 6px; }
 .wp-tpl-btn { width: 100%; text-align: left; background: #f0f3ff; color: var(--primary); border: 1px solid #dde4ff; border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .wp-tpl-btn:active { background: #e6ecff; }
+
+/* =========================================================================
+ * P3 · 响应式：平板 / 横屏 / PC
+ * 默认（手机 ≤480）：max-width 480，底部导航（保持现状）
+ * ≥481（平板竖屏 / 大屏手机）：取消 480 限制，底部导航满宽
+ * ≥820（PC / 横屏平板）：左侧导航栏 + 居中宽内容列 + 弹窗居中
+ * ========================================================================= */
+
+/* 平板竖屏 / 大屏手机：去掉 480 限制，底部导航跟随视口宽度 */
+@media (min-width: 481px) {
+  .app-shell { max-width: none; }
+  .app-nav { max-width: none; }
+}
+
+/* PC / 横屏平板：左侧导航栏 + 居中宽内容 */
+@media (min-width: 820px) {
+  .app-shell {
+    max-width: 1200px;
+    flex-direction: row;
+    align-items: stretch;
+    min-height: 100vh;
+  }
+  .app-nav {
+    order: -1;                 /* 移到最左作为侧栏 */
+    position: sticky;
+    top: 0;
+    left: auto;
+    transform: none;
+    width: 220px;
+    max-width: 220px;
+    height: 100vh;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 20px 12px;
+    border-top: none;
+    border-right: 1px solid var(--line);
+    box-shadow: 4px 0 18px rgba(40, 50, 90, .04);
+  }
+  .app-nav::before {
+    content: '\1F4CB MindPocket';
+    display: block;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    padding: 4px 14px 18px;
+    white-space: nowrap;
+  }
+  .app-nav button {
+    flex: none;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 12px;
+    color: var(--sub);
+  }
+  .app-nav button.on { background: rgba(91, 108, 255, .12); color: var(--primary); }
+  .app-nav .nav-ico { font-size: 19px; }
+  .app-nav .nav-txt { font-size: 14px; }
+
+  .app-main {
+    flex: 1;
+    min-width: 0;
+    padding: 28px 32px 56px;
+  }
+  /* 宽屏下单列内容居中，避免过长行；最大 900px 保证可读性 */
+  .app-main > * { max-width: 900px; margin-left: auto; margin-right: auto; }
+
+  /* 弹窗在桌面端居中显示（而非底部抽屉） */
+  .modal-mask { align-items: center; padding: 24px; }
+  .modal { max-width: 560px; border-radius: 18px; margin: auto; }
+  .modal-lg { max-width: 820px; }
+
+  #install-pill { bottom: 24px; }
+}
 </style>
 </head>
 <body>
@@ -11129,9 +11208,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <!-- 手机提醒推送（P2：ntfy 延迟消息） -->
       <section class="block">
-        <h3 class="block-title">🔔 手机提醒推送（ntfy）</h3>
+        <h3 class="block-title">🔔 手机提醒推送</h3>
         <div class="backup-box">
-          <p class="backup-note">任务到点时，手机 <b>ntfy App 弹窗 + 铃声 + 震动</b>。应用把提醒作为「延迟消息」发给 ntfy（免费、iOS/安卓均有官方 App），手机订阅主题即收。ntfy 只转发提醒标题，看不到完整数据。</p>
+          <p class="backup-note">任务到点时手机弹窗 + 铃声 + 震动（通过 ntfy 免费服务，iOS/安卓装 ntfy App 订阅主题即可）。ntfy 服务器持有延迟消息，<b>即使本应用已关闭也会准时送达</b>。</p>
           <div v-if="!notifyStatus.enabled" class="sync-form">
             <label>ntfy 服务器（默认 ntfy.sh；国内可填可达的镜像或自托管地址）</label>
             <input v-model="$store.state.settings.notify.server" placeholder="https://ntfy.sh" />
@@ -11145,7 +11224,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
           </div>
           <div v-else class="sync-status">
-            <div class="sync-row"><span :class="['sync-dot', notifyStatus.enabled ? 'on' : 'off']"></span><span>已启用 · 已安排未来 {{ notifyStatus.count }} 条提醒</span></div>
+            <div class="sync-row"><span :class="['sync-dot', notifyStatus.enabled ? 'on' : 'off']"></span><span>已启用（ntfy） · 已安排未来 {{ notifyStatus.count }} 条提醒</span></div>
             <div class="sync-meta">
               <div>上次安排：{{ notifyStatus.lastScheduled ? new Date(notifyStatus.lastScheduled).toLocaleString() : '—' }}</div>
               <div v-if="notifyStatus.lastError" class="sync-err">错误：{{ notifyStatus.lastError }}</div>
@@ -13816,12 +13895,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       _set: function (p) { Object.assign(this.status, p); this._emit(); },
 
       publish: function (title, date, time, msgId, immediate) {
-        var c = cfg(); if (!c.enabled || !c.topic) return false;
+        var c = cfg(); if (!c.enabled) return false;
         var when = null;
         if (!immediate) {
           when = new Date((date || '') + 'T' + (time || '09:00'));
           if (isNaN(when.getTime()) || when.getTime() <= Date.now()) return false; // 过去不排
         }
+        if (!c.topic) return false;
         var server = (c.server || 'https://ntfy.sh').replace(/\/+$/, '');
         var url = server + '/' + encodeURIComponent(c.topic);
         var h = { 'Title': 'MindPocket', 'Tags': 'alarm,calendar', 'Priority': 'default', 'Message-ID': msgId, 'Click': appUrl() };
@@ -13834,7 +13914,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
 
       scheduleAll: function () {
-        var c = cfg(); if (!c.enabled || !c.topic) { this._set({ enabled: false }); return 0; }
+        var c = cfg(); if (!c.enabled) { this._set({ enabled: false }); return 0; }
         var U = window.MPStore.util; var today = U.todayStr(); var end = U.addDays(today, HORIZON);
         var kept = loadSet().filter(function (x) { return x.date >= today; });
         var seen = {}; kept.forEach(function (x) { seen[x.id] = true; });
@@ -13865,7 +13945,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
 
       testPush: function () {
-        var c = cfg(); if (!c.enabled || !c.topic) { this._set({ lastError: '请先启用并填写主题' }); return; }
+        var c = cfg(); if (!c.enabled) { this._set({ lastError: '请先启用提醒推送' }); return; }
+        if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
         this.publish('这是一条测试提醒（应立即送达）', null, null, 'mp-test-' + Date.now(), true);
         this._set({ lastError: '' });
       },
