@@ -56,6 +56,22 @@ body {
 .backup-note b { color: var(--no); }
 .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 
+/* ---------- 多端同步（P1） ---------- */
+.sync-form { display: flex; flex-direction: column; gap: 8px; }
+.sync-form label { font-size: 12px; color: var(--sub); }
+.sync-form input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 14px; width: 100%; box-sizing: border-box; }
+.sync-repo { display: flex; align-items: center; gap: 6px; }
+.sync-repo input { flex: 1; min-width: 0; }
+.sync-slash { color: var(--sub); }
+.sync-status { display: flex; flex-direction: column; gap: 10px; }
+.sync-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+.sync-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.sync-dot.on { background: var(--ok); }
+.sync-dot.off { background: var(--no); }
+.sync-meta { font-size: 12px; color: var(--sub); display: flex; flex-direction: column; gap: 2px; }
+.sync-err { color: var(--no); word-break: break-all; }
+.sync-status code { font-size: 11px; word-break: break-all; background: #f0f1f6; padding: 2px 4px; border-radius: 4px; }
+
 /* ---------- 列表 / 行 ---------- */
 .list { display: flex; flex-direction: column; gap: 8px; }
 .row { display: flex; align-items: center; gap: 10px; background: #fafbff; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; }
@@ -1504,6 +1520,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }));
     } catch (e) { console.error('[MP] persist failed', e); }
     notifyChange(); // 数据落盘即广播全局刷新（revision++），所有监听页面自动重载
+    // 同步钩子：若已启用多端同步，本地变更后安排一次推送（P1）
+    if (window.MPSync && window.MPSync.onChange) { try { window.MPSync.onChange(); } catch (_) {} }
   }
   // 全局刷新通知：自增响应式版本号，供各页面 watch 监听后主动重载数据
   function notifyChange() { state.revision = (state.revision || 0) + 1; }
@@ -10131,6 +10149,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         showProjEdit: false, editPid: null,
         // 演示数据模式（本地持久化）
         demoMode: (() => { try { return localStorage.getItem('mindpocket:demoMode') === '1'; } catch (e) { return false; } })(),
+        // 多端同步（P1）：状态 + 表单字段
+        sync: { enabled: false, connected: false, lastSync: 0, lastError: '', busy: false, vaultId: '', rev: 0 },
+        syncPass: '', syncToken: '', syncOwner: '', syncRepo: '', syncVaultId: '',
       };
     },
     mounted() {
@@ -10144,9 +10165,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       } catch (e) {}
       if (!this.chartHabitId && this.habits.length) this.chartHabitId = this.habits[0]._id;
       // 板块折叠状态：每次进入页面强制默认展开（全局规则），不读取本地缓存
+      // 多端同步：绑定状态到 UI，并预填已保存的配置（口令不回显）
+      if (window.MPSync) {
+        this.syncVaultId = window.MPSync.cfg.vaultId || '';
+        this.syncToken = window.MPSync.cfg.token || '';
+        this.syncOwner = window.MPSync.cfg.owner || '';
+        this.syncRepo = window.MPSync.cfg.repo || '';
+        window.MPSync.onStatus((s) => { this.sync = Object.assign({}, this.sync, s); });
+      }
     },
     computed: {
       today() { return this.$store.util.todayStr(); },
+      shareLinkText() { return (window.MPSync && this.sync.vaultId) ? window.MPSync.shareLink() : ''; },
       habits() { return this.$store.state.habits.filter(h => !h.is_archived); }, // 统计下拉仅展示未归档活跃习惯
       monthGrid() {
         const first = new Date(this.year, this.month - 1, 1);
@@ -10722,6 +10752,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         reader.onerror = () => { this.showToast('读取文件失败'); };
         reader.readAsText(file);
       },
+      // —— 多端同步（P1：GitHub 仓库当后端 + 端到端加密）——
+      syncEnable() {
+        if (!this.syncPass || !this.syncToken) { this.showToast('请填写同步口令与 GitHub 令牌'); return; }
+        if (!window.MPSync) { this.showToast('同步引擎未加载'); return; }
+        const vaultId = (this.syncVaultId && this.syncVaultId.trim()) ? this.syncVaultId.trim() : (window.MPSync.cfg.vaultId || '');
+        window.MPSync.enable({
+          vaultId: vaultId,
+          token: this.syncToken.trim(),
+          owner: (this.syncOwner || '').trim(),
+          repo: (this.syncRepo || '').trim(),
+          passphrase: this.syncPass,
+        });
+        this.syncPass = ''; // 口令不留在内存表单
+        this.showToast('已启用多端同步');
+      },
+      syncNow() {
+        if (!window.MPSync) return;
+        this.showToast('已触发同步');
+        window.MPSync.pull().then(() => window.MPSync.push());
+      },
+      syncCopy() {
+        if (!window.MPSync) return;
+        const l = window.MPSync.shareLink();
+        try { if (navigator.clipboard) navigator.clipboard.writeText(l); } catch (_) {}
+        this.showToast('分享链接已复制');
+      },
+      syncDisable() {
+        if (window.MPSync) window.MPSync.disable();
+        this.showToast('已断开同步');
+      },
       // 按月缓存：页面打开直接读 localStorage，避免每次加载都重算；↻ 强制刷新
       loadHealth(force) {
         const ym = this.year + '-' + String(this.month).padStart(2, '0');
@@ -10985,6 +11045,46 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button class="btn primary" @click="exportBackup">⬇ 导出备份</button>
             <button class="btn ghost" @click="importBackup">⬆ 导入备份</button>
             <input ref="backupFile" type="file" accept="application/json,.json" hidden @change="onBackupFile" />
+          </div>
+        </div>
+      </section>
+
+      <!-- 多端同步（P1：GitHub 仓库当后端 + 端到端加密） -->
+      <section class="block">
+        <h3 class="block-title">☁ 多端同步（同一份数据）</h3>
+        <div class="backup-box">
+          <p class="backup-note">把加密后的数据存到你的 GitHub 私有仓库。手机 / 平板 / 电脑打开<b>同一链接 + 口令</b>即共享同一份数据，约 15 秒自动同步。数据经<b>同步口令端到端加密</b>，GitHub 只看到密文。</p>
+
+          <div v-if="!sync.enabled" class="sync-form">
+            <label>同步口令（各设备一致，用于加解密）</label>
+            <input type="password" v-model="syncPass" placeholder="自设一个强口令，其他设备也要输同样的" />
+            <label>GitHub 令牌（细粒度 PAT，仅限 mindpocket-vaults 仓库 Contents 读写）</label>
+            <input type="password" v-model="syncToken" placeholder="ghp_... 或 github_pat_..." />
+            <div class="sync-repo">
+              <input v-model="syncOwner" placeholder="owner" />
+              <span class="sync-slash">/</span>
+              <input v-model="syncRepo" placeholder="repo" />
+            </div>
+            <label>保险库 ID（留空自动生成；分享链接里已携带）</label>
+            <input v-model="syncVaultId" placeholder="留空自动生成" />
+            <button class="btn primary" @click="syncEnable">启用并连接</button>
+          </div>
+
+          <div v-else class="sync-status">
+            <div class="sync-row">
+              <span :class="['sync-dot', sync.connected ? 'on' : 'off']"></span>
+              <span>{{ sync.connected ? '已连接' : '未连接' }} · 版本 rev {{ sync.rev }} · {{ sync.busy ? '同步中…' : '空闲' }}</span>
+            </div>
+            <div class="sync-meta">
+              <div>上次同步：{{ sync.lastSync ? new Date(sync.lastSync).toLocaleString() : '—' }}</div>
+              <div v-if="sync.lastError" class="sync-err">错误：{{ sync.lastError }}</div>
+            </div>
+            <div class="backup-actions">
+              <button class="btn primary" @click="syncNow">立即同步</button>
+              <button class="btn ghost" @click="syncCopy">复制分享链接</button>
+              <button class="btn ghost" @click="syncDisable">断开</button>
+            </div>
+            <p class="backup-note">分享链接：<code>{{ shareLinkText }}</code><br/>其他设备打开此链接 + 输入同一口令与令牌即可加入。</p>
           </div>
         </div>
       </section>
@@ -13446,7 +13546,172 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   window.addEventListener('appinstalled', function () { if (pill) pill.hidden = true; });
 })();
 
+  </script>
+  <script>
+  /* ===== 多端同步引擎（P1：GitHub 仓库当后端 + 端到端加密） =====
+   * 模型：单一共享保险库（vault），由「保险库 ID + 同步口令」共同定位与解密。
+   *  - 数据在浏览器内用 AES-GCM 加密（口令经 PBKDF2 派生密钥），GitHub 仅存密文。
+   *  - 乐观锁：用 GitHub 文件 blob 的 SHA 做并发控制，冲突时拉取最新后以本地为准重试一次（个人使用，最后写入胜出）。
+   *  - 实时性：本地变更防抖后推送；每 15 秒轮询一次远端变更。
+   * 浏览器侧仅持有「仅限 mindpocket-vaults 仓库的细粒度 PAT」，不暴露任何仓库无关凭据。*/
+  (function () {
+    'use strict';
+    var API = 'https://api.github.com';
+    var DEFAULT_OWNER = '2384714466-collab';
+    var DEFAULT_REPO = 'mindpocket-vaults';
+    var LS_KEY = 'mindpocket:sync';
+    var POLL_MS = 15000;
+    var PUSH_DEBOUNCE = 1500;
 
+    function b64from(bytes) { var s = ''; for (var i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]); return btoa(s); }
+    function bytesFromB64(b64) { var bin = atob(b64), out = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+    function randHex(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+
+    function deriveKey(pass, salt) {
+      return crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey'])
+        .then(function (km) { return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: salt, iterations: 100000, hash: 'SHA-256' }, km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']); });
+    }
+    function encryptState(obj, pass) {
+      var salt = crypto.getRandomValues(new Uint8Array(16));
+      var iv = crypto.getRandomValues(new Uint8Array(12));
+      return deriveKey(pass, salt).then(function (key) {
+        return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+      }).then(function (ct) {
+        return { v: 1, rev: 0, salt: b64from(salt), iv: b64from(iv), ct: b64from(new Uint8Array(ct)) };
+      });
+    }
+    function decryptState(blob, pass) {
+      return deriveKey(pass, bytesFromB64(blob.salt)).then(function (key) {
+        return crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytesFromB64(blob.iv) }, key, bytesFromB64(blob.ct));
+      }).then(function (pt) { return JSON.parse(new TextDecoder().decode(pt)); });
+    }
+
+    var MPSync = {
+      cfg: null,
+      status: { enabled: false, connected: false, lastSync: 0, lastError: '', busy: false, vaultId: '', rev: 0 },
+      _statusCb: null, _timer: null, _pushTimer: null, _applying: false, _lastSha: null,
+
+      _emit: function () { this.status.vaultId = this.cfg ? this.cfg.vaultId : ''; if (this._statusCb) this._statusCb(Object.assign({}, this.status)); },
+      onStatus: function (cb) { this._statusCb = cb; this._emit(); },
+      _set: function (p) { Object.assign(this.status, p); this._emit(); },
+
+      load: function () {
+        try { this.cfg = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) { this.cfg = null; }
+        if (!this.cfg) this.cfg = { vaultId: '', token: '', owner: DEFAULT_OWNER, repo: DEFAULT_REPO, passphrase: '', enabled: false };
+        try { var q = new URLSearchParams(location.search); var v = q.get('vault'); if (v) this.cfg.vaultId = v; } catch (e) {}
+        if (!this.cfg.owner) this.cfg.owner = DEFAULT_OWNER;
+        if (!this.cfg.repo) this.cfg.repo = DEFAULT_REPO;
+        this.status.enabled = !!(this.cfg.enabled && this.cfg.token && this.cfg.passphrase && this.cfg.vaultId);
+        return this.status.enabled;
+      },
+      save: function () { try { localStorage.setItem(LS_KEY, JSON.stringify(this.cfg)); } catch (e) {} this._emit(); },
+      path: function () { return 'vaults/' + this.cfg.vaultId + '.json'; },
+      api: function (method, body) {
+        var url = API + '/repos/' + this.cfg.owner + '/' + this.cfg.repo + '/contents/' + encodeURIComponent(this.path());
+        var opt = { method: method, headers: { 'Authorization': 'Bearer ' + this.cfg.token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' } };
+        if (body) opt.body = JSON.stringify(body);
+        return fetch(url, opt);
+      },
+
+      pull: function () {
+        var self = this;
+        if (!this.status.enabled) return Promise.resolve(false);
+        this._set({ busy: true });
+        return this.api('GET').then(function (r) {
+          if (r.status === 404) { self._set({ busy: false, connected: true, lastSync: Date.now(), lastError: '' }); return null; }
+          if (!r.ok) return r.text().then(function (t) { throw new Error('pull ' + r.status + ' ' + t); });
+          return r.json();
+        }).then(function (meta) {
+          if (!meta) return false;
+          var raw = atob(meta.content.replace(/\s/g, ''));
+          var bin = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) bin[i] = raw.charCodeAt(i);
+          var wrapper = JSON.parse(new TextDecoder().decode(bin));
+          if (wrapper.rev === self.status.rev) { self._set({ busy: false, connected: true, lastSync: Date.now(), lastError: '' }); return false; }
+          return decryptState(wrapper, self.cfg.passphrase).then(function (stateObj) {
+            self._applying = true;
+            try { window.MPStore.importAll(stateObj); } catch (e) { console.error('[MPSync] import failed', e); }
+            self._applying = false;
+            self.status.rev = wrapper.rev; self._lastSha = meta.sha;
+            self._set({ busy: false, connected: true, lastSync: Date.now(), lastError: '' });
+            return true;
+          });
+        }).catch(function (err) {
+          self._set({ busy: false, connected: false, lastError: String(err && err.message ? err.message : err) });
+          return false;
+        });
+      },
+
+      push: function () {
+        var self = this;
+        if (!this.status.enabled || this._applying) return Promise.resolve(false);
+        this._set({ busy: true });
+        var stateObj; try { stateObj = JSON.parse(window.MPStore.exportAll()); } catch (e) { this._set({ busy: false }); return Promise.resolve(false); }
+        return encryptState(stateObj, this.cfg.passphrase).then(function (wrapper) {
+          wrapper.rev = (self.status.rev || 0) + 1;
+          var content = b64from(new TextEncoder().encode(JSON.stringify(wrapper)));
+          var body = { message: 'mindpocket sync rev ' + wrapper.rev, content: content, branch: 'main' };
+          if (self._lastSha) body.sha = self._lastSha;
+          return self.api('PUT', body).then(function (r) {
+            if (r.status === 409) return self.pull().then(function () { return self.push(); }); // 冲突：拉最新后重试一次
+            if (!r.ok) return r.text().then(function (t) { throw new Error('push ' + r.status + ' ' + t); });
+            return r.json();
+          }).then(function (meta) {
+            if (meta && meta.content) self._lastSha = meta.content.sha;
+            self.status.rev = wrapper.rev;
+            self._set({ busy: false, connected: true, lastSync: Date.now(), lastError: '' });
+            return true;
+          });
+        }).catch(function (err) {
+          self._set({ busy: false, connected: false, lastError: String(err && err.message ? err.message : err) });
+          return false;
+        });
+      },
+
+      onChange: function () {
+        if (!this.status.enabled || this._applying) return;
+        var self = this;
+        if (this._pushTimer) clearTimeout(this._pushTimer);
+        this._pushTimer = setTimeout(function () { self.push(); }, PUSH_DEBOUNCE);
+      },
+
+      start: function () {
+        var self = this;
+        if (this._timer) return;
+        this._timer = setInterval(function () { self.pull(); }, POLL_MS);
+        this.pull().then(function () { self.push(); });
+      },
+      stop: function () { if (this._timer) { clearInterval(this._timer); this._timer = null; } },
+
+      enable: function (opts) {
+        if (!window.crypto || !crypto.subtle) { this._set({ lastError: '同步需要 https 安全环境' }); return null; }
+        Object.assign(this.cfg, opts);
+        this.cfg.enabled = true;
+        if (!this.cfg.vaultId) this.cfg.vaultId = randHex(16);
+        this._lastSha = null;
+        this.status.enabled = true;
+        this.save();
+        try { var u = new URL(location.href); u.searchParams.set('vault', this.cfg.vaultId); history.replaceState(null, '', u.toString()); } catch (e) {}
+        this._emit();
+        this.start();
+        return this.cfg.vaultId;
+      },
+      disable: function () {
+        this.stop(); this.cfg.enabled = false; this._lastSha = null; this.save();
+        this._set({ enabled: false, connected: false, busy: false });
+      },
+      shareLink: function () {
+        try { var u = new URL(location.href); u.searchParams.set('vault', this.cfg.vaultId); return u.toString(); }
+        catch (e) { return location.origin + location.pathname + '?vault=' + this.cfg.vaultId; }
+      },
+    };
+
+    // 自初始化：读配置 + URL，若已完整配置则自动连接
+    (function () {
+      var autostart = MPSync.load();
+      window.MPSync = MPSync;
+      if (autostart) { MPSync._emit(); MPSync.start(); }
+    })();
+  })();
   </script>
 </body>
 </html>
