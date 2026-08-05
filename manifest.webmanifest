@@ -1,0 +1,20 @@
+{
+  "name": "MindPocket 随身口袋",
+  "short_name": "MindPocket",
+  "description": "个人长期使用的任务 / 习惯 / 项目 / 许愿管理工具，单文件离线可用。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f5f6fa",
+  "theme_color": "#5b6cff",
+  "icons": [
+    {
+      "src": "./assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
