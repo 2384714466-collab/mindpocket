@@ -9505,7 +9505,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 一级标签（仅展示本文件夹范围内、含在册任务的一级分类）
       folderTopCats() {
         if (!this.folderView) return [];
-        if (this.folderView === 'collection') return this.collectionCats;   // 好物/影片/书籍/旅游 直接作为一级
+        if (this.folderView === 'collection') {
+          // 收藏夹任务可能引用「普通一级分类」（如悬浮球 AI 批量归属标签创建的标签，未必带 is_collection 标记）；
+          // 只要被任一收藏夹任务引用，就作为一级分组展示，避免任务 / 标签在待归档「消失」。
+          const used = new Set();
+          this.folderScopeTasks.forEach(t => {
+            if (!t.category_id) return;
+            const c = this.categories.find(x => x._id === t.category_id);
+            if (c) used.add(c.parent || c._id);
+          });
+          const usedCats = this.categories.filter(c => !c.parent && used.has(c._id));
+          return this.collectionCats.concat(usedCats).filter((c, i, a) => a.indexOf(c) === i);
+        }
         const qv = this.$store.getQuickViewCatId();
         // 内置「临时任务」仅任务夹展示：通用过滤中剔除 qv，仅任务夹单独置顶；模版夹/收藏夹不出现该内置标签
         let list = this.topCats.filter(c => c._id !== qv && (this.catInScope(c._id) || this.subCats(c._id).some(s => this.catInScope(s._id))));
