@@ -1522,6 +1522,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     notifyChange(); // 数据落盘即广播全局刷新（revision++），所有监听页面自动重载
     // 同步钩子：若已启用多端同步，本地变更后安排一次推送（P1）
     if (window.MPSync && window.MPSync.onChange) { try { window.MPSync.onChange(); } catch (_) {} }
+    // 提醒钩子：若已启用手机提醒推送，本地变更后重新安排 ntfy 延迟推送（P2）
+    if (window.MPNotify && window.MPNotify.onChange) { try { window.MPNotify.onChange(); } catch (_) {} }
   }
   // 全局刷新通知：自增响应式版本号，供各页面 watch 监听后主动重载数据
   function notifyChange() { state.revision = (state.revision || 0) + 1; }
@@ -1564,9 +1566,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.tasks = o.tasks || [];
       state.categories = o.categories || [];
       const s = o.settings || {};
+      const n = (s && s.notify && typeof s.notify === 'object') ? s.notify : {};
       state.settings = {
         quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
+        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
       };
       // 项目模块四表：兼容旧版 localStorage（不存在则初始化为空数组）
       state.projects = o.projects || [];
@@ -1589,7 +1593,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function seed() {
     state.categories = SYSTEM_CATEGORIES.map(c => ({ ...c }));
     PRESET_CUSTOM_CATEGORIES.forEach(n => state.categories.push({ _id: uid('cat'), name: n, is_system: false }));
-    state.settings = { quickToQuickView: true, autoExtend: false };
+    state.settings = { quickToQuickView: true, autoExtend: false, notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' } };
 
     // —— 习惯 ——
     const drink = { _id: uid('habit'), name: '每天喝水 8 杯', type: 'SOP_HABIT', enable_remind: false, remind_time: '09:00', plan_time: '08:00', holiday_ranges: [], records: [], create_at: Date.now(), unit: '次' };
@@ -4764,9 +4768,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.tasks = Array.isArray(o.tasks) ? o.tasks : [];
       state.categories = Array.isArray(o.categories) ? o.categories : [];
       const s = (o.settings && typeof o.settings === 'object') ? o.settings : {};
+      const n = (s && s.notify && typeof s.notify === 'object') ? s.notify : {};
       state.settings = {
         quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
+        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
       };
       state.projects = Array.isArray(o.projects) ? o.projects : [];
       state.project_subs = Array.isArray(o.project_subs) ? o.project_subs : [];
@@ -10152,6 +10158,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 多端同步（P1）：状态 + 表单字段
         sync: { enabled: false, connected: false, lastSync: 0, lastError: '', busy: false, vaultId: '', rev: 0 },
         syncPass: '', syncToken: '', syncOwner: '', syncRepo: '', syncVaultId: '',
+        // 手机提醒推送（P2）：状态
+        notifyStatus: { enabled: false, count: 0, lastScheduled: 0, lastError: '' },
       };
     },
     mounted() {
@@ -10173,6 +10181,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.syncRepo = window.MPSync.cfg.repo || '';
         window.MPSync.onStatus((s) => { this.sync = Object.assign({}, this.sync, s); });
       }
+      // 手机提醒推送：绑定状态到 UI
+      if (window.MPNotify) window.MPNotify.onStatus((s) => { this.notifyStatus = Object.assign({}, this.notifyStatus, s); });
     },
     computed: {
       today() { return this.$store.util.todayStr(); },
@@ -10782,6 +10792,34 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (window.MPSync) window.MPSync.disable();
         this.showToast('已断开同步');
       },
+      // —— 手机提醒推送（P2：ntfy 延迟消息）——
+      notifyGenTopic() {
+        var a = new Uint8Array(12); crypto.getRandomValues(a);
+        var hex = Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+        this.$store.state.settings.notify.topic = hex;
+        this.showToast('已生成随机主题');
+      },
+      notifyEnable() {
+        var n = this.$store.state.settings.notify;
+        if (!n.topic) this.notifyGenTopic();
+        n.enabled = true;
+        this.$store.persist();
+        if (window.MPNotify) window.MPNotify.scheduleAll();
+        this.showToast('已启用手机提醒推送');
+      },
+      notifyTest() {
+        if (window.MPNotify) window.MPNotify.testPush();
+        this.showToast('已发送测试推送，手机 ntfy 应收到');
+      },
+      notifySchedule() {
+        if (window.MPNotify) { window.MPNotify.scheduleAll(); this.showToast('已重新安排提醒'); }
+      },
+      notifyDisable() {
+        this.$store.state.settings.notify.enabled = false;
+        this.$store.persist();
+        if (window.MPNotify) window.MPNotify._set({ enabled: false });
+        this.showToast('已关闭提醒推送');
+      },
       // 按月缓存：页面打开直接读 localStorage，避免每次加载都重算；↻ 强制刷新
       loadHealth(force) {
         const ym = this.year + '-' + String(this.month).padStart(2, '0');
@@ -11085,6 +11123,39 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn ghost" @click="syncDisable">断开</button>
             </div>
             <p class="backup-note">分享链接：<code>{{ shareLinkText }}</code><br/>其他设备打开此链接 + 输入同一口令与令牌即可加入。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 手机提醒推送（P2：ntfy 延迟消息） -->
+      <section class="block">
+        <h3 class="block-title">🔔 手机提醒推送（ntfy）</h3>
+        <div class="backup-box">
+          <p class="backup-note">任务到点时，手机 <b>ntfy App 弹窗 + 铃声 + 震动</b>。应用把提醒作为「延迟消息」发给 ntfy（免费、iOS/安卓均有官方 App），手机订阅主题即收。ntfy 只转发提醒标题，看不到完整数据。</p>
+          <div v-if="!notifyStatus.enabled" class="sync-form">
+            <label>ntfy 服务器（默认 ntfy.sh；国内可填可达的镜像或自托管地址）</label>
+            <input v-model="$store.state.settings.notify.server" placeholder="https://ntfy.sh" />
+            <label>主题 Topic（随机生成，各设备共用同一主题）</label>
+            <div class="sync-repo">
+              <input v-model="$store.state.settings.notify.topic" placeholder="随机主题" />
+              <button class="btn ghost" @click="notifyGenTopic">随机</button>
+            </div>
+            <label>访问令牌（可选，私有 ntfy 时填）</label>
+            <input type="password" v-model="$store.state.settings.notify.token" placeholder="可选" />
+            <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
+          </div>
+          <div v-else class="sync-status">
+            <div class="sync-row"><span :class="['sync-dot', notifyStatus.enabled ? 'on' : 'off']"></span><span>已启用 · 已安排未来 {{ notifyStatus.count }} 条提醒</span></div>
+            <div class="sync-meta">
+              <div>上次安排：{{ notifyStatus.lastScheduled ? new Date(notifyStatus.lastScheduled).toLocaleString() : '—' }}</div>
+              <div v-if="notifyStatus.lastError" class="sync-err">错误：{{ notifyStatus.lastError }}</div>
+            </div>
+            <div class="backup-actions">
+              <button class="btn primary" @click="notifyTest">发送测试推送</button>
+              <button class="btn ghost" @click="notifySchedule">立即重新安排</button>
+              <button class="btn ghost" @click="notifyDisable">关闭</button>
+            </div>
+            <p class="backup-note">手机端：安装 ntfy App → 订阅主题 <code>{{ $store.state.settings.notify.server }}/{{ $store.state.settings.notify.topic }}</code></p>
           </div>
         </div>
       </section>
@@ -13711,6 +13782,109 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       window.MPSync = MPSync;
       if (autostart) { MPSync._emit(); MPSync.start(); }
     })();
+  })();
+  </script>
+  <script>
+  /* ===== 手机提醒推送引擎（P2：ntfy.sh 延迟消息，免费、iOS/安卓官方 App） =====
+   * 原理：应用把每条未来提醒作为「延迟消息」POST 给 ntfy（Delay 头指定送达时刻），
+   *       ntfy 在到点时把推送发到订阅该主题的设备 → 手机弹窗 + 铃声 + 震动。
+   *  - 无需后端计算：浏览器在设置提醒 / 本地变更时即按需发布延迟消息（serverless 调度）。
+   *  - 周期任务：枚举未来 30 天内的命中日，逐条发布；Message-ID 稳定，重复发布幂等。
+   *  - ntfy 仅转发提醒标题，看不到完整数据；主题用随机串，不可猜测。*/
+  (function () {
+    'use strict';
+    var HORIZON = 30; // 预排未来天数
+    var LS_KEY = 'mindpocket:notify:scheduled';
+    var DEBOUNCE = 2000;
+
+    function cfg() { return (window.MPStore && window.MPStore.state.settings.notify) || { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' }; }
+    function appUrl() {
+      try {
+        var u = new URL(location.href);
+        if (window.MPSync && window.MPSync.cfg && window.MPSync.cfg.vaultId) u.searchParams.set('vault', window.MPSync.cfg.vaultId); else u.search = '';
+        return u.toString();
+      } catch (e) { return location.origin + location.pathname; }
+    }
+    function loadSet() { try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { return []; } }
+    function saveSet(a) { try { localStorage.setItem(LS_KEY, JSON.stringify(a)); } catch (e) {} }
+
+    var MPNotify = {
+      status: { enabled: false, count: 0, lastScheduled: 0, lastError: '' },
+      _cb: null, _timer: null, _deb: null,
+      onStatus: function (cb) { this._cb = cb; this._emit(); },
+      _emit: function () { if (this._cb) this._cb(Object.assign({}, this.status)); },
+      _set: function (p) { Object.assign(this.status, p); this._emit(); },
+
+      publish: function (title, date, time, msgId, immediate) {
+        var c = cfg(); if (!c.enabled || !c.topic) return false;
+        var when = null;
+        if (!immediate) {
+          when = new Date((date || '') + 'T' + (time || '09:00'));
+          if (isNaN(when.getTime()) || when.getTime() <= Date.now()) return false; // 过去不排
+        }
+        var server = (c.server || 'https://ntfy.sh').replace(/\/+$/, '');
+        var url = server + '/' + encodeURIComponent(c.topic);
+        var h = { 'Title': 'MindPocket', 'Tags': 'alarm,calendar', 'Priority': 'default', 'Message-ID': msgId, 'Click': appUrl() };
+        if (!immediate) h['Delay'] = when.toISOString();
+        if (c.token) h['Authorization'] = 'Bearer ' + c.token;
+        fetch(url, { method: 'POST', headers: h, body: title + (time ? (' ｜ ' + time) : '') })
+          .then(function (r) { if (!r.ok) throw new Error('ntfy ' + r.status); })
+          .catch(function (e) { MPNotify._set({ lastError: String(e && e.message ? e.message : e) }); });
+        return true;
+      },
+
+      scheduleAll: function () {
+        var c = cfg(); if (!c.enabled || !c.topic) { this._set({ enabled: false }); return 0; }
+        var U = window.MPStore.util; var today = U.todayStr(); var end = U.addDays(today, HORIZON);
+        var kept = loadSet().filter(function (x) { return x.date >= today; });
+        var seen = {}; kept.forEach(function (x) { seen[x.id] = true; });
+        var added = 0;
+        function tryPush(id, date, time, title) {
+          if (date < today || date > end) return;
+          var mid = 'mp-' + id + '-' + date + '-' + time;
+          if (seen[mid]) return;
+          if (MPNotify.publish(title, date, time, mid, false)) { kept.push({ id: mid, date: date }); seen[mid] = true; added++; }
+        }
+        var tasks = window.MPStore.state.tasks || [];
+        for (var i = 0; i < tasks.length; i++) {
+          var t = tasks[i]; if (t.is_archived) continue;
+          if (t.enable_remind && t.remind_time) {
+            if (t.cycle && t.cycle.type && t.cycle.type !== 'none') {
+              var ds = today; while (ds <= end) { if (U.cycleHits(t.cycle, ds)) tryPush(t._id, ds, t.remind_time, t.title); ds = U.addDays(ds, 1); }
+            } else if (t.execute_date) { tryPush(t._id, t.execute_date, t.remind_time, t.title); }
+          }
+          var subs = t.sub_tasks || [];
+          for (var j = 0; j < subs.length; j++) {
+            var s = subs[j]; if (s.is_done) continue;
+            if (s.sub_remind && s.sub_remind_time && s.sub_deadline) tryPush(t._id + ':' + s._id, s.sub_deadline, s.sub_remind_time, (t.title || '') + ' / ' + (s.title || ''));
+          }
+        }
+        saveSet(kept);
+        this._set({ enabled: true, count: kept.length, lastScheduled: Date.now(), lastError: '' });
+        return added;
+      },
+
+      testPush: function () {
+        var c = cfg(); if (!c.enabled || !c.topic) { this._set({ lastError: '请先启用并填写主题' }); return; }
+        this.publish('这是一条测试提醒（应立即送达）', null, null, 'mp-test-' + Date.now(), true);
+        this._set({ lastError: '' });
+      },
+
+      onChange: function () {
+        if (!cfg().enabled) return;
+        var self = this;
+        if (this._deb) clearTimeout(this._deb);
+        this._deb = setTimeout(function () { self.scheduleAll(); }, DEBOUNCE);
+      },
+
+      init: function () {
+        var c = cfg();
+        if (c.enabled && c.topic) { this.scheduleAll(); if (!this._timer) this._timer = setInterval(function () { MPNotify.scheduleAll(); }, 3600000); this._set({ enabled: true }); }
+        else this._set({ enabled: false });
+      },
+    };
+
+    (function () { window.MPNotify = MPNotify; MPNotify.init(); })();
   })();
   </script>
 </body>
