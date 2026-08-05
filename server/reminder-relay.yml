@@ -1,0 +1,49 @@
+# MindPocket 提醒代发（部署到私有仓库 mindpocket-vaults 的 .github/workflows/）
+#
+# 作用：把「即将到点」的提醒补投给 ntfy 或 Telegram。
+#   - ntfy：免费服务只接受约 3 天内的定时消息，更远的提醒浏览器发不出去，由本脚本补投。
+#   - telegram：浏览器没有 bot token，无法直接发，【所有】提醒（含 3 天内）都靠本脚本代投。
+#
+# 通道由清单里的 channel 字段决定；ntfy 的服务器/主题、telegram 的 chat 都在清单里。
+# 敏感凭据（NTFY_TOKEN / TELEGRAM_BOT_TOKEN）只存在于仓库 Secrets，绝不进清单。
+name: 提醒代发
+
+on:
+  schedule:
+    # 每 30 分钟一次。Telegram 无原生定时，靠临近时点轮询投递，窗口须宽于轮询间隔；
+    # 30 分钟既能保证每条提醒至少被命中一次，单次运行仅数秒，月度用量也远低于免费额度。
+    - cron: '*/30 * * * *'
+  # 浏览器上传清单后会主动触发它，既能即时补发，也能防止仓库长期无活动导致 cron 被停用
+  repository_dispatch:
+    types: [mindpocket-relay]
+  workflow_dispatch:
+
+# 防止 cron 与 dispatch 叠跑造成同一条提醒被投两次
+concurrency:
+  group: mindpocket-relay
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # 刻意不做 actions/checkout：全部走 Contents API，
+      # 既省时间（每次运行仅数秒）又避免 git 推送的 non-fast-forward 冲突
+      - name: 拉取投递脚本
+        run: |
+          curl -fsSL -o relay.mjs \
+            https://raw.githubusercontent.com/2384714466-collab/mindpocket/main/server/relay.mjs
+          node --check relay.mjs
+
+      - name: 执行投递
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          NTFY_TOKEN: ${{ secrets.NTFY_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_API_ROOT: ${{ secrets.TELEGRAM_API_ROOT }}
+        run: node relay.mjs

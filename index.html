@@ -1649,7 +1649,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.settings = {
         quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
-        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
+        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', channel: 'ntfy', chat: '', ...n },
       };
       // 项目模块四表：兼容旧版 localStorage（不存在则初始化为空数组）
       state.projects = o.projects || [];
@@ -1672,7 +1672,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function seed() {
     state.categories = SYSTEM_CATEGORIES.map(c => ({ ...c }));
     PRESET_CUSTOM_CATEGORIES.forEach(n => state.categories.push({ _id: uid('cat'), name: n, is_system: false }));
-    state.settings = { quickToQuickView: true, autoExtend: false, notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' } };
+    state.settings = { quickToQuickView: true, autoExtend: false, notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', channel: 'ntfy', chat: '' } };
 
     // —— 习惯 ——
     const drink = { _id: uid('habit'), name: '每天喝水 8 杯', type: 'SOP_HABIT', enable_remind: false, remind_time: '09:00', plan_time: '08:00', holiday_ranges: [], records: [], create_at: Date.now(), unit: '次' };
@@ -4851,7 +4851,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.settings = {
         quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
-        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
+        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', channel: 'ntfy', chat: '', ...n },
       };
       state.projects = Array.isArray(o.projects) ? o.projects : [];
       state.project_subs = Array.isArray(o.project_subs) ? o.project_subs : [];
@@ -10273,6 +10273,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         syncPass: '', syncToken: '', syncOwner: '', syncRepo: '', syncVaultId: '',
         // 手机提醒推送（P2）：状态
         notifyStatus: { enabled: false, count: 0, added: 0, pending: 0, noDate: 0, failed: 0, lastScheduled: 0, lastError: '' },
+        // 云端代发（P2+）：状态 + 表单字段
+        relayStatus: { enabled: false, count: 0, lastRun: 0, lastError: '', backendError: '' },
+        relayToken: '', relayVaultId: '',
       };
     },
     mounted() {
@@ -10296,6 +10299,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }
       // 手机提醒推送：绑定状态到 UI
       if (window.MPNotify) window.MPNotify.onStatus((s) => { this.notifyStatus = Object.assign({}, this.notifyStatus, s); });
+      // 云端代发：绑定状态到 UI，并预填已保存配置
+      if (window.MPRelay) {
+        this.relayToken = window.MPRelay.cfg.token || '';
+        this.relayVaultId = window.MPRelay.cfg.id || '';
+        window.MPRelay.onStatus((s) => { this.relayStatus = Object.assign({}, this.relayStatus, s); });
+      }
     },
     computed: {
       today() { return this.$store.util.todayStr(); },
@@ -10914,7 +10923,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       notifyEnable() {
         var n = this.$store.state.settings.notify;
-        if (!n.topic) this.notifyGenTopic();
+        if ((n.channel || 'ntfy') === 'telegram') {
+          if (!n.chat) { this.showToast('请先填写 Telegram 聊天 ID'); return; }
+        } else {
+          if (!n.topic) this.notifyGenTopic();
+        }
         n.enabled = true;
         this.$store.persist();
         if (window.MPNotify) window.MPNotify.scheduleAll();
@@ -10941,6 +10954,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.$store.persist();
         if (window.MPNotify) window.MPNotify._set({ enabled: false });
         this.showToast('已关闭提醒推送');
+      },
+      // —— 云端代发（MPRelay）配置 ——
+      relayAlive() {
+        return !!(this.relayStatus.lastRun && (Date.now() - this.relayStatus.lastRun) < 12 * 3600 * 1000);
+      },
+      relayEnable() {
+        if (!window.MPRelay) { this.showToast('云端代发组件未加载'); return; }
+        var cfg = window.MPRelay.cfg;
+        if (!this.sync.enabled) {
+          if (!this.relayToken) { this.showToast('请填写 GitHub 令牌'); return; }
+          cfg.token = this.relayToken.trim();
+          cfg.id = (this.relayVaultId || '').trim();
+        }
+        cfg.owner = '2384714466-collab';
+        cfg.repo = 'mindpocket-vaults';
+        cfg.enabled = true;
+        window.MPRelay.save();
+        // 立即排一次，把现有提醒清单上传并触发后端接管
+        if (window.MPNotify) window.MPNotify.scheduleAll();
+        this.showToast('已启用云端代发');
+      },
+      relayDisable() {
+        if (!window.MPRelay) return;
+        window.MPRelay.cfg.enabled = false;
+        window.MPRelay.save();
+        window.MPRelay.remove(); // 删除清单，避免后端继续投递
+        this.showToast('已关闭云端代发');
       },
       // 按月缓存：页面打开直接读 localStorage，避免每次加载都重算；↻ 强制刷新
       loadHealth(force) {
@@ -11249,25 +11289,52 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </section>
 
-      <!-- 手机提醒推送（P2：ntfy 延迟消息） -->
+      <!-- 手机提醒推送（P2：ntfy / telegram 延迟消息） -->
       <section class="block">
         <h3 class="block-title">🔔 手机提醒推送</h3>
         <div class="backup-box">
-          <p class="backup-note">任务到点时手机弹窗 + 铃声 + 震动（通过 ntfy 免费服务，iOS/安卓装 ntfy App 订阅主题即可）。ntfy 服务器持有延迟消息，<b>即使本应用已关闭也会准时送达</b>。</p>
-          <div v-if="!notifyStatus.enabled" class="sync-form">
-            <label>ntfy 服务器（默认 ntfy.sh；国内可填可达的镜像或自托管地址）</label>
-            <input v-model="$store.state.settings.notify.server" placeholder="https://ntfy.sh" />
-            <label>主题 Topic（随机生成，各设备共用同一主题）</label>
-            <div class="sync-repo">
-              <input v-model="$store.state.settings.notify.topic" placeholder="随机主题" />
-              <button class="btn ghost" @click="notifyGenTopic">随机</button>
-            </div>
-            <label>访问令牌（可选，私有 ntfy 时填）</label>
-            <input type="password" v-model="$store.state.settings.notify.token" placeholder="可选" />
-            <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
+          <p class="backup-note">任务到点时手机弹窗 + 铃声 + 震动。两种通道任选其一：</p>
+          <div class="sync-form">
+            <label class="chk"><input type="radio" value="ntfy" v-model="$store.state.settings.notify.channel" /> ntfy（免费，需安装 ntfy App 订阅主题）</label>
+            <label class="chk"><input type="radio" value="telegram" v-model="$store.state.settings.notify.channel" /> Telegram Bot（灭屏也能收到）</label>
           </div>
-          <div v-else class="sync-status">
-            <div class="sync-row"><span :class="['sync-dot', notifyStatus.enabled ? 'on' : 'off']"></span><span>已启用（ntfy） · 服务端已受理 {{ notifyStatus.count }} 条定时提醒</span></div>
+
+          <!-- ntfy 通道 -->
+          <div v-if="$store.state.settings.notify.channel !== 'telegram'">
+            <p class="backup-note">ntfy 服务器持有延迟消息，<b>即使本应用已关闭也会准时送达</b>；但灭屏时安卓可能拦推送，需关闭 ntfy 的电池优化。</p>
+            <div v-if="!notifyStatus.enabled" class="sync-form">
+              <label>ntfy 服务器（默认 ntfy.sh；国内可填可达的镜像或自托管地址）</label>
+              <input v-model="$store.state.settings.notify.server" placeholder="https://ntfy.sh" />
+              <label>主题 Topic（随机生成，各设备共用同一主题）</label>
+              <div class="sync-repo">
+                <input v-model="$store.state.settings.notify.topic" placeholder="随机主题" />
+                <button class="btn ghost" @click="notifyGenTopic">随机</button>
+              </div>
+              <label>访问令牌（可选，私有 ntfy 时填）</label>
+              <input type="password" v-model="$store.state.settings.notify.token" placeholder="可选" />
+              <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
+            </div>
+          </div>
+
+          <!-- telegram 通道 -->
+          <div v-else>
+            <p class="backup-note">走 Telegram 高优先级推送，灭屏也能收到。需自建机器人并把 token 放在后端（不进浏览器）：</p>
+            <ol class="backup-note">
+              <li>找 <code>@BotFather</code> 新建机器人，拿到 bot token；</li>
+              <li>在 <code>mindpocket-vaults</code> 仓库 Settings → Secrets 添加 <code>TELEGRAM_BOT_TOKEN</code>（token 只在后端用，绝不下发到浏览器）；</li>
+              <li>给 <code>@userinfobot</code> 发 <code>/start</code> 查到你的 chat_id，填在下面。</li>
+            </ol>
+            <div v-if="!notifyStatus.enabled" class="sync-form">
+              <label>Telegram 聊天 ID（chat_id，纯数字）</label>
+              <input v-model="$store.state.settings.notify.chat" placeholder="如 123456789" />
+              <p class="backup-note">⚠️ Telegram 通道下所有提醒（含 3 天内）都经下方「☁ 云端代发」后端送出，需先启用云端代发。</p>
+              <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
+            </div>
+          </div>
+
+          <!-- 已启用状态（两通道共用） -->
+          <div v-if="notifyStatus.enabled" class="sync-status">
+            <div class="sync-row"><span :class="['sync-dot', notifyStatus.enabled ? 'on' : 'off']"></span><span>已启用（{{ $store.state.settings.notify.channel === 'telegram' ? 'Telegram' : 'ntfy' }}） · 服务端已受理 {{ notifyStatus.count }} 条定时提醒</span></div>
             <div class="sync-meta">
               <div>上次安排：{{ notifyStatus.lastScheduled ? new Date(notifyStatus.lastScheduled).toLocaleString() : '—' }}</div>
               <div v-if="notifyStatus.pending">待排队 {{ notifyStatus.pending }} 条：ntfy 免费服务只接受 3 天内的定时消息，打开本应用时会自动补发</div>
@@ -11280,8 +11347,46 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn ghost" @click="notifySchedule">立即重新安排</button>
               <button class="btn ghost" @click="notifyDisable">关闭</button>
             </div>
-            <p class="backup-note">收不到？① 手机 ntfy App 里确认已订阅下面这个主题；② 先点「发送测试推送」验证通道，再点「1 分钟后定时测试」验证定时；③ iOS 需在系统设置里允许 ntfy 通知与横幅。</p>
-            <p class="backup-note">手机端：安装 ntfy App → 订阅主题 <code>{{ $store.state.settings.notify.server }}/{{ $store.state.settings.notify.topic }}</code></p>
+            <p class="backup-note" v-if="$store.state.settings.notify.channel === 'telegram'">Telegram 测试会经「☁ 云端代发」后端，约 30 分钟内到达（灭屏也能收）。</p>
+            <p class="backup-note" v-else>收不到？① 手机 ntfy App 里确认已订阅下面这个主题；② 先点「发送测试推送」验证通道，再点「1 分钟后定时测试」验证定时；③ iOS 需在系统设置里允许 ntfy 通知与横幅。</p>
+            <p class="backup-note" v-if="$store.state.settings.notify.channel !== 'telegram'">手机端：安装 ntfy App → 订阅主题 <code>{{ $store.state.settings.notify.server }}/{{ $store.state.settings.notify.topic }}</code></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 云端代发（P2+：突破 ntfy 3 天投递窗口的 GitHub Actions 后端） -->
+      <section class="block">
+        <h3 class="block-title">☁ 云端代发（远期提醒不漏）</h3>
+        <div class="backup-box">
+          <p class="backup-note">ntfy 免费服务只接受约 3 天内的定时消息，更远的提醒浏览器发不出去。开启后，GitHub Actions 每 30 分钟把即将到点的提醒补投给你（ntfy 或 Telegram）。数据写在你的私有仓库 <code>mindpocket-vaults</code>，零额外费用、无需自有服务器。</p>
+
+          <div v-if="!relayStatus.enabled" class="sync-form">
+            <template v-if="sync.enabled">
+              <p class="backup-note">检测到已开启多端同步，云端代发将自动复用同步的 GitHub 令牌与保险库 ID，无需重复填写。</p>
+            </template>
+            <template v-else>
+              <label>GitHub 令牌（细粒度 PAT，仅限 mindpocket-vaults 仓库 Contents 读写）</label>
+              <input type="password" v-model="relayToken" placeholder="ghp_... 或 github_pat_..." />
+              <label>保险库 ID（留空自动生成；须与提醒推送所在 vault 一致）</label>
+              <input v-model="relayVaultId" placeholder="留空自动生成" />
+            </template>
+            <button class="btn primary" @click="relayEnable">启用云端代发</button>
+          </div>
+
+          <div v-else class="sync-status">
+            <div class="sync-row">
+              <span :class="['sync-dot', relayAlive() ? 'on' : 'off']"></span>
+              <span>{{ relayAlive() ? '后端心跳正常' : '超过 12h 未活动（可能已停用）' }} · 已排队 {{ relayStatus.count }} 条</span>
+            </div>
+            <div class="sync-meta">
+              <div>后端最后活动：{{ relayStatus.lastRun ? new Date(relayStatus.lastRun).toLocaleString() : '—' }}</div>
+              <div v-if="relayStatus.lastError" class="sync-err">错误：{{ relayStatus.lastError }}</div>
+              <div v-if="relayStatus.backendError" class="sync-err">后端：{{ relayStatus.backendError }}</div>
+            </div>
+            <div class="backup-actions">
+              <button class="btn ghost" @click="relayDisable">关闭云端代发</button>
+            </div>
+            <p class="backup-note">已投递的提醒不可撤回。Telegram 通道下所有提醒都经此后端送出。</p>
           </div>
         </div>
       </section>
@@ -13921,6 +14026,175 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   })();
   </script>
   <script>
+  /* ===== 云端代发客户端（P2+：突破 ntfy 3 天投递窗口） =====
+   * 问题：ntfy.sh 免费服务只接受约 3 天内的定时消息，更远的提醒浏览器发不出去，
+   *       必须等用户再次打开应用才能补排 —— 长期不开应用就会漏提醒。
+   * 方案：浏览器把「超出投递窗口」的提醒写成清单上传到私有仓库，
+   *       GitHub Actions 每 6 小时把即将到期的那批补投给 ntfy。
+   *  - 浏览器是唯一真相源：清单里的 ts 由浏览器算好（含本地时区），后端只做哑投递，
+   *    日期 / 周期规则永不出现第二份实现，从根上杜绝前后端漂移。
+   *  - 凭据：优先复用多端同步的细粒度 PAT；未开同步时可单独填一个（仅需 contents:write）。
+   *  - 清单不含 ntfy 令牌；仓库为 PRIVATE。*/
+  (function () {
+    'use strict';
+    var API = 'https://api.github.com';
+    var DEFAULT_OWNER = '2384714466-collab';
+    var DEFAULT_REPO = 'mindpocket-vaults';
+    var LS_KEY = 'mindpocket:relay';
+    var TTL_DAYS = 45; // 清单兜底有效期：长期不更新则由后端清理，避免废弃清单被永远投递
+
+    function randHex(n) { var a = new Uint8Array(n); crypto.getRandomValues(a); return Array.prototype.map.call(a, function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); }
+    // 轻量内容摘要：清单未变化时跳过上传，避免 15 分钟的定时重排造成 commit 洪水
+    function digest(s) { var h = 5381, i = s.length; while (i) h = (h * 33) ^ s.charCodeAt(--i); return (h >>> 0).toString(36); }
+
+    var MPRelay = {
+      cfg: null,
+      status: { enabled: false, count: 0, lastPush: 0, lastError: '', lastRun: 0, lastSent: 0, backendError: '' },
+      _cb: null, _sha: {}, _lastDigest: '',
+
+      onStatus: function (cb) { this._cb = cb; this._emit(); },
+      _emit: function () { if (this._cb) this._cb(Object.assign({}, this.status)); },
+      _set: function (p) { Object.assign(this.status, p); this._emit(); },
+
+      load: function () {
+        try { this.cfg = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch (e) { this.cfg = null; }
+        if (!this.cfg) this.cfg = { enabled: false, token: '', owner: DEFAULT_OWNER, repo: DEFAULT_REPO, id: '' };
+        if (!this.cfg.owner) this.cfg.owner = DEFAULT_OWNER;
+        if (!this.cfg.repo) this.cfg.repo = DEFAULT_REPO;
+        this.status.enabled = this.ready();
+        return this.cfg;
+      },
+      save: function () { try { localStorage.setItem(LS_KEY, JSON.stringify(this.cfg)); } catch (e) {} this._set({ enabled: this.ready() }); },
+
+      // 凭据优先复用多端同步的 PAT（同一个仓库、同样的写权限），用户无需重复配置
+      token: function () {
+        if (this.cfg && this.cfg.token) return this.cfg.token;
+        if (window.MPSync && window.MPSync.cfg && window.MPSync.cfg.token) return window.MPSync.cfg.token;
+        return '';
+      },
+      // 清单 ID 复用保险库 ID，保证同一用户多设备写同一份清单（不会各写各的造成重复投递）
+      vaultId: function () {
+        if (window.MPSync && window.MPSync.cfg && window.MPSync.cfg.vaultId) return window.MPSync.cfg.vaultId;
+        if (this.cfg && this.cfg.id) return this.cfg.id;
+        return '';
+      },
+      ready: function () { return !!(this.cfg && this.cfg.enabled && this.token() && this.vaultId()); },
+      path: function (suffix) { return 'schedules/' + this.vaultId() + (suffix || '') + '.json'; },
+
+      _api: function (method, file, body) {
+        var url = API + '/repos/' + this.cfg.owner + '/' + this.cfg.repo + '/contents/' + encodeURIComponent(file);
+        // cache:'no-store' 不能省：GitHub API 响应带 max-age，浏览器会缓存 GET 结果，
+        // 导致读到陈旧的 sent.json，把后端已投递的提醒当成没投过而重复投一次。
+        var opt = {
+          method: method, cache: 'no-store',
+          headers: { 'Authorization': 'Bearer ' + this.token(), 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        };
+        if (body) opt.body = JSON.stringify(body);
+        return fetch(url, opt);
+      },
+
+      // 读取后端的投递记录：既拿到已投 mid（防重复投递），也拿到 last_run 心跳（判断后端死活）
+      fetchSent: function () {
+        var self = this;
+        if (!this.ready()) return Promise.resolve(null);
+        return this._api('GET', this.path('.sent')).then(function (r) {
+          if (r.status === 404) { self._set({ lastRun: 0 }); return null; }
+          if (!r.ok) throw new Error('sent ' + r.status);
+          return r.json();
+        }).then(function (meta) {
+          if (!meta) return null;
+          var txt = decodeURIComponent(escape(atob((meta.content || '').replace(/\s/g, ''))));
+          var obj = JSON.parse(txt);
+          self._sha['.sent'] = meta.sha;
+          self._set({
+            lastRun: Date.parse(obj.last_run || '') || 0,
+            lastSent: obj.last_sent || 0,
+            backendError: obj.last_error || '',
+          });
+          return obj;
+        }).catch(function (e) { self._set({ lastError: '读取投递记录失败：' + e.message }); return null; });
+      },
+
+      pushSchedule: function (items, c, click) {
+        var self = this;
+        if (!this.ready()) return Promise.resolve(false);
+        var channel = (c && c.channel) || 'ntfy';
+        var server = (c && c.server || 'https://ntfy.sh').replace(/\/+$/, '');
+        var topic = (c && c.topic) || '';
+        var chat = (c && c.chat) || '';
+        var now = Date.now();
+        var payload = {
+          v: 1,
+          updated: new Date(now).toISOString(),
+          expires: new Date(now + TTL_DAYS * 86400000).toISOString(),
+          channel: channel,
+          server: server, topic: topic, chat: chat, click: click || '',
+          items: items.map(function (j) { return { mid: j.mid, ts: j.ts, title: j.title || '提醒' }; }),
+        };
+        // 只对实质内容做摘要（不含 updated），内容没变就不写仓库
+        var d = digest(JSON.stringify({ ch: channel, s: server, t: topic, c: chat, i: payload.items }));
+        if (d === this._lastDigest) { self._set({ count: payload.items.length }); return Promise.resolve(false); }
+
+        var file = this.path('');
+        var content = btoa(unescape(encodeURIComponent(JSON.stringify(payload, null, 2))));
+        var put = function (sha) {
+          var body = { message: 'relay: 更新提醒清单（' + payload.items.length + ' 条）', content: content, branch: 'main' };
+          if (sha) body.sha = sha;
+          return self._api('PUT', file, body);
+        };
+        return put(this._sha[''] || null).then(function (r) {
+          // 409/422 = sha 过期（其它设备同时写过），重新取 sha 再试一次
+          if (r.status === 409 || r.status === 422) {
+            return self._api('GET', file).then(function (g) { return g.ok ? g.json() : null; })
+              .then(function (meta) { return put(meta ? meta.sha : null); });
+          }
+          return r;
+        }).then(function (r) {
+          if (!r.ok) return r.text().then(function (t) { throw new Error(r.status + ' ' + t.slice(0, 120)); });
+          return r.json();
+        }).then(function (meta) {
+          if (meta && meta.content) self._sha[''] = meta.content.sha;
+          self._lastDigest = d;
+          self._set({ count: payload.items.length, lastPush: Date.now(), lastError: '' });
+          self.dispatch();
+          return true;
+        }).catch(function (e) { self._set({ lastError: String(e && e.message ? e.message : e) }); return false; });
+      },
+
+      // 触发后端立即跑一次：既即时补发，也顺带给仓库"续活"
+      //（GitHub 会停用 60 天无活动仓库的定时任务，dispatch 事件可以避免这一点）
+      dispatch: function () {
+        if (!this.ready()) return;
+        var url = API + '/repos/' + this.cfg.owner + '/' + this.cfg.repo + '/dispatches';
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + this.token(), 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify({ event_type: 'mindpocket-relay' }),
+        }).catch(function () {});
+      },
+
+      // 关闭代发时删除清单，否则后端会继续按旧清单投递
+      remove: function () {
+        var self = this;
+        if (!this.token() || !this.vaultId()) return Promise.resolve();
+        var file = this.path('');
+        return this._api('GET', file).then(function (r) { return r.ok ? r.json() : null; }).then(function (meta) {
+          if (!meta) return null;
+          return self._api('DELETE', file, { message: 'relay: 关闭云端代发', sha: meta.sha, branch: 'main' });
+        }).then(function () { self._sha = {}; self._lastDigest = ''; self._set({ count: 0 }); })
+          .catch(function () {});
+      },
+
+      // 后端心跳是否新鲜：不新鲜说明 Actions 停了，此时浏览器要退回自催兜底
+      backendAlive: function () {
+        return !!(this.status.lastRun && (Date.now() - this.status.lastRun) < 12 * 3600 * 1000);
+      },
+    };
+
+    (function () { MPRelay.load(); window.MPRelay = MPRelay; })();
+  })();
+  </script>
+  <script>
   /* ===== 手机提醒推送引擎（P2：ntfy.sh 延迟消息，免费、iOS/安卓官方 App） =====
    * 原理：应用把每条未来提醒作为「延迟消息」POST 给 ntfy（Delay 头指定送达时刻），
    *       ntfy 在到点时把推送发到订阅该主题的设备 → 手机弹窗 + 铃声 + 震动。
@@ -13935,8 +14209,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     var TICK = 15 * 60 * 1000;   // 定时重排：把刚进入投递窗口的提醒补发出去
     var MAX_PER_RUN = 60;        // 单轮最多发布条数，避免一次性刷爆服务端
     var MIN_LEAD_MS = 15000;     // ntfy 最小延迟约 10s，留 15s 余量
+    var NUDGE_MAX_MS = 2.5 * 24 * 3600 * 1000; // 自催消息最远排到 2.5 天（留在 ntfy 3 天窗口内）
+    var HEARTBEAT_FRESH_MS = 12 * 3600 * 1000; // 后端心跳新鲜度阈值
 
-    function cfg() { return (window.MPStore && window.MPStore.state.settings.notify) || { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' }; }
+    function cfg() { return (window.MPStore && window.MPStore.state.settings.notify) || { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', channel: 'ntfy', chat: '' }; }
     function appUrl() {
       try {
         var u = new URL(location.href);
@@ -13970,7 +14246,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
        *  - 不带任何自定义请求头 → 浏览器不触发 CORS 预检，令牌走 ?auth= 查询参数；
        *  - delay 必须是「Unix 秒 / 时长 / 自然语言」，ISO8601 会被 ntfy 判为 40004 直接丢弃。
        * 返回 Promise<{ok, reason, err}>，调用方据此决定记账与重试。 */
-      publish: function (title, date, time, msgId, immediate) {
+      publish: function (title, date, time, msgId, immediate, opts) {
         var c = cfg();
         if (!c.enabled) return Promise.resolve({ ok: false, reason: 'off' });
         if (!c.topic) return Promise.resolve({ ok: false, reason: 'off' });
@@ -13983,12 +14259,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         var server = (c.server || 'https://ntfy.sh').replace(/\/+$/, '');
         var url = server + '/';
         if (c.token) { try { url += '?auth=' + b64url('Bearer ' + c.token); } catch (e) {} }
+        var o = opts || {};
         var body = {
           topic: c.topic,
-          title: immediate ? '🔔 MindPocket' : ('⏰ ' + (title || '提醒')),
-          message: immediate ? (title || '测试推送') : (((date || '') + ' ' + (time || '')).trim() + ' 提醒时间到'),
-          tags: ['alarm'],
-          priority: 4,
+          title: o.title || (immediate ? '🔔 MindPocket' : ('⏰ ' + (title || '提醒'))),
+          message: o.message || (immediate ? (title || '测试推送') : (((date || '') + ' ' + (time || '')).trim() + ' 提醒时间到')),
+          tags: o.tags || ['alarm'],
+          priority: o.priority || 4,
           click: appUrl(),
         };
         if (!immediate) body.delay = String(Math.floor(when.getTime() / 1000));
@@ -14010,10 +14287,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         var c = cfg();
         if (!c.enabled || !c.topic) { this._set({ enabled: false }); return Promise.resolve(0); }
         if (this._running) { this._again = true; return this._running; }
+        // 先取回后端的投递记录，再排程。这一步不能省：本地账本与后端 sent 互不可见时，
+        // 远期提醒会被后端投一次、用户打开应用又投一次，手机响两次。
+        this._running = (window.MPRelay ? window.MPRelay.fetchSent() : Promise.resolve(null))
+          .catch(function () { return null; })   // 取不到就照常发：漏发比重复更糟
+          .then(function (remoteSent) { return self._run(c, remoteSent); });
+        return this._running;
+      },
+
+      _run: function (c, remoteSent) {
+        var self = this;
         var U = window.MPStore.util; var today = U.todayStr(); var end = U.addDays(today, HORIZON);
         var sig = sigOf(c);
         var kept = loadSet(sig).filter(function (x) { return x.date >= today; });
         var seen = {}; kept.forEach(function (x) { seen[x.id] = true; });
+        // 后端已代投的并入去重集合
+        if (remoteSent && remoteSent.sent) Object.keys(remoteSent.sent).forEach(function (mid) { seen[mid] = true; });
 
         // 1) 汇总候选（本轮去重、剔除已过期），按时间升序，近的先发
         var jobs = [];
@@ -14047,37 +14336,88 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         jobs.sort(function (a, b) { return a.ts - b.ts; });
 
-        // 2) 顺序发布；一旦触到服务端延迟上限，后面（更远）的必然也超窗，直接留到下一轮
-        var pending = 0, failed = 0, lastErr = '', added = 0, idx = 0, windowFull = false;
+        // 2) 顺序发布；一旦触到服务端延迟上限，后面（更远）的必然也超窗，直接留到下一轮。
+        //    所有没发成功的（超窗 / 限流 / 网络失败）都收进 overflow 交给云端代发，
+        //    否则 ntfy 抖动时这批提醒会就地蒸发。
+        var overflow = [], failed = 0, lastErr = '', added = 0, idx = 0, windowFull = false;
+        // telegram 通道：浏览器没有 bot token，无法直接发，所有提醒（含 3 天内）都交给云端代发
+        var useDirect = (c.channel || 'ntfy') !== 'telegram';
+        if (!useDirect) { overflow = jobs.slice(); added = 0; }
         function step() {
           if (idx >= jobs.length) return Promise.resolve();
-          if (windowFull || added >= MAX_PER_RUN) { pending += (jobs.length - idx); idx = jobs.length; return Promise.resolve(); }
+          if (windowFull || added >= MAX_PER_RUN) { while (idx < jobs.length) overflow.push(jobs[idx++]); return Promise.resolve(); }
           var j = jobs[idx++];
           return self.publish(j.title, j.date, j.time, j.mid, false).then(function (r) {
             if (r.ok) { kept.push({ id: j.mid, date: j.date }); added++; }
-            else if (r.reason === 'window') { windowFull = true; pending++; }
-            else if (r.reason === 'http' || r.reason === 'net') { failed++; lastErr = r.err || '推送失败'; }
+            else if (r.reason === 'window') { windowFull = true; overflow.push(j); }
+            else if (r.reason === 'http' || r.reason === 'net') { failed++; lastErr = r.err || '推送失败'; overflow.push(j); }
             return step();
           });
         }
-        this._running = step().then(function () {
-          saveSet(sig, kept);
-          self._set({
-            enabled: true, count: kept.length, added: added, pending: pending,
-            noDate: noDate, failed: failed, lastScheduled: Date.now(),
-            lastError: failed ? lastErr : '',
+        var chain = useDirect ? step() : Promise.resolve();
+        return chain.then(function () {
+          // 3) 超窗部分交给云端代发；未配置代发时排一条自催消息兜底
+          var relayed = false;
+          if (window.MPRelay && window.MPRelay.ready()) {
+            relayed = true;
+            window.MPRelay.pushSchedule(overflow, c, appUrl());
+          }
+          // 必须等自催消息发完再落盘：否则它的幂等记录写在 saveSet 之后，
+          // 永远进不了本地账本，每轮排程都会重发一次自催。
+          return self._nudge(overflow, kept, seen).then(function () {
+            saveSet(sig, kept);
+            self._set({
+              enabled: true, count: useDirect ? kept.length : overflow.length, added: added, pending: overflow.length,
+              noDate: noDate, failed: failed, lastScheduled: Date.now(), relayed: relayed,
+              lastError: failed ? lastErr : '',
+            });
+            self._running = null;
+            if (self._again) { self._again = false; return self.scheduleAll(); }
+            return added;
           });
-          self._running = null;
-          if (self._again) { self._again = false; return self.scheduleAll(); }
-          return added;
         });
-        return this._running;
+      },
+
+      /* 自催兜底：有提醒因超出 ntfy 投递窗口而没发出去时，排一条低优先级消息
+       * 提醒用户打开应用续排。这是没配云端代发时唯一的保险，也是代发挂掉后的最后防线。
+       * 时刻取「2.5 天后」与「最早未投提醒前 1 小时」的较早者，mid 按小时取整保证幂等。*/
+      _nudge: function (overflow, kept, seen) {
+        if (!overflow.length) return Promise.resolve();
+        // telegram 通道下浏览器无 bot token，自催消息（走 ntfy）发不出去，且代发后端本就常驻，无需兜底
+        if ((cfg().channel || 'ntfy') === 'telegram') return Promise.resolve();
+        if (window.MPRelay && window.MPRelay.ready() && window.MPRelay.backendAlive()) return Promise.resolve(); // 后端还活着，无需打扰
+        var target = Math.min(Date.now() + NUDGE_MAX_MS, overflow[0].ts - 3600000);
+        if (target <= Date.now() + MIN_LEAD_MS) return Promise.resolve();
+        var d = new Date(target), p2 = function (n) { return ('0' + n).slice(-2); };
+        var date = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
+        var time = p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds());
+        var mid = 'mp-nudge-' + Math.floor(target / 3600000);
+        if (seen[mid]) return Promise.resolve();
+        seen[mid] = true;
+        // 返回 Promise（await 后才落盘），确保幂等记录进本地账本，避免每轮重发。
+        return this.publish('打开 MindPocket 续排提醒', date, time, mid, false, {
+          title: '📮 MindPocket',
+          message: '还有 ' + overflow.length + ' 条提醒排在更远的日期，打开应用即可续排',
+          priority: 2,
+        }).then(function (r) { if (r.ok) kept.push({ id: mid, date: date }); });
       },
 
       testPush: function () {
         var c = cfg(); if (!c.enabled) { this._set({ lastError: '请先启用提醒推送' }); return; }
-        if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
         var self = this;
+        // Telegram 通道：浏览器无 bot token，改走云端代发后端（下次轮询/触发即送达，灭屏也能收）
+        if ((c.channel || 'ntfy') === 'telegram') {
+          if (!c.chat) { this._set({ lastError: '请先填写 Telegram 聊天 ID' }); return; }
+          if (!window.MPRelay || !window.MPRelay.ready()) { this._set({ lastError: '云端代发未配置，无法发送 Telegram 测试' }); return; }
+          var item = { mid: 'mp-test-' + Date.now(), ts: Date.now() + 90000, title: '这是一条测试提醒（Telegram）' };
+          window.MPRelay.pushSchedule([item], c, appUrl()).then(function (ok) {
+            window.MPRelay.dispatch();
+            self._set({ lastError: ok ? '' : '测试提交失败' });
+          });
+          this._set({ lastError: '' });
+          return;
+        }
+        if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
         this.publish('这是一条测试提醒（应立即送达）', null, null, 'mp-test-' + Date.now(), true)
           .then(function (r) { self._set({ lastError: r.ok ? '' : (r.err || '推送失败') }); });
       },
@@ -14085,8 +14425,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 定时链路自检：60 秒后由服务端投递，用来验证「关闭应用也能准时收到」
       testDelayed: function (sec) {
         var c = cfg(); if (!c.enabled) { this._set({ lastError: '请先启用提醒推送' }); return; }
-        if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
         var self = this;
+        if ((c.channel || 'ntfy') === 'telegram') {
+          if (!c.chat) { this._set({ lastError: '请先填写 Telegram 聊天 ID' }); return; }
+          if (!window.MPRelay || !window.MPRelay.ready()) { this._set({ lastError: '云端代发未配置，无法发送 Telegram 测试' }); return; }
+          var ts = Date.now() + (sec || 60) * 1000;
+          var item = { mid: 'mp-testdelay-' + Date.now(), ts: ts, title: '定时推送自检（Telegram）' };
+          window.MPRelay.pushSchedule([item], c, appUrl()).then(function (ok) {
+            window.MPRelay.dispatch();
+            self._set({ lastError: ok ? '' : '测试提交失败' });
+          });
+          this._set({ lastError: '' });
+          return;
+        }
+        if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
         var d = new Date(Date.now() + (sec || 60) * 1000);
         var p2 = function (n) { return ('0' + n).slice(-2); };
         var date = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate());
@@ -14104,7 +14456,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       init: function () {
         var c = cfg();
-        if (c.enabled && c.topic) {
+        var ready = c.enabled && ((c.channel || 'ntfy') === 'telegram' ? c.chat : c.topic);
+        if (ready) {
           this.scheduleAll();
           if (!this._timer) this._timer = setInterval(function () { MPNotify.scheduleAll(); }, TICK);
           this._set({ enabled: true });
