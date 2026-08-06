@@ -11343,52 +11343,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </section>
 
-      <!-- 手机提醒推送（P2：ntfy / telegram 延迟消息） -->
+      <!-- 手机提醒推送（P2：ntfy 延迟消息） -->
       <section class="block">
         <h3 class="block-title">🔔 手机提醒推送</h3>
         <div class="backup-box">
-          <p class="backup-note">任务到点时手机弹窗 + 铃声 + 震动。两种通道任选其一：</p>
-          <div class="sync-form">
-            <label class="chk"><input type="radio" value="ntfy" v-model="$store.state.settings.notify.channel" /> ntfy（免费，需安装 ntfy App 订阅主题）</label>
-            <label class="chk"><input type="radio" value="telegram" v-model="$store.state.settings.notify.channel" /> Telegram Bot（灭屏也能收到）</label>
-          </div>
+          <p class="backup-note">任务到点时手机弹窗 + 铃声 + 震动。本应用采用 <b>ntfy</b> 通道：免费、无需自有服务器，各设备共用同一主题。</p>
 
           <!-- ntfy 通道 -->
-          <div v-if="$store.state.settings.notify.channel !== 'telegram'">
-            <p class="backup-note">ntfy 服务器持有延迟消息，<b>即使本应用已关闭也会准时送达</b>；但灭屏时安卓可能拦推送，需关闭 ntfy 的电池优化。</p>
-            <div v-if="!notifyStatus.enabled" class="sync-form">
-              <label>ntfy 服务器（默认 ntfy.sh；国内可填可达的镜像或自托管地址）</label>
-              <input v-model="$store.state.settings.notify.server" placeholder="https://ntfy.sh" />
-              <label>主题 Topic（随机生成，各设备共用同一主题）</label>
-              <div class="sync-repo">
-                <input v-model="$store.state.settings.notify.topic" placeholder="随机主题" />
-                <button class="btn ghost" @click="notifyGenTopic">随机</button>
-              </div>
-              <label>访问令牌（可选，私有 ntfy 时填）</label>
-              <input type="password" v-model="$store.state.settings.notify.token" placeholder="可选" />
-              <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
+          <p class="backup-note">ntfy 服务器持有延迟消息，<b>即使本应用已关闭也会准时送达</b>；但灭屏时安卓可能拦推送，需关闭 ntfy 的电池优化（iOS 一般不受影响）。</p>
+          <div v-if="!notifyStatus.enabled" class="sync-form">
+            <label>ntfy 服务器（默认 ntfy.sh；国内可填可达的镜像或自托管地址）</label>
+            <input v-model="$store.state.settings.notify.server" placeholder="https://ntfy.sh" />
+            <label>主题 Topic（随机生成，各设备共用同一主题）</label>
+            <div class="sync-repo">
+              <input v-model="$store.state.settings.notify.topic" placeholder="随机主题" />
+              <button class="btn ghost" @click="notifyGenTopic">随机</button>
             </div>
+            <label>访问令牌（可选，私有 ntfy 时填）</label>
+            <input type="password" v-model="$store.state.settings.notify.token" placeholder="可选" />
+            <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
           </div>
 
-          <!-- telegram 通道 -->
-          <div v-else>
-            <p class="backup-note">走 Telegram 高优先级推送，灭屏也能收到。需自建机器人并把 token 放在后端（不进浏览器）：</p>
-            <ol class="backup-note">
-              <li>找 <code>@BotFather</code> 新建机器人，拿到 bot token；</li>
-              <li>在 <code>mindpocket-vaults</code> 仓库 Settings → Secrets 添加 <code>TELEGRAM_BOT_TOKEN</code>（token 只在后端用，绝不下发到浏览器）；</li>
-              <li>给 <code>@userinfobot</code> 发 <code>/start</code> 查到你的 chat_id，填在下面。</li>
-            </ol>
-            <div v-if="!notifyStatus.enabled" class="sync-form">
-              <label>Telegram 聊天 ID（chat_id，纯数字）</label>
-              <input v-model="$store.state.settings.notify.chat" placeholder="如 123456789" />
-              <p class="backup-note">⚠️ Telegram 通道下所有提醒（含 3 天内）都经下方「☁ 云端代发」后端送出，需先启用云端代发。</p>
-              <button class="btn primary" @click="notifyEnable">保存并启用提醒</button>
-            </div>
-          </div>
-
-          <!-- 已启用状态（两通道共用） -->
+          <!-- 已启用状态 -->
           <div v-if="notifyStatus.enabled" class="sync-status">
-            <div class="sync-row"><span :class="['sync-dot', notifyStatus.enabled ? 'on' : 'off']"></span><span>已启用（{{ $store.state.settings.notify.channel === 'telegram' ? 'Telegram' : 'ntfy' }}） · 服务端已受理 {{ notifyStatus.count }} 条定时提醒</span></div>
+            <div class="sync-row"><span class="sync-dot on"></span><span>已启用（ntfy） · 服务端已受理 {{ notifyStatus.count }} 条定时提醒</span></div>
             <div class="sync-meta">
               <div>上次安排：{{ notifyStatus.lastScheduled ? new Date(notifyStatus.lastScheduled).toLocaleString() : '—' }}</div>
               <div v-if="notifyStatus.pending">待排队 {{ notifyStatus.pending }} 条：ntfy 免费服务只接受 3 天内的定时消息，打开本应用时会自动补发</div>
@@ -11401,9 +11379,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn ghost" @click="notifySchedule">立即重新安排</button>
               <button class="btn ghost" @click="notifyDisable">关闭</button>
             </div>
-            <p class="backup-note" v-if="$store.state.settings.notify.channel === 'telegram'">Telegram 测试会经「☁ 云端代发」后端，约 30 分钟内到达（灭屏也能收）。</p>
-            <p class="backup-note" v-else>收不到？① 手机 ntfy App 里确认已订阅下面这个主题；② 先点「发送测试推送」验证通道，再点「1 分钟后定时测试」验证定时；③ iOS 需在系统设置里允许 ntfy 通知与横幅。</p>
-            <p class="backup-note" v-if="$store.state.settings.notify.channel !== 'telegram'">手机端：安装 ntfy App → 订阅主题 <code>{{ $store.state.settings.notify.server }}/{{ $store.state.settings.notify.topic }}</code></p>
+            <p class="backup-note">收不到？① 手机 ntfy App 里确认已订阅下面这个主题；② 先点「发送测试推送」验证通道，再点「1 分钟后定时测试」验证定时；③ iOS 需在系统设置里允许 ntfy 通知与横幅。</p>
+            <p class="backup-note">手机端：安装 ntfy App → 订阅主题 <code>{{ $store.state.settings.notify.server }}/{{ $store.state.settings.notify.topic }}</code></p>
           </div>
         </div>
       </section>
@@ -11412,7 +11389,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <section class="block">
         <h3 class="block-title">☁ 云端代发（远期提醒不漏）</h3>
         <div class="backup-box">
-          <p class="backup-note">ntfy 免费服务只接受约 3 天内的定时消息，更远的提醒浏览器发不出去。开启后，GitHub Actions 每 30 分钟把即将到点的提醒补投给你（ntfy 或 Telegram）。数据写在你的私有仓库 <code>mindpocket-vaults</code>，零额外费用、无需自有服务器。</p>
+          <p class="backup-note">ntfy 免费服务只接受约 3 天内的定时消息，更远的提醒浏览器发不出去。开启后，GitHub Actions 每 30 分钟把即将到点的提醒补投给你（ntfy）。数据写在你的私有仓库 <code>mindpocket-vaults</code>，零额外费用、无需自有服务器。</p>
 
           <div v-if="!relayStatus.enabled" class="sync-form">
             <template v-if="sync.enabled">
@@ -11440,7 +11417,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="backup-actions">
               <button class="btn ghost" @click="relayDisable">关闭云端代发</button>
             </div>
-            <p class="backup-note">已投递的提醒不可撤回。Telegram 通道下所有提醒都经此后端送出。</p>
+            <p class="backup-note">已投递的提醒不可撤回。</p>
           </div>
         </div>
       </section>
@@ -11449,7 +11426,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <section class="block">
         <h3 class="block-title">📅 日历订阅（手机系统日历提醒）</h3>
         <div class="backup-box">
-          <p class="backup-note">把未来 60 天的任务到期时刻生成标准 <code>.ics</code> 日历文件，发布到公开的 GitHub Gist（URL 随机不可猜，隐私与现有 ntfy 标题外发一致）。手机日历 App 用「通过 URL 订阅」添加该链接，提醒即合并进系统日历——系统级提醒不受 Android 省电/电池优化影响，灭屏也能响（正好补足 ntfy / Telegram 走推送时的短板）。任务增删改会自动重发。</p>
+          <p class="backup-note">把未来 60 天的任务到期时刻生成标准 <code>.ics</code> 日历文件，发布到公开的 GitHub Gist（URL 随机不可猜，隐私与现有 ntfy 标题外发一致）。手机日历 App 用「通过 URL 订阅」添加该链接，提醒即合并进系统日历——系统级提醒不受 Android 省电/电池优化影响，灭屏也能响（正好补足 ntfy 走推送时的短板）。任务增删改会自动重发。</p>
 
           <div v-if="!calendarStatus.enabled" class="sync-form">
             <p class="backup-note">复用「多端同步」的 GitHub 令牌发布（需在令牌权限里勾上 <code>gist</code>）。若尚未开启多端同步，请先到上方配置。</p>
