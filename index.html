@@ -1651,7 +1651,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.settings = {
         quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
-        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', channel: 'ntfy', chat: '', ...n },
+        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
       };
       // 项目模块四表：兼容旧版 localStorage（不存在则初始化为空数组）
       state.projects = o.projects || [];
@@ -1674,7 +1674,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function seed() {
     state.categories = SYSTEM_CATEGORIES.map(c => ({ ...c }));
     PRESET_CUSTOM_CATEGORIES.forEach(n => state.categories.push({ _id: uid('cat'), name: n, is_system: false }));
-    state.settings = { quickToQuickView: true, autoExtend: false, notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', channel: 'ntfy', chat: '' } };
+    state.settings = { quickToQuickView: true, autoExtend: false, notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' } };
 
     // —— 习惯 ——
     const drink = { _id: uid('habit'), name: '每天喝水 8 杯', type: 'SOP_HABIT', enable_remind: false, remind_time: '09:00', plan_time: '08:00', holiday_ranges: [], records: [], create_at: Date.now(), unit: '次' };
@@ -4853,7 +4853,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.settings = {
         quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
-        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', channel: 'ntfy', chat: '', ...n },
+        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
       };
       state.projects = Array.isArray(o.projects) ? o.projects : [];
       state.project_subs = Array.isArray(o.project_subs) ? o.project_subs : [];
@@ -10933,11 +10933,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       notifyEnable() {
         var n = this.$store.state.settings.notify;
-        if ((n.channel || 'ntfy') === 'telegram') {
-          if (!n.chat) { this.showToast('请先填写 Telegram 聊天 ID'); return; }
-        } else {
-          if (!n.topic) this.notifyGenTopic();
-        }
+        if (!n.topic) this.notifyGenTopic();
         n.enabled = true;
         this.$store.persist();
         if (window.MPNotify) window.MPNotify.scheduleAll();
@@ -14186,21 +14182,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       pushSchedule: function (items, c, click) {
         var self = this;
         if (!this.ready()) return Promise.resolve(false);
-        var channel = (c && c.channel) || 'ntfy';
         var server = (c && c.server || 'https://ntfy.sh').replace(/\/+$/, '');
         var topic = (c && c.topic) || '';
-        var chat = (c && c.chat) || '';
         var now = Date.now();
         var payload = {
           v: 1,
           updated: new Date(now).toISOString(),
           expires: new Date(now + TTL_DAYS * 86400000).toISOString(),
-          channel: channel,
-          server: server, topic: topic, chat: chat, click: click || '',
+          server: server, topic: topic, click: click || '',
           items: items.map(function (j) { return { mid: j.mid, ts: j.ts, title: j.title || '提醒' }; }),
         };
         // 只对实质内容做摘要（不含 updated），内容没变就不写仓库
-        var d = digest(JSON.stringify({ ch: channel, s: server, t: topic, c: chat, i: payload.items }));
+        var d = digest(JSON.stringify({ s: server, t: topic, i: payload.items }));
         if (d === this._lastDigest) { self._set({ count: payload.items.length }); return Promise.resolve(false); }
 
         var file = this.path('');
@@ -14280,7 +14273,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     var NUDGE_MAX_MS = 2.5 * 24 * 3600 * 1000; // 自催消息最远排到 2.5 天（留在 ntfy 3 天窗口内）
     var HEARTBEAT_FRESH_MS = 12 * 3600 * 1000; // 后端心跳新鲜度阈值
 
-    function cfg() { return (window.MPStore && window.MPStore.state.settings.notify) || { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', channel: 'ntfy', chat: '' }; }
+    function cfg() { return (window.MPStore && window.MPStore.state.settings.notify) || { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' }; }
     function appUrl() {
       try {
         var u = new URL(location.href);
@@ -14408,9 +14401,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         //    所有没发成功的（超窗 / 限流 / 网络失败）都收进 overflow 交给云端代发，
         //    否则 ntfy 抖动时这批提醒会就地蒸发。
         var overflow = [], failed = 0, lastErr = '', added = 0, idx = 0, windowFull = false;
-        // telegram 通道：浏览器没有 bot token，无法直接发，所有提醒（含 3 天内）都交给云端代发
-        var useDirect = (c.channel || 'ntfy') !== 'telegram';
-        if (!useDirect) { overflow = jobs.slice(); added = 0; }
         function step() {
           if (idx >= jobs.length) return Promise.resolve();
           if (windowFull || added >= MAX_PER_RUN) { while (idx < jobs.length) overflow.push(jobs[idx++]); return Promise.resolve(); }
@@ -14422,8 +14412,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             return step();
           });
         }
-        var chain = useDirect ? step() : Promise.resolve();
-        return chain.then(function () {
+        return step().then(function () {
           // 3) 超窗部分交给云端代发；未配置代发时排一条自催消息兜底
           var relayed = false;
           if (window.MPRelay && window.MPRelay.ready()) {
@@ -14435,7 +14424,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return self._nudge(overflow, kept, seen).then(function () {
             saveSet(sig, kept);
             self._set({
-              enabled: true, count: useDirect ? kept.length : overflow.length, added: added, pending: overflow.length,
+              enabled: true, count: kept.length, added: added, pending: overflow.length,
               noDate: noDate, failed: failed, lastScheduled: Date.now(), relayed: relayed,
               lastError: failed ? lastErr : '',
             });
@@ -14451,8 +14440,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
        * 时刻取「2.5 天后」与「最早未投提醒前 1 小时」的较早者，mid 按小时取整保证幂等。*/
       _nudge: function (overflow, kept, seen) {
         if (!overflow.length) return Promise.resolve();
-        // telegram 通道下浏览器无 bot token，自催消息（走 ntfy）发不出去，且代发后端本就常驻，无需兜底
-        if ((cfg().channel || 'ntfy') === 'telegram') return Promise.resolve();
         if (window.MPRelay && window.MPRelay.ready() && window.MPRelay.backendAlive()) return Promise.resolve(); // 后端还活着，无需打扰
         var target = Math.min(Date.now() + NUDGE_MAX_MS, overflow[0].ts - 3600000);
         if (target <= Date.now() + MIN_LEAD_MS) return Promise.resolve();
@@ -14473,18 +14460,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       testPush: function () {
         var c = cfg(); if (!c.enabled) { this._set({ lastError: '请先启用提醒推送' }); return; }
         var self = this;
-        // Telegram 通道：浏览器无 bot token，改走云端代发后端（下次轮询/触发即送达，灭屏也能收）
-        if ((c.channel || 'ntfy') === 'telegram') {
-          if (!c.chat) { this._set({ lastError: '请先填写 Telegram 聊天 ID' }); return; }
-          if (!window.MPRelay || !window.MPRelay.ready()) { this._set({ lastError: '云端代发未配置，无法发送 Telegram 测试' }); return; }
-          var item = { mid: 'mp-test-' + Date.now(), ts: Date.now() + 90000, title: '这是一条测试提醒（Telegram）' };
-          window.MPRelay.pushSchedule([item], c, appUrl()).then(function (ok) {
-            window.MPRelay.dispatch();
-            self._set({ lastError: ok ? '' : '测试提交失败' });
-          });
-          this._set({ lastError: '' });
-          return;
-        }
         if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
         this.publish('这是一条测试提醒（应立即送达）', null, null, 'mp-test-' + Date.now(), true)
           .then(function (r) { self._set({ lastError: r.ok ? '' : (r.err || '推送失败') }); });
@@ -14494,18 +14469,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       testDelayed: function (sec) {
         var c = cfg(); if (!c.enabled) { this._set({ lastError: '请先启用提醒推送' }); return; }
         var self = this;
-        if ((c.channel || 'ntfy') === 'telegram') {
-          if (!c.chat) { this._set({ lastError: '请先填写 Telegram 聊天 ID' }); return; }
-          if (!window.MPRelay || !window.MPRelay.ready()) { this._set({ lastError: '云端代发未配置，无法发送 Telegram 测试' }); return; }
-          var ts = Date.now() + (sec || 60) * 1000;
-          var item = { mid: 'mp-testdelay-' + Date.now(), ts: ts, title: '定时推送自检（Telegram）' };
-          window.MPRelay.pushSchedule([item], c, appUrl()).then(function (ok) {
-            window.MPRelay.dispatch();
-            self._set({ lastError: ok ? '' : '测试提交失败' });
-          });
-          this._set({ lastError: '' });
-          return;
-        }
         if (!c.topic) { this._set({ lastError: '请先填写 ntfy 主题' }); return; }
         var d = new Date(Date.now() + (sec || 60) * 1000);
         var p2 = function (n) { return ('0' + n).slice(-2); };
@@ -14524,7 +14487,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       init: function () {
         var c = cfg();
-        var ready = c.enabled && ((c.channel || 'ntfy') === 'telegram' ? c.chat : c.topic);
+        var ready = c.enabled && c.topic;
         if (ready) {
           this.scheduleAll();
           if (!this._timer) this._timer = setInterval(function () { MPNotify.scheduleAll(); }, TICK);
@@ -14548,7 +14511,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * 原理：把未来 N 天任务的「到期时刻」生成为标准 iCalendar(.ics) 文件，发布到公开的
    * GitHub Gist（URL 随机不可猜，隐私等级与现有 ntfy 标题外发一致），手机日历 App 用
    * 「通过 URL 订阅」添加该链接，即可把提醒合并进系统日历——系统级日历提醒不受 Android
-   * Doze / 厂商电池优化影响，灭屏也能响（正是 ntfy / Telegram 走 FCM 推送时的短板）。
+   * Doze / 厂商电池优化影响，灭屏也能响（正是 ntfy 走推送时的短板）。
    * 复用「多端同步」的 GitHub 令牌（需 gist 权限）发布；任务增删改时由 persist() 自动重发。*/
   (function () {
     'use strict';

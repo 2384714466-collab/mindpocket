@@ -3,30 +3,23 @@
  * MindPocket 提醒代发器（GitHub Actions 侧「哑投递器」）
  * =========================================================================
  * 为什么需要它：ntfy.sh 免费服务只接受约 3 天内的定时消息（超出返回 400/40006），
- * 更远的提醒浏览器发不出去。本脚本定时把「即将进入投递窗口」的提醒补投给 ntfy 或 Telegram。
+ * 更远的提醒浏览器发不出去。本脚本定时把「即将进入投递窗口」的提醒补投给 ntfy。
  *
- * 投递通道（由清单里的 channel 字段决定）：
- *  - ntfy：清单带 server + topic，本脚本 POST 消息（沿用 ntfy 的 Delay 头精确定时）。
- *  - telegram：清单带 chat（聊天 ID），bot token 来自仓库 Secret TELEGRAM_BOT_TOKEN。
- *    浏览器没有 bot token，无法自己发 Telegram，因此 telegram 通道下【所有】提醒
- *    （含 3 天内的）都由本脚本代投——这是与 ntfy 通道最大的不同。
+ * 投递通道：ntfy —— 清单带 server + topic，本脚本 POST 消息（沿用 ntfy 的 Delay 头精确定时）。
  *
  * 设计原则：
  *  1. 浏览器是唯一真相源。日期 / 周期 / 时区全部由浏览器算好，清单里的 ts 是
  *     Unix 秒，本脚本绝不做任何日期推算 —— 从根本上杜绝前后端规则漂移与时区错位。
- *  2. 尽晚投递。ntfy 只处理 now+60s ~ now+18h；telegram 因无原生定时，靠临近时点
- *     轮询，窗口须宽于 cron 间隔以保证每个提醒至少被命中一次（见 TELEGRAM_*_MS）。
+ *  2. 尽晚投递。ntfy 只处理 now+60s ~ now+18h，窗口须宽于 cron 间隔以保证每个
+ *     提醒至少被命中一次。
  *  3. 自适应窗口。遇 ntfy 40006（还太远）就跳过，下轮再试，不依赖硬编码 ntfy 上限。
  *  4. 不用 git。全部走 Contents API + sha 乐观锁，不存在 non-fast-forward 冲突。
- *  5. 凭据不下发到浏览器：ntfy 私有令牌、Telegram bot token 都只存在于仓库 Secret，
- *     清单里永远只放 chat_id 这类非敏感标识。
+ *  5. 凭据不下发到浏览器：ntfy 私有令牌只存在于仓库 Secret，清单里永不存放令牌。
  *
  * 环境变量：
  *   GITHUB_TOKEN        必填，Actions 自动注入（permissions: contents: write）
  *   GITHUB_REPOSITORY   必填，形如 owner/repo，Actions 自动注入
  *   NTFY_TOKEN          可选，私有 ntfy 的访问令牌（走 repo secret，绝不存进清单）
- *   TELEGRAM_BOT_TOKEN  可选，Telegram 机器人令牌（channel=telegram 时必填，走 repo secret）
- *   TELEGRAM_API_ROOT   可选，自托管 Bot API 根地址（默认 https://api.telegram.org）
  *   DRY_RUN             可选，'1' 时只打印不实际投递 / 不写回仓库
  *   NOW_MS              可选，覆盖当前时刻（仅供测试）
  */
@@ -48,17 +41,9 @@ const MAX_ITEMS = 2000;                   // 单份清单硬上限
 const MAX_SENT = 5000;                    // sent 记录硬上限
 const MANIFEST_TTL_MS = 45 * 24 * 3600 * 1000; // 清单兜底有效期（防废弃 vault 被永远投递）
 
-// Telegram 无原生定时推送，靠本脚本临近时点轮询投递。
-// 窗口宽度须 > cron 间隔（30min）以保证每个提醒至少被命中一次；
-// 取值越窄越准时，但必须 < cron 间隔，否则会出现「两次轮询都落在窗口外」而漏投。
-const TELEGRAM_EARLY_MS = 12 * 60 * 1000;   // 最多提前 12 分钟投出
-const TELEGRAM_LATE_MS = 25 * 60 * 1000;    // 最多迟到 25 分钟仍补投（防 cron 偶发跳过）
-
 const token = process.env.GITHUB_TOKEN;
 const repoFull = process.env.GITHUB_REPOSITORY || '';
 const ntfyToken = process.env.NTFY_TOKEN || '';
-const telegramToken = process.env.TELEGRAM_BOT_TOKEN || '';
-const telegramApiRoot = (process.env.TELEGRAM_API_ROOT || 'https://api.telegram.org').replace(/\/+$/, '');
 const dryRun = process.env.DRY_RUN === '1';
 const NOW = Number(process.env.NOW_MS) || Date.now();
 
@@ -167,34 +152,6 @@ async function publish(server, topic, item) {
   return { ok: false, reason: 'http', err: `${res.status} ${txt.slice(0, 160)}` };
 }
 
-/* -------------------------------------------------------------- telegram */
-
-function fmtTs(ts) {
-  const d = new Date(ts);
-  const p = (n) => ('0' + n).slice(-2);
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
-}
-
-// 通过 Bot API 发送。bot token 来自环境变量（仓库 Secret），绝不进清单；
-// chat_id 来自清单（仅数字，已校验），text 由我们拼装，无外部参数注入风险。
-async function publishTelegram(item, chat) {
-  const text = '⏰ ' + (item.title || '提醒') + '\n📅 ' + fmtTs(item.ts);
-  let res;
-  try {
-    res = await fetch(`${telegramApiRoot}/bot${telegramToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: String(chat), text }),
-    });
-  } catch (e) {
-    return { ok: false, reason: 'net', err: String(e && e.message ? e.message : e) };
-  }
-  if (res.ok) return { ok: true };
-  let desc = '';
-  try { desc = (JSON.parse(await res.text()) || {}).description || ''; } catch (e) { /* 非 JSON */ }
-  return { ok: false, reason: 'http', err: `${res.status} ${desc.slice(0, 160)}` };
-}
-
 /* ------------------------------------------------------------------ 主流程 */
 
 async function processOne(id) {
@@ -221,31 +178,13 @@ async function processOne(id) {
   }
 
   const server = String(manifest.server || '').replace(/\/+$/, '');
-  const channel = String(manifest.channel || 'ntfy');
-  if (channel === 'telegram') {
-    if (!telegramToken) {
-      console.warn('  ⚠ 缺少 TELEGRAM_BOT_TOKEN（请在仓库 Secrets 配置），跳过');
-      const { data: s0raw, sha: s0sha } = await readJson(sentFile);
-      const s0sent = (s0raw && typeof s0raw.sent === 'object' && s0raw.sent) || {};
-      await writeJson(sentFile, { v: 1, last_run: new Date(NOW).toISOString(), last_sent: 0, last_error: '缺少 TELEGRAM_BOT_TOKEN', sent: s0sent }, s0sha, 'relay: 缺 token');
-      return { sent: 0, skipped: 0, failed: 0, rejected: true };
-    }
-    if (!/^-?\d+$/.test(String(manifest.chat || ''))) {
-      console.warn('  ⚠ 清单缺少合法 chat（Telegram 聊天 ID），跳过');
-      return { sent: 0, skipped: 0, failed: 0, rejected: true };
-    }
-  } else if (channel === 'ntfy') {
-    if (!SERVER_ALLOWLIST.includes(server)) {
-      console.warn(`  ⚠ 服务器 ${server || '(空)'} 不在白名单内，拒绝投递`);
-      return { sent: 0, skipped: 0, failed: 0, rejected: true };
-    }
-    if (!manifest.topic) {
-      console.warn('  ⚠ 缺少 topic，跳过');
-      return { sent: 0, skipped: 0, failed: 0 };
-    }
-  } else {
-    console.warn(`  ⚠ 未知渠道 ${channel}，跳过`);
+  if (!SERVER_ALLOWLIST.includes(server)) {
+    console.warn(`  ⚠ 服务器 ${server || '(空)'} 不在白名单内，拒绝投递`);
     return { sent: 0, skipped: 0, failed: 0, rejected: true };
+  }
+  if (!manifest.topic) {
+    console.warn('  ⚠ 缺少 topic，跳过');
+    return { sent: 0, skipped: 0, failed: 0 };
   }
 
   // 严格顺序：读 → 去重判定 → 投递 → 合并 → 剪枝 → 写
@@ -256,24 +195,16 @@ async function processOne(id) {
   const due = items.filter((it) => {
     if (!it || !it.mid || !Number.isFinite(it.ts)) return false;
     if (sent[it.mid]) return false;                      // 已投过
-    if (channel === 'telegram') {
-      // 无原生定时，靠临近时点轮询投递；窗口须宽于 cron 间隔以保证必中一次
-      if (it.ts < NOW - TELEGRAM_LATE_MS) return false;   // 太晚（已超过容忍迟到）
-      if (it.ts > NOW + TELEGRAM_EARLY_MS) return false;  // 还太早，下轮再说
-    } else {
-      if (it.ts <= NOW + LEAD_MIN_MS) return false;        // 太近 / 已过期
-      if (it.ts > NOW + LEAD_MAX_MS) return false;         // 还太远，下轮再说
-    }
+    if (it.ts <= NOW + LEAD_MIN_MS) return false;        // 太近 / 已过期
+    if (it.ts > NOW + LEAD_MAX_MS) return false;         // 还太远，下轮再说
     return true;
   }).sort((a, b) => a.ts - b.ts);
 
-  console.log(`  清单 ${items.length} 条 · 渠道 ${channel} · 本轮到期 ${due.length} 条`);
+  console.log(`  清单 ${items.length} 条 · 渠道 ntfy · 本轮到期 ${due.length} 条`);
 
   let ok = 0, skipped = 0, failed = 0, lastErr = '';
   for (const it of due) {
-    const r = channel === 'telegram'
-      ? await publishTelegram({ ...it, click: manifest.click }, manifest.chat)
-      : await publish(server, manifest.topic, { ...it, click: manifest.click });
+    const r = await publish(server, manifest.topic, { ...it, click: manifest.click });
     if (r.ok) {
       sent[it.mid] = it.ts;
       ok++;
