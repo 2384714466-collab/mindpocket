@@ -1603,6 +1603,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (window.MPSync && window.MPSync.onChange) { try { window.MPSync.onChange(); } catch (_) {} }
     // 提醒钩子：若已启用手机提醒推送，本地变更后重新安排 ntfy 延迟推送（P2）
     if (window.MPNotify && window.MPNotify.onChange) { try { window.MPNotify.onChange(); } catch (_) {} }
+    // 日历订阅钩子：若已启用，本地变更后自动重发 .ics（任务增删改都会触发）
+    if (window.MPCalendar && window.MPCalendar.onChange) { try { window.MPCalendar.onChange(); } catch (_) {} }
   }
   // 全局刷新通知：自增响应式版本号，供各页面 watch 监听后主动重载数据
   function notifyChange() { state.revision = (state.revision || 0) + 1; }
@@ -10276,6 +10278,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 云端代发（P2+）：状态 + 表单字段
         relayStatus: { enabled: false, count: 0, lastRun: 0, lastError: '', backendError: '' },
         relayToken: '', relayVaultId: '',
+        // 日历订阅（WebCal / .ics 通过 URL 同步到手机日历）：状态 + 表单字段
+        calendarStatus: { enabled: false, mode: 'title', gistId: '', url: '', lastRun: 0, lastError: '', count: 0 },
+        calendarMode: 'title',
       };
     },
     mounted() {
@@ -10304,6 +10309,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.relayToken = window.MPRelay.cfg.token || '';
         this.relayVaultId = window.MPRelay.cfg.id || '';
         window.MPRelay.onStatus((s) => { this.relayStatus = Object.assign({}, this.relayStatus, s); });
+      }
+      // 日历订阅：绑定状态到 UI，并预填已保存的模式
+      if (window.MPCalendar) {
+        this.calendarMode = window.MPCalendar.status.mode || 'title';
+        window.MPCalendar.onStatus((s) => { this.calendarStatus = Object.assign({}, this.calendarStatus, s); });
       }
     },
     computed: {
@@ -10982,6 +10992,50 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         window.MPRelay.remove(); // 删除清单，避免后端继续投递
         this.showToast('已关闭云端代发');
       },
+      // —— 日历订阅（MPCalendar）配置 ——
+      calendarEnable() {
+        if (!window.MPCalendar) { this.showToast('日历订阅组件未加载'); return; }
+        if (!window.MPSync || !window.MPSync.cfg || !window.MPSync.cfg.token) {
+          this.showToast('请先在「多端同步」里配置 GitHub 令牌（日历订阅复用该令牌，需 gist 权限）');
+          return;
+        }
+        window.MPCalendar.setMode(this.calendarMode);
+        this.showToast('已启用日历订阅，正在生成 .ics …');
+        window.MPCalendar.enable().then((url) => {
+          if (url) this.showToast('日历订阅已生成，复制下方链接到手机日历即可');
+          else this.showToast('生成失败：' + (this.calendarStatus.lastError || '未知错误'));
+        }).catch((e) => { this.showToast('启用失败：' + (e && e.message ? e.message : e)); });
+      },
+      calendarDisable() {
+        if (!window.MPCalendar) return;
+        window.MPCalendar.disable(); // 删除 gist，避免公开残留
+        this.showToast('已关闭日历订阅');
+      },
+      calendarSyncNow() {
+        if (!window.MPCalendar) return;
+        this.showToast('正在重新生成 .ics …');
+        window.MPCalendar.sync().then((ok) => {
+          this.showToast(ok ? ('已同步 ' + this.calendarStatus.count + ' 条到日历订阅') : ('同步失败：' + (this.calendarStatus.lastError || '未知错误')));
+        });
+      },
+      calendarSetMode() {
+        if (!window.MPCalendar) return;
+        window.MPCalendar.setMode(this.calendarMode);
+        if (this.calendarStatus.enabled) this.showToast('已切换模式并重新生成 .ics');
+      },
+      calendarCopyUrl() {
+        var u = this.calendarStatus.url || '';
+        if (!u) { this.showToast('还没有订阅链接，请先启用'); return; }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(u).then(() => this.showToast('订阅链接已复制'), () => this.showToast('复制失败，请手动复制'));
+        } else { this.showToast('当前环境不支持自动复制，请手动长按复制'); }
+      },
+      calendarSubscribe() {
+        var u = this.calendarStatus.url || '';
+        if (!u) { this.showToast('还没有订阅链接，请先启用'); return; }
+        // iOS/Android 日历「通过 URL 订阅」用 webcal:// 协议；直接跳转触发系统订阅流程
+        location.href = u.replace(/^https:\/\//, 'webcal://');
+      },
       // 按月缓存：页面打开直接读 localStorage，避免每次加载都重算；↻ 强制刷新
       loadHealth(force) {
         const ym = this.year + '-' + String(this.month).padStart(2, '0');
@@ -11387,6 +11441,43 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn ghost" @click="relayDisable">关闭云端代发</button>
             </div>
             <p class="backup-note">已投递的提醒不可撤回。Telegram 通道下所有提醒都经此后端送出。</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 日历订阅（WebCal / .ics 通过 URL 同步到手机日历，灭屏也能响） -->
+      <section class="block">
+        <h3 class="block-title">📅 日历订阅（手机系统日历提醒）</h3>
+        <div class="backup-box">
+          <p class="backup-note">把未来 60 天的任务到期时刻生成标准 <code>.ics</code> 日历文件，发布到公开的 GitHub Gist（URL 随机不可猜，隐私与现有 ntfy 标题外发一致）。手机日历 App 用「通过 URL 订阅」添加该链接，提醒即合并进系统日历——系统级提醒不受 Android 省电/电池优化影响，灭屏也能响（正好补足 ntfy / Telegram 走推送时的短板）。任务增删改会自动重发。</p>
+
+          <div v-if="!calendarStatus.enabled" class="sync-form">
+            <p class="backup-note">复用「多端同步」的 GitHub 令牌发布（需在令牌权限里勾上 <code>gist</code>）。若尚未开启多端同步，请先到上方配置。</p>
+            <label>隐私模式</label>
+            <div class="mode-chips">
+              <label class="chip"><input type="radio" value="title" v-model="calendarMode" @change="calendarSetMode" /> 含任务标题（推荐，日历里能看到内容）</label>
+              <label class="chip"><input type="radio" value="date" v-model="calendarMode" @change="calendarSetMode" /> 仅日期不含标题（更隐私）</label>
+            </div>
+            <button class="btn primary" @click="calendarEnable">启用日历订阅</button>
+          </div>
+
+          <div v-else class="sync-status">
+            <div class="sync-row"><span :class="['sync-dot', calendarStatus.lastRun ? 'on' : 'off']"></span><span>已启用 · 已同步 {{ calendarStatus.count }} 条 · 模式 {{ calendarStatus.mode === 'date' ? '仅日期' : '含标题' }}</span></div>
+            <div class="sync-meta">
+              <div>上次生成：{{ calendarStatus.lastRun ? new Date(calendarStatus.lastRun).toLocaleString() : '—' }}</div>
+              <div v-if="calendarStatus.lastError" class="sync-err">错误：{{ calendarStatus.lastError }}</div>
+            </div>
+            <div class="sync-form">
+              <label>订阅链接（复制到手机日历「通过 URL 订阅」）</label>
+              <input :value="calendarStatus.url" readonly @focus="$event.target.select()" />
+              <div class="backup-actions">
+                <button class="btn primary" @click="calendarCopyUrl">复制链接</button>
+                <button class="btn ghost" @click="calendarSubscribe">在手机日历中订阅</button>
+                <button class="btn ghost" @click="calendarSyncNow">立即重新生成</button>
+                <button class="btn ghost" @click="calendarDisable">关闭</button>
+              </div>
+            </div>
+            <p class="backup-note">iOS：日历 App → 其他 → 添加订阅日历，粘贴链接；或直接点「在手机日历中订阅」。Android：Google 日历 → 设置 → 添加日历 → 通过 URL 添加。日历通常每天自动刷新；也可在设置里手动刷新。</p>
           </div>
         </div>
       </section>
@@ -14472,6 +14563,210 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     };
 
     (function () { window.MPNotify = MPNotify; MPNotify.init(); })();
+  })();
+  </script>
+
+  <script>
+  /* ===== 日历订阅（WebCal / .ics 通过 URL 同步到手机日历） =====
+   * 原理：把未来 N 天任务的「到期时刻」生成为标准 iCalendar(.ics) 文件，发布到公开的
+   * GitHub Gist（URL 随机不可猜，隐私等级与现有 ntfy 标题外发一致），手机日历 App 用
+   * 「通过 URL 订阅」添加该链接，即可把提醒合并进系统日历——系统级日历提醒不受 Android
+   * Doze / 厂商电池优化影响，灭屏也能响（正是 ntfy / Telegram 走 FCM 推送时的短板）。
+   * 复用「多端同步」的 GitHub 令牌（需 gist 权限）发布；任务增删改时由 persist() 自动重发。*/
+  (function () {
+    'use strict';
+    var LS = 'mindpocket:calendar';
+    var HORIZON = 60;            // 生成未来 60 天的事件
+    var DEBOUNCE = 4000;         // 任务变动后防抖重发
+    var API = 'https://api.github.com';
+    var FILE = 'calendar.ics';
+
+    var status = { enabled: false, mode: 'title', gistId: '', url: '', lastRun: 0, lastError: '', count: 0 };
+    var _cb = null, _deb = null, _running = null;
+
+    function load() {
+      try { var r = JSON.parse(localStorage.getItem(LS) || 'null'); if (r && typeof r === 'object') Object.assign(status, r); } catch (e) {}
+    }
+    function save() {
+      try { localStorage.setItem(LS, JSON.stringify({ enabled: status.enabled, mode: status.mode, gistId: status.gistId, url: status.url, lastRun: status.lastRun, lastError: status.lastError, count: status.count })); } catch (e) {}
+      if (_cb) _cb(Object.assign({}, status));
+    }
+    function onStatus(cb) { _cb = cb; if (cb) cb(Object.assign({}, status)); }
+    function token() { return (window.MPSync && window.MPSync.cfg && window.MPSync.cfg.token) || ''; }
+    function owner() { return (window.MPSync && window.MPSync.cfg && window.MPSync.cfg.owner) || '2384714466-collab'; }
+
+    /* 复用 MPNotify 的采集规则：枚举未来命中日 + 周期展开，得到每条 (date,time,title,ts) */
+    function collectJobs() {
+      if (!window.MPStore || !window.MPStore.util) return [];
+      var U = window.MPStore.util;
+      var today = U.todayStr();
+      var end = U.addDays(today, HORIZON);
+      var seen = {}; var jobs = [];
+      function collect(id, date, time, title) {
+        if (!date || date < today || date > end) return;
+        var mid = 'mp-' + id + '-' + date + '-' + (time || '0900');
+        if (seen[mid]) return; seen[mid] = true;
+        var ts = new Date(date + 'T' + (time || '09:00')).getTime();
+        if (isNaN(ts)) return;
+        jobs.push({ mid: mid, date: date, time: time, title: title, ts: ts });
+      }
+      var tasks = window.MPStore.state.tasks || [];
+      for (var i = 0; i < tasks.length; i++) {
+        var t = tasks[i]; if (t.is_archived) continue;
+        if (t.enable_remind && t.remind_time) {
+          if (t.cycle && t.cycle.type && t.cycle.type !== 'none') {
+            var ds = today; while (ds <= end) { if (U.cycleHits(t.cycle, ds)) collect(t._id, ds, t.remind_time, t.title); ds = U.addDays(ds, 1); }
+          } else {
+            var d0 = t.execute_date || t.date_start || '';
+            if (d0) collect(t._id, d0, t.remind_time, t.title);
+          }
+        }
+        var subs = t.sub_tasks || [];
+        for (var j = 0; j < subs.length; j++) {
+          var s = subs[j]; if (s.is_done) continue;
+          if (s.sub_remind && s.sub_remind_time && s.sub_deadline) collect(t._id + ':' + s._id, s.sub_deadline, s.sub_remind_time, (t.title || '') + ' / ' + (s.title || ''));
+        }
+      }
+      jobs.sort(function (a, b) { return a.ts - b.ts; });
+      return jobs;
+    }
+
+    function pad(n) { return ('0' + n).slice(-2); }
+    function icsDate(d) { return d.getUTCFullYear() + pad(d.getUTCMonth() + 1) + pad(d.getUTCDate()) + 'T' + pad(d.getUTCHours()) + pad(d.getUTCMinutes()) + pad(d.getUTCSeconds()) + 'Z'; }
+    function esc(s) { return String(s == null ? '' : s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n'); }
+
+    function buildICS(jobs, mode) {
+      var L = [];
+      L.push('BEGIN:VCALENDAR');
+      L.push('VERSION:2.0');
+      L.push('PRODID:-//MindPocket//Calendar Feed//CN');
+      L.push('CALSCALE:GREGORIAN');
+      L.push('X-WR-CALNAME:MindPocket 日程');
+      L.push('REFRESH-INTERVAL;VALUE=DURATION:PT12H');
+      for (var i = 0; i < jobs.length; i++) {
+        var j = jobs[i];
+        var start = new Date(j.ts);
+        var endT = new Date(j.ts + 30 * 60000);
+        var summary = mode === 'date' ? 'MindPocket 任务' : (j.title || '提醒');
+        L.push('BEGIN:VEVENT');
+        L.push('UID:' + j.mid + '@mindpocket');
+        L.push('DTSTAMP:' + icsDate(new Date()));
+        L.push('DTSTART:' + icsDate(start));
+        L.push('DTEND:' + icsDate(endT));
+        L.push('SUMMARY:' + esc(summary));
+        if (mode !== 'date' && j.title) L.push('DESCRIPTION:' + esc(j.title));
+        L.push('BEGIN:VALARM');
+        L.push('TRIGGER:-PT0M');
+        L.push('ACTION:DISPLAY');
+        L.push('DESCRIPTION:' + esc(summary));
+        L.push('END:VALARM');
+        L.push('END:VEVENT');
+      }
+      L.push('END:VCALENDAR');
+      return L.join('\r\n');
+    }
+
+    function gh(method, path, body) {
+      var headers = {
+        'Authorization': 'Bearer ' + token(),
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'mindpocket-calendar',
+      };
+      return fetch(API + path, { method: method, headers: headers, body: body ? JSON.stringify(body) : undefined })
+        .then(function (r) { return r.text().then(function (txt) { return { ok: r.ok, status: r.status, text: txt }; }); });
+    }
+    function finalize(g) {
+      var url = 'https://gist.githubusercontent.com/' + (g.owner && g.owner.login) + '/' + g.id + '/raw/calendar.ics';
+      status.gistId = g.id; status.url = url;
+      return url;
+    }
+    function createGist(ics) {
+      return gh('POST', '/gists', {
+        description: 'MindPocket 日历订阅（自动生成，请勿手动编辑）',
+        public: true,
+        files: { 'calendar.ics': { content: ics } },
+      }).then(function (r) {
+        if (!r.ok) throw new Error('创建 gist 失败：GitHub ' + r.status + (r.text ? ' ' + r.text.slice(0, 140) : '') + '（令牌需有 gist 权限）');
+        return finalize(JSON.parse(r.text));
+      });
+    }
+    function updateGist(id, ics) {
+      return gh('PATCH', '/gists/' + id, {
+        files: { 'calendar.ics': { content: ics } },
+      }).then(function (r) {
+        if (!r.ok) throw new Error('更新 gist 失败：GitHub ' + r.status + (r.text ? ' ' + r.text.slice(0, 140) : ''));
+        return finalize(JSON.parse(r.text));
+      });
+    }
+    function deleteGist(id) {
+      return gh('DELETE', '/gists/' + id).then(function () {}, function () {});
+    }
+    function ensureGist(ics) {
+      if (status.gistId) return updateGist(status.gistId, ics);
+      return createGist(ics);
+    }
+
+    function sync() {
+      if (!status.enabled) return Promise.resolve(false);
+      if (_running) return _running;
+      if (!token()) { status.lastError = '未配置同步令牌（请先开启「多端同步」并配置 GitHub 令牌）'; save(); return Promise.resolve(false); }
+      _running = Promise.resolve().then(function () {
+        var jobs = collectJobs();
+        var ics = buildICS(jobs, status.mode);
+        return ensureGist(ics).then(function (url) {
+          status.count = jobs.length;
+          status.lastRun = Date.now();
+          status.lastError = '';
+          status.url = url || status.url;
+          save();
+          return true;
+        });
+      }).catch(function (e) {
+        status.lastError = (e && e.message) ? e.message : String(e);
+        save();
+        return false;
+      }).then(function (r) { _running = null; return r; });
+      return _running;
+    }
+
+    function enable() {
+      status.enabled = true; save();
+      return sync().then(function (ok) { return ok ? status.url : null; });
+    }
+    function setMode(m) {
+      status.mode = m; save();
+      if (status.enabled) return sync();
+      return Promise.resolve(true);
+    }
+    function disable() {
+      status.enabled = false;
+      var id = status.gistId;
+      status.gistId = ''; status.url = ''; status.count = 0; status.lastRun = 0;
+      save();
+      if (id) deleteGist(id);
+    }
+    function onChange() {
+      if (!status.enabled) return;
+      if (_deb) clearTimeout(_deb);
+      _deb = setTimeout(function () { sync(); }, DEBOUNCE);
+    }
+    function subscribeUrl() {
+      if (!status.url) return '';
+      return status.url.replace(/^https:\/\//, 'webcal://');
+    }
+
+    load();
+    // 启用状态下，页面加载后延迟自同步一次：把最新任务重新生成 .ics，
+    // 保证刷新/重开应用后 gist 里的日历仍是当前数据（手机日历会按刷新间隔拉取）。
+    if (status.enabled) setTimeout(function () { sync(); }, 1500);
+
+    window.MPCalendar = {
+      status: status,
+      onStatus: onStatus,
+      enable: enable, disable: disable, sync: sync, setMode: setMode,
+      onChange: onChange, subscribeUrl: subscribeUrl, token: token,
+    };
   })();
   </script>
 </body>
