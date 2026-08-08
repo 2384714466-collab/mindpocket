@@ -149,7 +149,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 10p
 .handcards { user-select: none; }
 .handcards-hint { text-align: center; color: var(--sub); font-size: 12px; margin-bottom: 4px; }
 .handcards-empty { text-align: center; color: var(--sub); padding: 30px; }
-.handcards-stack { position: relative; height: 156px; touch-action: none; }
+.handcards-stack { position: relative; height: 156px; touch-action: none; isolation: isolate; }
 /* 滑动 / 长按手势容器：禁用 iOS 长按呼出菜单与文本选择，保证长按手势准确灵敏（与全局 contextmenu 拦截互补） */
 .handcards-stack,
 .row.task-row.swipeable, .row.swipe,
@@ -1287,6 +1287,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-edit-limit { font-size: 12px; color: var(--no); background: #ffeaea; border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
 .wp-quota { font-size: 11px; color: var(--sub); margin: 0 0 8px; }
 .wp-quota strong { color: var(--primary); }
+.wp-quota.closed { color: #d9534f; }
 
 /* —— 积分明细分类展示 —— */
 .wp-detail-value.penalty { color: var(--no); font-weight: 700; }
@@ -2018,6 +2019,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       material_notes: '', cycle_history: [], expect_hint_date: null, create_at: Date.now(),
       plan_year: null, plan_month: null, plan_week: null, time_mode: null,
       week_offset: null, cycle_end_date: '',
+      // —— 周期结束方式：''（默认，永久循环）/ 'date'（按结束日期）/ 'count'（打卡 N 次后结束）——
+      cycle_end_mode: '', cycle_end_count: 0,
       doneDates: [],
       doneOverdueDates: [],
       is_template: false, is_collection: false,
@@ -2038,6 +2041,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       t.date_mode = 'single'; t.date_start = ''; t.date_end = '';
       t.plan_year = null; t.plan_month = null; t.plan_week = null; t.time_mode = null;
       t.week_offset = null; t.cycle_end_date = '';
+      t.cycle_end_mode = ''; t.cycle_end_count = 0;
       t.deadline_time = ''; t.remind_option = 'none'; t.add_to_calendar = false;
     }
     state.tasks.unshift(t);
@@ -2067,6 +2071,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       t.date_mode = 'single'; t.date_start = ''; t.date_end = '';
       t.plan_year = null; t.plan_month = null; t.plan_week = null; t.time_mode = null;
       t.week_offset = null; t.cycle_end_date = '';
+      t.cycle_end_mode = ''; t.cycle_end_count = 0;
       t.deadline_time = ''; t.remind_option = 'none'; t.add_to_calendar = false;
     }
     if (t.cycle && !t.cycle._base) t.cycle._base = todayStr(); // 编辑时补锚点
@@ -2084,6 +2089,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 规则②：母本结束日缩短（或新设）后，批量清理所有晚于结束日的副本
       const newEnd = t.cycle_end_date || '';
       if (newEnd && (!oldEnd || newEnd < oldEnd)) trimCycleCopiesAfterEnd(t, newEnd);
+      // 规则②(次数模式)：结束方式改为「打卡 N 次后结束」时，按 N 个执行日的末日清理超出副本
+      if (t.cycle && t.cycle_end_mode === 'count' && t.cycle_end_count > 0) {
+        const cEnd = cycleCountEndDate(t);
+        if (cEnd) trimCycleCopiesAfterEnd(t, cEnd);
+      }
     }
     persist();
   }
@@ -2151,11 +2161,39 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return out;
   }
 
+  // 次数模式：按周期规则从锚点向前推算，取前 cycle_end_count 个执行日（执行历史即「正常按周期推算」）
+  // 锚点缺失时回退创建日；cycle_end_count 非法（<=0）返回空（退化为无限循环口径）
+  function cycleCountDates(t) {
+    if (!t || !t.cycle || t.cycle_end_mode !== 'count' || !(t.cycle_end_count > 0)) return [];
+    const base = t.cycle._base || (t.create_at ? fmt(new Date(t.create_at)) : todayStr());
+    const N = t.cycle_end_count;
+    const out = []; let ds = base, guard = 0;
+    while (out.length < N && guard < 100000) {
+      if (cycleHits(t.cycle, ds)) out.push(ds);
+      ds = addDays(ds, 1); guard++;
+    }
+    return out;
+  }
+  // 次数模式：N 个执行日中的最末一日（用于副本投射上界；无则返回 ''）
+  function cycleCountEndDate(t) {
+    const arr = cycleCountDates(t);
+    return arr.length ? arr[arr.length - 1] : '';
+  }
+  // 次数模式：已打卡次数（cycle_history 中 is_archived 的条数）
+  function cycleDoneCount(t) {
+    return (t.cycle_history || []).filter(h => h.is_archived).length;
+  }
+
   // 全部执行日期是否都已打卡完成（用于「全部日期完成自动归档母本」）
-  // 周期：有限周期（有 cycle_end_date）逐日判定；无限循环（无结束日）恒返回 false —— 不存在「全部日期」
+  // 周期·次数模式（cycle_end_mode==='count'）：已打卡次数 >= cycle_end_count 即视为完成（结束于第 N 次打卡）
+  // 周期·日期模式（有 cycle_end_date）：有限周期逐日判定；无限循环（无结束日）恒返回 false
   // 自定义区间：有 date_end 时逐日判定；无结束日的无限区间恒返回 false
   function allOccurrencesDone(t) {
     if (!t) return false;
+    if (t.cycle && t.cycle_end_mode === 'count' && t.cycle_end_count > 0) {
+      if (t.is_template) return false; // 模板任务不靠次数归档（仅手动按钮可归档）
+      return cycleDoneCount(t) >= t.cycle_end_count;
+    }
     const done = (t.cycle_history || []).filter(h => h.is_archived).map(h => h.execute_date);
     if (t.cycle) {
       if (!t.cycle_end_date) return false;
@@ -2205,6 +2243,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function archiveTask(id) {
     const t = findTask(id);
     if (!t) return;
+    const wasArchived = !!t.is_archived;
     if (t.cycle) {
       const today = todayStr();
       if (!cycleArchivedToday(t, today)) {
@@ -2215,9 +2254,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     }
     t.isEmergency = false;
     persist();
-    // 积分联动：收藏夹归档 +9
-    if (isCollectionTask(t) && !t.cycle) {
-      addPoints(9, 'collection', '归档: ' + t.title, t._id);
+    // 积分联动：收藏夹归档 +9；临时任务完成 +5（仅「未归档→归档」单向任务计分，避免重复完成重复加分）
+    if (!wasArchived && !t.cycle) {
+      if (isCollectionTask(t)) addPoints(9, 'collection', '归档: ' + t.title, t._id);
+      else if (t.category_id === QUICK_VIEW_ID) addPoints(5, 'temp_task', '完成临时任务: ' + t.title, t._id);
     }
   }
 
@@ -2228,17 +2268,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     t.is_archived = true;
     t.isEmergency = false;
     persist();
-    // 积分联动：收藏夹彻底归档 +9
-    if (isCollectionTask(t)) {
-      addPoints(9, 'collection', '归档: ' + t.title, t._id);
+    // 积分联动：收藏夹彻底归档 +9；临时任务完成 +5
+    if (!t.cycle) {
+      if (isCollectionTask(t)) addPoints(9, 'collection', '归档: ' + t.title, t._id);
+      else if (t.category_id === QUICK_VIEW_ID) addPoints(5, 'temp_task', '完成临时任务: ' + t.title, t._id);
     }
   }
 
   function undoArchive(id) {
     const t = findTask(id);
     if (!t) return;
-    // 积分联动：撤销收藏归档
+    // 积分联动：撤销收藏归档 / 撤销临时任务完成
     if (isCollectionTask(t)) { reversePoints(id, 'collection'); }
+    else if (t.category_id === QUICK_VIEW_ID) { reversePoints(id, 'temp_task'); }
     if (t.is_archived) {
       t.is_archived = false;
       t.autoArchivedByCopies = false;
@@ -2282,13 +2324,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!t) return false;
     if (t.is_archived) return false;                                  // 母本未归档
     if (isCopyArchived(t, date)) return false;                        // 副本本身未失效
-    if (t.cycle_end_date && date > t.cycle_end_date) return false;     // 副本日期 ≤ 母本周期结束日
+    if (t.cycle_end_date && date > t.cycle_end_date) return false;     // 副本日期 ≤ 母本周期结束日（按日期结束）
+    // 次数模式：副本日期不得超出 N 个执行日的末日（结束于第 N 次打卡）
+    if (t.cycle && t.cycle_end_mode === 'count' && t.cycle_end_count > 0) {
+      const cEnd = cycleCountEndDate(t);
+      if (cEnd && date > cEnd) return false;
+    }
     return true;
   }
   // 计算某实体（母本或子任务）的副本发生日列表：
   // 子任务优先用自身 cycle / 区间；若无则跟随母本周期规则生成（统一规范③：子任务跟随母本周期）。
   function entityOccurrenceDates(e, parent) {
     if (e.cycle) {
+      // 次数模式：按周期推算前 N 个执行日（执行历史正常按周期推算，结束于第 N 次打卡）
+      if (e.cycle_end_mode === 'count' && e.cycle_end_count > 0) return cycleCountDates(e);
       return cycleOccurrenceDates(e.cycle, e.cycle_end_date || '', { base: e.cycle._base || (e.create_at ? fmt(new Date(e.create_at)) : ''), fut: 365, hist: 0 });
     }
     if (e.date_mode === 'range' && e.date_start) {
@@ -2298,6 +2347,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       return out;
     }
     if (parent && parent.cycle) {
+      // 次数模式跟随母本：按母本 N 个执行日上界
+      if (parent.cycle_end_mode === 'count' && parent.cycle_end_count > 0) return cycleCountDates(parent);
       return cycleOccurrenceDates(parent.cycle, parent.cycle_end_date || '', { base: parent.cycle._base || (parent.create_at ? fmt(new Date(parent.create_at)) : ''), fut: 365, hist: 0 });
     }
     if (parent && parent.date_mode === 'range' && parent.date_start) {
@@ -2441,6 +2492,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       archived_copies: [],
       // 周期结束日期（可选）：限制周期任务执行历史的日期范围；留空=无限循环
       cycle_end_date: '',
+      // 周期结束方式：''（默认，永久循环）/ 'date'（按结束日期）/ 'count'（打卡 N 次后结束）
+      cycle_end_mode: '', cycle_end_count: 0,
       // 紧急标记：子任务同样支持强制置顶（今日子任务列表）
       isEmergency: false,
     }, extra || {});
@@ -2496,6 +2549,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (patch && 'date_end' in patch) s.date_end = patch.date_end || '';
     if (patch && 'time_mode' in patch) s.time_mode = patch.time_mode || null;
     if (patch && 'week_offset' in patch) s.week_offset = (patch.week_offset != null) ? patch.week_offset : null;
+    if (patch && 'cycle_end_mode' in patch) s.cycle_end_mode = patch.cycle_end_mode || '';
+    if (patch && 'cycle_end_count' in patch) s.cycle_end_count = Number(patch.cycle_end_count) || 0;
     if (patch && 'cycle_end_date' in patch) {
       const oldEnd = s.cycle_end_date || '';
       const newEnd = patch.cycle_end_date || '';
@@ -2507,6 +2562,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         if (Array.isArray(s.archived_copies) && s.archived_copies.length) {
           s.archived_copies = s.archived_copies.filter(d => !(d && d > newEnd));
+        }
+      }
+    }
+    // 次数模式：按 N 个执行日的末日清理超出的打卡记录与失效标记（与主任务 updateTask 一致）
+    if (s.cycle && s.cycle_end_mode === 'count' && s.cycle_end_count > 0) {
+      const cEnd = cycleCountEndDate(s);
+      if (cEnd) {
+        if (s.cycle_history && s.cycle_history.length) {
+          s.cycle_history = s.cycle_history.filter(h => !(h.execute_date && h.execute_date > cEnd));
+        }
+        if (Array.isArray(s.archived_copies) && s.archived_copies.length) {
+          s.archived_copies = s.archived_copies.filter(d => !(d && d > cEnd));
         }
       }
     }
@@ -3458,6 +3525,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (level3Used) continue;            // 后续 ### 仅当普通文本
         level3Used = true;
         if (curL1 && curL2 && name) { level3Name = name; }                 // 已有 #一级##二级 → 记录父任务名
+        else if (curL1 && !curL2 && name) { level3Name = name; }           // 已有 #一级（无二级）→ 记录父任务名（一级下建父任务）
         else if (name) { curL1 = name; pairs.push({ l1: name, l2: '', l3: '' }); } // 无层级上下文 → 当作普通一级标签
         continue;
       }
@@ -3482,7 +3550,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const l1 = parts[0], l2 = parts.length > 1 ? parts[1] : '';
       curL1 = l1; curL2 = l2;
       pairs.push({ l1, l2, l3: '' });
-      if (inlineL3 && l1 && l2 && !level3Used) { level3Used = true; level3Name = inlineL3; }
+      if (inlineL3 && l1 && !level3Used) { level3Used = true; level3Name = inlineL3; }
     }
     if (!pairs.length && !level3Name) return out;
     const parsed = [];
@@ -3499,9 +3567,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 归属分类：以最后有效层级为准（兼容原有二级/一级任务归属）
     out.parent_category = last.l2 ? last.l1._id : '';
     out.category_id = last.l2 ? last.l2._id : last.l1._id;
-    if (level3Name && lastL1 && lastL2) {
+    if (level3Name && lastL1) {
       out.hasLevel3 = true;
-      out.level3Chain = { l1: { _id: lastL1._id, name: lastL1Name }, l2: { _id: lastL2._id, name: lastL2Name }, l3name: level3Name };
+      out.level3Chain = { l1: { _id: lastL1._id, name: lastL1Name }, l2: lastL2 ? { _id: lastL2._id, name: lastL2Name } : null, l3name: level3Name };
     }
     return out;
   }
@@ -3518,6 +3586,29 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (isCollCat(catId)) return 'collection';
     const tpl = state.tasks.some(t => t.is_template && (t.category_id === catId || t.parent_category === catId));
     return tpl ? 'template' : 'task';
+  }
+  // 某分类归属于哪个文件夹（与待归档文件夹视图 folderTopCats / inScope 同一套判定）：
+  //   collection：isCollCat 或被任一「收藏夹任务」引用（按顶层 parent 归属，子标签归入其父一级）
+  //   template：被任一「模版任务」引用
+  //   task：其余（非收藏 / 非模版；含无任务标签，保持可选）
+  // 用于「删除标签 → 迁移至其他文件夹 / 成为二级标签」的候选目标列表，
+  // 必须与看板实际展示的文件夹标签一致，否则选中的目标漏掉看板上真实存在的标签。
+  function catInFolder(catId, folder) {
+    if (folder === 'collection') {
+      if (isCollCat(catId)) return true;
+      return state.tasks.some(t => {
+        if (t.is_archived || !isCollectionTask(t) || !t.category_id) return false;
+        const c = findCategory(t.category_id);
+        return t.category_id === catId || (c && c.parent === catId);
+      });
+    }
+    if (folder === 'template') {
+      return state.tasks.some(t => !t.is_archived && t.is_template && t.category_id === catId);
+    }
+    // task：非收藏 / 非模版 即归入任务夹
+    if (isCollCat(catId)) return false;
+    if (state.tasks.some(t => !t.is_archived && t.is_template && t.category_id === catId)) return false;
+    return true;
   }
   // 同文件夹内（同 parent 分组）是否已存在同名分类：精确匹配、区分大小写；exceptId 排除自身
   function dupeNameInFolder(name, parent, folder, exceptId) {
@@ -3555,10 +3646,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (t.parent_category === cat.name) return true;
     return false;
   }
+  // 单个分类字段值是否引用了待删除 / 迁移集合：
+  // 兼容三种写法 ① 裸 _id（category_id / parent_category 存分类 _id）
+  //           ② 裸名称（category / parent_category 存分类名）
+  //           ③ 旧数据「##id>name」空格分隔编码串（category 字段可能多条）
+  // 旧实现只匹配 ① ② 的精确相等，导致「按编码串 / 仅名称存储」的条目迁移 / 删除后未更新。
+  function fieldHitsDeleted(val, idset, nameset) {
+    if (val == null) return false;
+    if (idset[val] || nameset[val]) return true;          // ① ② 精确匹配
+    const segs = String(val).split(/\s+/).filter(Boolean); // ③ 编码串逐段解析
+    for (const seg of segs) {
+      const gt = seg.lastIndexOf('>');
+      if (gt >= 0) {
+        const idPart = seg.slice(0, gt).replace(/^#+/, '').trim();   // ##cat_xxx → cat_xxx
+        const namePart = seg.slice(gt + 1).trim();                  // → 末段名
+        if ((idPart && idset[idPart]) || (namePart && nameset[namePart])) return true;
+      }
+    }
+    return false;
+  }
   function deleteCategory(id) {
     const c = findCategory(id);
     if (!c || c.is_system) return false; // 唯一系统内置分类（临时任务）不可删除
-    const catName = c.name;
     // 递归收集该分类及其全部后代（任意层级）的 id（不含自身）
     const collectDescendants = (pid) => {
       const direct = subCategories(pid).map(s => s._id);
@@ -3568,46 +3677,80 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     };
     const descendants = collectDescendants(id);
     const allIds = [id].concat(descendants);
+    // 待删除集合（id + 名称），供 fieldHitsDeleted 复用
+    const idset = {}; const nameset = {};
+    allIds.forEach(i => { idset[i] = true; const cc = findCategory(i); if (cc && cc.name) nameset[cc.name] = true; });
     // 任务退回到被删对象的直属父级（一级删除则清空为 null / ''）
     const fallbackPid = c.parent || null;
     const fallbackCat = fallbackPid ? findCategory(fallbackPid) : null;
     state.categories = state.categories.filter(c => allIds.indexOf(c._id) < 0);
     state.tasks.forEach(t => {
-      if (allIds.indexOf(t.category_id) >= 0) {
+      const hit = fieldHitsDeleted(t.category_id, idset, nameset)
+        || fieldHitsDeleted(t.category, idset, nameset)
+        || fieldHitsDeleted(t.parent_category, idset, nameset);
+      if (hit) {
         t.category_id = fallbackPid;
         t.category = fallbackCat ? fallbackCat.name : '';
-        if (t.parent_category && allIds.indexOf(t.parent_category) >= 0) t.parent_category = fallbackPid || '';
+        if (fieldHitsDeleted(t.parent_category, idset, nameset)) t.parent_category = fallbackPid || '';
       }
-      if (t.category === catName || t.parent_category === catName) { t.category = ''; t.parent_category = ''; }
     });
     persist();
     return true;
   }
   // 迁移某分类子树下的全部任务到目标分类（dstId 为 null 表示未分类），随后删除该分类及其后代分类。
   // 用于「删除一级/二级标签 → 迁移任务」分支：迁移直接执行，无需二次确认。
+  // 兼容两种任务归属写法：① 按 id（category_id / parent_category 存分类 _id）；
+  // ② 按名称（category / parent_category 存分类名，老数据 / 导入数据常见）。
+  // 修复：旧实现只匹配 id，导致「按名称存储」的任务迁移后未更新（bug：迁移至其他文件夹的条目没有实施更新）。
   function migrateCategoryTasks(srcId, dstId) {
     const c = findCategory(srcId);
     if (!c || c.is_system) return false;
     const ids = [srcId].concat(descendantCategoryIds(srcId));
     const idset = {};
-    ids.forEach(id => { idset[id] = true; });
+    const nameset = {};
+    ids.forEach(id => {
+      idset[id] = true;
+      const cc = findCategory(id);
+      if (cc && cc.name) nameset[cc.name] = true;
+    });
     const dst = dstId ? findCategory(dstId) : null;
+    const dstParent = dst ? (dst.parent || '') : '';
+    const taskHit = (catId, catName, parentCat) =>
+      fieldHitsDeleted(catId, idset, nameset) ||
+      fieldHitsDeleted(catName, idset, nameset) ||
+      fieldHitsDeleted(parentCat, idset, nameset);
     state.tasks.forEach(t => {
-      if (idset[t.category_id]) {
+      if (taskHit(t.category_id, t.category, t.parent_category)) {
         t.category_id = dstId || null;
         t.category = dst ? dst.name : '';
-        if (t.parent_category && idset[t.parent_category]) t.parent_category = dstId || '';
+        if (t.parent_category != null && (idset[t.parent_category] || nameset[t.parent_category])) t.parent_category = dstId || '';
       }
       if (t.sub_tasks && t.sub_tasks.length) {
         t.sub_tasks.forEach(s => {
-          if (idset[s.category_id]) {
+          if (taskHit(s.category_id, s.category, s.parent_category)) {
             s.category_id = dstId || null;
-            s.parent_category = dst ? (dst.parent || '') : '';
+            s.category = dst ? dst.name : '';
+            if (s.parent_category != null && (idset[s.parent_category] || nameset[s.parent_category])) s.parent_category = dstParent;
           }
         });
       }
     });
     state.categories = state.categories.filter(c => !idset[c._id]);
+    persist();
+    return true;
+  }
+  // 将某一级分类「降级」为另一个一级分类的二级子标签（保留其全部二级子分类与任务归属）。
+  // 用于「删除一级标签 → 转为其他一级标签的子标签（二级）」需求：源一级标签不再独立存在，
+  // 而是作为目标一级标签下的一个二级标签，其原有子树与任务随之整体迁入（id 引用不变，无需改动任务）。
+  function reParentCategory(srcId, newParentId) {
+    const c = findCategory(srcId);
+    if (!c || c.is_system) return false;
+    if (c.parent) return false;            // 仅一级可整体降级（二级已可「迁移至直属一级标签」）
+    if (!newParentId) return false;
+    if (newParentId === srcId) return false;
+    const desc = descendantCategoryIds(srcId);
+    if (desc.indexOf(newParentId) >= 0) return false;  // 防止成环：目标不能是自身或后代
+    c.parent = newParentId;
     persist();
     return true;
   }
@@ -3645,15 +3788,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function ensureParentTaskForCategory(l3name, l1, l2, opts) {
     opts = opts || {};
     const l2id = l2 ? l2._id : null;
+    const catId = l2id || (l1 ? l1._id : null);   // 无二级时回退为一级（#一级###父任务 语法）
+    const parentCat = l2 ? l1._id : '';           // 一级下父任务直接归属一级（parent_category 留空），二级下父任务归属二级
     const parent = state.tasks.find(t =>
       !t.is_archived && !!t.is_template === !!opts.is_template && !!t.is_collection === !!opts.is_collection
-      && t.title === l3name && t.category_id === l2id
+      && t.title === l3name && t.category_id === catId
     );
     if (parent) return parent;
     return addTask({
       title: l3name,
-      category_id: l2id,
-      parent_category: l1 ? l1._id : '',
+      category_id: catId,
+      parent_category: parentCat,
       is_template: !!opts.is_template,
       is_collection: !!opts.is_collection,
     });
@@ -3668,7 +3813,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       material_notes: fields.material_notes || '',
       material_link: fields.material_link || '',
       category_id: l2 ? l2._id : (l1 ? l1._id : null),
-      parent_category: l1 ? l1._id : '',
+      parent_category: l2 ? l1._id : '',
       cycle: fields.cycle || null,
       enable_remind: !!fields.enable_remind,
       remind_time: fields.remind_time || '',
@@ -4216,6 +4361,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const now = new Date();
     const ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
     return state.wish_records.filter(r => r.recordType === 'edit' && r.time && r.time.slice(0, 7) === ym).length;
+  }
+  // 愿望修改开放日：仅每月 1–3 号可修改愿望（不限次数），其余日期禁止修改。
+  // 替代原先「每月 N 次」的计数限制（需求：每月 1-3 号方可修改，限这三天）。
+  function wishEditWindowOpen() {
+    const d = new Date().getDate();
+    return d >= 1 && d <= 3;
   }
   function incrementEditCount() {
     state.wish_records.push({
@@ -4798,14 +4949,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
     getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
-    markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, toggleOccurrence, allOccurrencesDone,
+    markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
     isCopyArchived, copyShouldRender, archiveMasterCopies, trimCycleCopiesAfterEnd,
     // 时间模式看板
     classifyMode, tasksByMode, assignMonth, assignWeek, assignDay, moveToCollection, backToUnplanned, backToWeek, collectionCatId, COLLECTION_CATS, isCollectionTask, isStudyWorkTask, formatTimeLabel, weekLabel, capsuleOf,
     // 闲趣随机卡
     getLeisurePool, categoryChainNames,
     // 分类
-    findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, folderOfCat, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, descendantCategoryIds, matchCategory, parseTagString,
+    findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, descendantCategoryIds, matchCategory, parseTagString,
     // 奇想 / 临时任务
     quickAddTask, setQuickToQuickView, getQuickViewTasks,
     // 项目模块
@@ -4820,7 +4971,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     dayCompletion, habitCount, getAllRecordHabitLogs,
     // 许愿池
     addWishItem, updateWishItem, removeWishItem, redeemWish, undoRedeem, verifyRedeem, redeemState,
-    getWishEditCountThisMonth, incrementEditCount,
+    getWishEditCountThisMonth, incrementEditCount, wishEditWindowOpen,
     getPointsEarned, getPointsPenalty, getPointsSpent, availablePoints, getWishSorted, setWishOrder,
     addPoints, reversePoints,
     rollbackEntityPoints, collectEntityPointRecords, POINT_ROLLBACK_CAT,
@@ -6073,6 +6224,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     computed: {
       cycleType() { return this.draft.cycle ? this.draft.cycle.type : 'none'; },
+      // 周期结束方式：''（永久循环）/ 'date'（按结束日期）/ 'count'（打卡 N 次后结束）
+      // 切换时联动清理互斥字段，保证母本仅持有一种结束语义
+      cycleEndMode: {
+        get() { return this.draft.cycle_end_mode || ''; },
+        set(v) {
+          this.draft.cycle_end_mode = v;
+          if (v === 'count') { this.draft.cycle_end_date = ''; }
+          else if (v === '') { this.draft.cycle_end_date = ''; this.draft.cycle_end_count = 0; }
+          // 'date' 保留已填的 cycle_end_date
+        },
+      },
       cycleRule: {
         get() { return this.draft.cycle ? (this.draft.cycle.rule || '') : ''; },
         set(v) { this.draft.cycle = Object.assign({}, this.draft.cycle || { type: this.cycleType }, { rule: v }); },
@@ -6180,7 +6342,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const tripleTokens = (text.match(/###[^\s#]*/g) || []);
         let hint = '';
         if (tripleTokens.length > 1) hint = '检测到多条 ###，仅首条生效，其余按普通文本处理';
-        else if (tripleTokens.length === 1 && !r.hasLevel3) hint = '### 需配合 #一级##二级 才会生成父任务，否则按普通标签处理';
+        else if (tripleTokens.length === 1 && !r.hasLevel3) hint = '### 需配合 #一级（或 #一级##二级）才会生成父任务，否则按普通标签处理';
         this.draft.level3Hint = hint;
         // 若标签归入临时任务，自动套用无时间规则：清除所有日期/周期/提醒字段
         if (this.draft.category_id === this.$store.getQuickViewCatId()) {
@@ -6332,8 +6494,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                   </div>
                   <!-- 间隔：每 N 天 -->
                   <label class="fld" v-if="cycleType==='interval'">间隔（每 N 天一次）<input type="number" min="1" v-model="cycleRule" placeholder="如 3" /></label>
-                  <!-- 周期结束日期：留空则永久循环；到期母本自动归档并停止生成副本 -->
-                  <label class="fld">结束日期（可选）<input type="text" v-model="draft.cycle_end_date" placeholder="YYYY-MM-DD（留空=永久循环）" @blur="draft.cycle_end_date=$store.util.autoFormatDate(draft.cycle_end_date)" :class="{invalid: draft.cycle_end_date && !$store.util.validateDateInput(draft.cycle_end_date).ok}" /></label>
+                  <!-- 周期结束方式：永久循环 / 按日期 / 打卡次数（结束于第 N 次打卡，执行历史正常按周期推算） -->
+                  <div class="cycle-end">
+                    <span class="tip">结束方式</span>
+                    <div class="seg cycle-end-modes">
+                      <button :class="{on: cycleEndMode===''}" @click="cycleEndMode=''">永久循环</button>
+                      <button :class="{on: cycleEndMode==='date'}" @click="cycleEndMode='date'">按日期</button>
+                      <button :class="{on: cycleEndMode==='count'}" @click="cycleEndMode='count'">按次数</button>
+                    </div>
+                    <label class="fld" v-if="cycleEndMode==='date'">结束日期（可选）<input type="text" v-model="draft.cycle_end_date" placeholder="YYYY-MM-DD（留空=永久循环）" @blur="draft.cycle_end_date=$store.util.autoFormatDate(draft.cycle_end_date)" :class="{invalid: draft.cycle_end_date && !$store.util.validateDateInput(draft.cycle_end_date).ok}" /></label>
+                    <label class="fld cycle-count" v-if="cycleEndMode==='count'">打卡 <input type="number" min="1" v-model.number="draft.cycle_end_count" placeholder="如 5" /> 次后结束</label>
+                  </div>
                 </div>
               </template>
               <!-- 提醒时刻：可选，两种模式通用 -->
@@ -6415,6 +6586,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           date_mode: this.defaultDate ? 'day' : '',
           plan_month: '', execute_date: this.defaultDate || '', date_start: '', date_end: '',
           week_offset: null, cycle_end_date: '',
+          cycle_end_mode: '', cycle_end_count: 0,
           enable_remind: false, remind_time: '09:00',
           cycle: null,
           progress_info: { enable: false, media_type: 'book', progress_value: '' },
@@ -6453,6 +6625,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           remind_time: this.draft.remind_time || '',
           cycle: this.draft.cycle || null,
           cycle_end_date: this.draft.cycle_end_date || '',
+          cycle_end_mode: this.draft.cycle_end_mode || '',
+          cycle_end_count: Number(this.draft.cycle_end_count) || 0,
           progress_info: this.draft.progress_info,
           isEmergency: !!this.draft.isEmergency,
         });
@@ -6515,10 +6689,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const U = this.$store.util;
         const dates = [];
         if (s.cycle) {
-          const cycle = s.cycle;
-          const end = s.cycle_end_date || '';
-          const base = s.cycle._base || (s.create_at ? U.fmt(new Date(s.create_at)) : U.todayStr());
-          dates.push(...this.$store.cycleOccurrenceDates(cycle, end, { base }));
+          // 次数模式：执行历史按周期推算前 N 个执行日
+          if (s.cycle_end_mode === 'count' && s.cycle_end_count > 0) {
+            dates.push(...this.$store.cycleCountDates(s));
+          } else {
+            const cycle = s.cycle;
+            const end = s.cycle_end_date || '';
+            const base = s.cycle._base || (s.create_at ? U.fmt(new Date(s.create_at)) : U.todayStr());
+            dates.push(...this.$store.cycleOccurrenceDates(cycle, end, { base }));
+          }
         } else if (s.date_mode === 'range' && s.date_start) {
           const sDate = s.date_start;
           const eDate = s.date_end || '';
@@ -6564,7 +6743,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     created() {
       const s = this.sub;
-      const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: 'book', progress_value: '' }, isEmergency: false, week_offset: null, time_mode: null, cycle_end_date: '' };
+      const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: 'book', progress_value: '' }, isEmergency: false, week_offset: null, time_mode: null, cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0 };
       if (s) {
         this.form = Object.assign({}, base, {
           title: s.title || '',
@@ -6586,6 +6765,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           week_offset: (s.week_offset != null) ? s.week_offset : null,
           time_mode: s.time_mode || null,
           cycle_end_date: s.cycle_end_date || '',
+          cycle_end_mode: s.cycle_end_mode || (s.cycle_end_date ? 'date' : ''),
+          cycle_end_count: s.cycle_end_count || 0,
         });
       } else {
         this.form = base;
@@ -6626,6 +6807,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           time_mode: df.time_mode || null,
           week_offset: (df.week_offset != null) ? df.week_offset : null,
           cycle_end_date: this.form.cycle_end_date || '',
+          cycle_end_mode: this.form.cycle_end_mode || '',
+          cycle_end_count: Number(this.form.cycle_end_count) || 0,
           sub_deadline: df.execute_date || null,
           isEmergency: !!this.form.isEmergency,
           // 子任务提醒字段（独立于父任务，双向同步 enable_remind/sub_remind 与 remind_time/sub_remind_time）
@@ -7487,9 +7670,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const dates = [];
         if (t.cycle) {
           const cycle = (this.form && this.form.cycle) || t.cycle;
-          const end = (this.form && this.form.cycle_end_date) || t.cycle_end_date || '';
-          const base = t.cycle._base || (t.create_at ? U.fmt(new Date(t.create_at)) : this.today);
-          dates.push(...this.$store.cycleOccurrenceDates(cycle, end, { base }));
+          const mode = (this.form && this.form.cycle_end_mode) || t.cycle_end_mode || '';
+          const count = (this.form && this.form.cycle_end_count) || t.cycle_end_count || 0;
+          // 次数模式：执行历史按周期推算前 N 个执行日（结束于第 N 次打卡）
+          if (mode === 'count' && count > 0) {
+            dates.push(...this.$store.cycleCountDates(t));
+          } else {
+            const end = (this.form && this.form.cycle_end_date) || t.cycle_end_date || '';
+            const base = t.cycle._base || (t.create_at ? U.fmt(new Date(t.create_at)) : this.today);
+            dates.push(...this.$store.cycleOccurrenceDates(cycle, end, { base }));
+          }
         } else if (t.date_mode === 'range' && t.date_start) {
           const s = (this.form && this.form.date_start) || t.date_start;
           const e = (this.form && this.form.date_end) || t.date_end || '';
@@ -7535,6 +7725,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         remind_time: t.remind_time || '',
         cycle: t.cycle ? JSON.parse(JSON.stringify(t.cycle)) : null,
         cycle_end_date: t.cycle_end_date || '',
+        cycle_end_mode: t.cycle_end_mode || (t.cycle_end_date ? 'date' : ''),
+        cycle_end_count: t.cycle_end_count || 0,
         progress_info: t.progress_info ? JSON.parse(JSON.stringify(t.progress_info)) : { enable: false, media_type: 'book', progress_value: '' },
         is_template: !!t.is_template,
         isEmergency: !!t.isEmergency,
@@ -7566,6 +7758,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           remind_time: this.form.remind_time || '',
           cycle: this.form.cycle || null,
           cycle_end_date: this.form.cycle_end_date || '',
+          cycle_end_mode: this.form.cycle_end_mode || '',
+          cycle_end_count: Number(this.form.cycle_end_count) || 0,
           progress_info: this.form.progress_info,
           is_template: this.form.folderType === 'template',
           is_collection: this.form.folderType === 'collection',
@@ -7683,6 +7877,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     name: 'LeisureCard',
     data() {
       return {
+        collapsed: true,                          // 整卡默认收起；切 tab 重新挂载即回到默认折叠态
         lzTagsExpanded: (() => { try { return localStorage.getItem('mindpocket:leisureTagsExpanded') === '1'; } catch (e) { return false; } })(), filterTag: '', currentId: '',
         recent: [],                                  // 近期已抽到的 id，用于短时间内不重复
         startX: 0, dragX: 0, dragging: false, moved: false,
@@ -7734,6 +7929,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       filtered() { if (!this.current) this.pickRandom(); },
     },
     methods: {
+      // —— 整卡展开/收起：默认收起（标题栏点击切换）；切 tab 重新挂载即回到默认折叠态 ——
+      toggleLeisure() { this.collapsed = !this.collapsed; },
       // —— 标签栏展开/收起：默认折叠（仅显示「全部收藏」+「展开▼」），点击切换全部展开/收起；状态本地记忆 ——
       toggleLzTags() {
         this.lzTagsExpanded = !this.lzTagsExpanded;
@@ -7850,11 +8047,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     template: `
     <section class="block leisure-block">
-      <h3 class="block-title leisure-title">
+      <h3 class="block-title leisure-title" @click="toggleLeisure" style="cursor:pointer;">
         <span>🎲 闲趣随机卡 <span class="lz-count" v-if="pool.length">{{ pool.length }} 件收藏</span></span>
+        <span class="caret">{{ collapsed ? '▶' : '▼' }}</span>
       </h3>
 
-      <div class="leisure-body">
+      <div class="leisure-body" v-show="!collapsed">
         <!-- 标签筛选：默认折叠，仅显示「全部收藏」+「展开▼」；点击展开显示全部标签 +「收起▲」（状态本地记忆） -->
         <div class="lz-tags" v-if="tags.length">
           <span class="lz-tag" :class="{on: !filterTag}" @click="pickAll">全部收藏</span>
@@ -7935,8 +8133,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       totalEarned() { return this.$store.getPointsEarned(); },
       totalPenalty() { return this.$store.getPointsPenalty ? this.$store.getPointsPenalty() : 0; },
       totalSpent() { return this.$store.getPointsSpent(); },
-      editRemaining() { return Math.max(0, 2 - this.$store.getWishEditCountThisMonth()); },
-      editExhausted() { return this.editRemaining <= 0; },
+      editWindowOpen() { return this.$store.wishEditWindowOpen(); },
+      editCountThisMonth() { return this.$store.getWishEditCountThisMonth(); },
+      editExhausted() { return !this.editWindowOpen; },
       detailGroups() {
         const all = (this.$store.state.wish_records || []).slice().sort((a, b) => new Date(b.time) - new Date(a.time));
         const groups = {
@@ -8017,16 +8216,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       swipeMove(e) {
         if (!this.swipeDragging || this.swipeId === null) return;
         const dx = e.clientX - this.swipeStartX;
-        if (Math.abs(dx) > this.$store.SWIPE_ACTIVATE_PX) this.swipeMoved = true;
+        if (Math.abs(dx) > this.$store.SWIPE_ACTIVATE_PX) {
+          this.swipeMoved = true;
+          // 一旦发生滑动即视为「兑换意图」：取消长按编辑计时器并清除长按时长标记，
+          // 指针被外层 .wp-row 捕获后内层 pressMove 收不到事件，故在此统一处理，
+          // 确保滑动兑换期间/松手后绝不误弹编辑愿望页（bug 修复）
+          if (this.pressTimer) { clearTimeout(this.pressTimer); this.pressTimer = null; }
+          this.pressLongFired = false;
+        }
         this.swipeX = Math.max(-160, Math.min(0, dx));
       },
       swipeUp() {
         if (!this.swipeDragging) return;
         const shouldRedeem = this.swipeX <= -this.$store.SWIPE_TRIGGER_PX;
         const id = this.swipeId;
+        const wasLongPress = this.pressLongFired;   // 长按时长是否达标
+        const moved = this.swipeMoved;              // 是否发生过滑动
         this.swipeDragging = false; this.swipeId = null; this.swipeX = 0;
+        if (this.pressTimer) { clearTimeout(this.pressTimer); this.pressTimer = null; }
+        this.pressLongFired = false;
         this.$store.swipeUnlock('wish_' + id);
-        if (shouldRedeem && id) this.doRedeem(id);
+        if (shouldRedeem && id) { this.doRedeem(id); this.pressId = null; return; }  // 兑换优先，绝不弹编辑页
+        // 长按时长达标且全程未发生滑动（纯长按）→ 松手时打开编辑；
+        // 只要发生过滑动（兑换意图）就不弹编辑页（含「先停顿再滑」的边界场景）
+        if (wasLongPress && !moved && id && this.pressId !== null) this.openEdit(id);
+        this.pressId = null;
       },
       doRedeem(wishId) {
         const item = this.$store.state.wish_items.find(w => w._id === wishId);
@@ -8040,10 +8254,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // Toast + 撤销
       showToast(msg, dur, undoId) { this.toast = msg; this.undoRecordId = undoId || null; if (this.toastTimer) clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => { this.toast = ''; this.undoRecordId = null; }, dur || 2200); },
       onToastClick() { if (this.undoRecordId) { const r = this.$store.state.wish_records.find(x => x._id === this.undoRecordId); if (r) this.openUndoConfirm(r); } },
-      // 长按编辑
-      pressDown(e, item) { this.pressId = item._id; this.pressStartX = e.clientX; this.pressStartY = e.clientY; this.pressLongFired = false; this.pressSuppress = false; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {} if (this.pressTimer) clearTimeout(this.pressTimer); this.pressTimer = setTimeout(() => { this.pressLongFired = true; this.pressSuppress = true; this.openEdit(item._id); this.pressId = null; }, 450); },
-      pressMove(e) { if (this.pressId === null) return; const dx = e.clientX - this.pressStartX, dy = e.clientY - this.pressStartY; if (Math.hypot(dx, dy) > 30 && this.pressTimer) { clearTimeout(this.pressTimer); this.pressTimer = null; } },
-      pressUp() { if (this.pressTimer) { clearTimeout(this.pressTimer); this.pressTimer = null; } this.pressId = null; this.pressSuppress = false; },
+      // 长按编辑：仅标记「长按时长达标」，延迟到松手时再决定是否打开编辑——
+      // 若期间发生滑动（兑换意图）则绝不弹编辑页，彻底杜绝「先停顿再滑」仍误弹编辑页
+      pressDown(e, item) { this.pressId = item._id; this.pressStartX = e.clientX; this.pressStartY = e.clientY; this.pressLongFired = false; this.pressSuppress = false; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {} if (this.pressTimer) clearTimeout(this.pressTimer); this.pressTimer = setTimeout(() => { this.pressLongFired = true; }, 450); },
+      pressMove(e) { if (this.pressId === null) return; const dx = e.clientX - this.pressStartX, dy = e.clientY - this.pressStartY; if (Math.hypot(dx, dy) > 30 && this.pressTimer) { clearTimeout(this.pressTimer); this.pressTimer = null; this.pressLongFired = false; } },
+      pressUp() {
+        if (this.pressTimer) { clearTimeout(this.pressTimer); this.pressTimer = null; }
+        const id = this.pressId; this.pressId = null; this.pressSuppress = false;
+        // 仅当「非滑动手势」且「长按时长达标」时打开编辑（滑动兑换优先，绝不弹编辑页）
+        if (id && this.pressLongFired && !this.swipeDragging && !this.swipeMoved) this.openEdit(id);
+      },
       // 拖拽排序
       dragStart(item) { this.dragFromId = item._id; },
       dragOver(item) { if (this.dragFromId && this.dragFromId !== item._id) { this.dragOverId = item._id; } },
@@ -8094,7 +8314,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     </div>
   </div>
   <div class="wp-body" v-show="cardOpen">
-    <p class="wp-quota">本月愿望修改剩余 <strong>{{ editRemaining }}</strong> 次（每月上限 2 次）</p>
+    <p class="wp-quota" :class="{ closed: !editWindowOpen }">愿望修改开放日：每月 <strong>1–3 号</strong>（当前{{ editWindowOpen ? '✅ 可修改（不限次数）' : '⛔ 未开放，仅 1–3 号可改' }}），本月已修改 {{ editCountThisMonth }} 次</p>
     <button class="wp-add-btn" @click="openAdd">＋添加愿望</button>
     <div class="wp-list" v-if="items.length">
       <div class="wp-row-wrap" v-for="item in items" :key="item._id">
@@ -8224,7 +8444,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 <div class="modal-mask" v-if="showEditModal" @click.self="closeEdit">
   <div class="modal"><div class="modal-head"><h3>编辑愿望</h3><button class="x" @click="closeEdit">✕</button></div>
     <div class="modal-body">
-      <div class="wp-edit-limit" v-if="editExhausted">本月修改次数已用完（每月限 2 次），下月 1 日重置。添加新愿望不消耗修改次数。</div>
+      <div class="wp-edit-limit" v-if="editExhausted">愿望只能在每月 <strong>1–3 号</strong> 修改（不限次数），当前不在修改开放日，暂不能修改。添加新愿望不受此限制。</div>
       <div class="fld"><label>愿望名称</label><input v-model="editName" placeholder="愿望名称" :disabled="editExhausted" /></div>
       <div class="fld"><label>所需积分（正整数）</label><input v-model="editCost" type="number" placeholder="积分数量" min="1" :disabled="editExhausted" /></div>
       <div class="fld"><label>愿望类型</label>
@@ -8233,7 +8453,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="fld"><label>有效期（天，可选）</label><input v-model="editValidity" type="number" placeholder="留空 = 永久有效" min="1" :disabled="editExhausted" /></div>
       <div class="modal-actions">
         <button class="btn ghost" @click="closeEdit">取消</button>
-        <button class="btn primary" @click="confirmEdit" :disabled="editExhausted || !editName.trim() || !editCost || +editCost <= 0">确认修改{{ editExhausted ? '' : '（消耗1次修改额度）' }}</button>
+        <button class="btn primary" @click="confirmEdit" :disabled="editExhausted || !editName.trim() || !editCost || +editCost <= 0">确认修改</button>
       </div>
     </div>
   </div>
@@ -8261,6 +8481,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     name: 'TodayPage',
     components: { HandCards: C.HandCards, HabitManageModal: C.HabitManageModal, HabitEditModal: C.HabitEditModal, HabitTypeChooseModal: C.HabitTypeChooseModal, TaskDetailModal: C.TaskDetailModal, TaskAddModal: C.TaskAddModal, ReadingSyncModal: C.ReadingSyncModal, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal, LeisureCard: C.LeisureCard, WishPool: C.WishPool },
     data() { return { manageHabitId: null, showHabitEdit: false, editHabitId: null, detailId: null, quickCollapsed: false, addType: 'RECORD_HABIT', showTypeChoose: false, showTaskAdd: false, pressId: null, startY: 0, pressTimer: null, pendingUndo: null,
+      // —— 习惯 / 闲趣随机卡 区块折叠：默认全部收起；切 tab 重新挂载即回到默认折叠态 ——
+      collapsed: { record: true, quit: true, leisure: true },
       // —— 滑动手势状态（与待归档页 / 今日页 HandCards 方向定义统一：左滑=完成，右滑=未完成，长按=详情）——
       dragId: null, startX: 0, dragX: 0, dragging: false, moved: false, longFired: false, longTimer: null, suppressClick: false,
       // —— 阅读习惯打卡 → 书籍进度同步弹窗 ——
@@ -8426,6 +8648,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     methods: {
       // 全局标准时间标签（仅展示文本，浅绿色）
       timeLabel(t) { return this.$store.formatTimeLabel(t); },
+      // 习惯 / 闲趣随机卡 区块折叠：切换 tab 重新挂载即回到默认折叠态（与统计页 toggleCol 同款）
+      toggleCol(key) { if (!this.collapsed.hasOwnProperty(key)) return; this.collapsed = { ...this.collapsed, [key]: !this.collapsed[key] }; },
       weekLabel(t) { return this.$store.weekLabel(t); },
       cap(t) { return this.$store.capsuleOf(t, { isCopy: true, windowStart: this.today, windowEnd: this.today }); },
       // 合并区块任务胶囊：按选中日期投射（与日期切换联动），临时任务仍用 cap(t)
@@ -8760,8 +8984,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </section>
 
       <section class="block">
-        <h3 class="block-title">记录型习惯</h3>
-        <div class="habit-grid" v-if="recordHabits.length">
+        <h3 class="block-title" @click="toggleCol('record')">记录型习惯 <span class="caret">{{ collapsed.record ? '▶' : '▼' }}</span></h3>
+        <div class="habit-grid" v-show="!collapsed.record" v-if="recordHabits.length">
           <button class="habit-grid-btn" v-for="h in recordHabits" :key="h._id"
                   :class="{ done: isRecordDone(h) }"
                   @pointerdown="habitDown($event,h)" @pointermove="habitMove" @pointerup="habitUp($event,h)" @pointercancel="habitUp($event,h)" @contextmenu.prevent>
@@ -8771,8 +8995,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </section>
 
       <section class="block">
-        <h3 class="block-title">戒掉型习惯</h3>
-        <div class="habit-grid" v-if="quitHabits.length">
+        <h3 class="block-title" @click="toggleCol('quit')">戒掉型习惯 <span class="caret">{{ collapsed.quit ? '▶' : '▼' }}</span></h3>
+        <div class="habit-grid" v-show="!collapsed.quit" v-if="quitHabits.length">
           <button class="habit-grid-btn" v-for="h in quitHabits" :key="h._id"
                   :class="{ done: statusOf(h)==='success', fail: statusOf(h)==='fail' }"
                   @pointerdown="habitDown($event,h)" @pointermove="habitMove" @pointerup="habitUp($event,h)" @pointercancel="habitUp($event,h)" @contextmenu.prevent>
@@ -8926,7 +9150,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     props: { catId: { type: String, required: true }, folder: { type: String, default: '' } },
     data() {
       const c = this.$store.state.categories.find(x => x._id === this.catId) || { name: '', parent: null, is_system: false };
-      return { name: c.name || '', isSys: !!c.is_system, parent: c.parent || null, showChoice: false, showTarget: false, showConfirm: false };
+      return { name: c.name || '', isSys: !!c.is_system, parent: c.parent || null, showChoice: false, showTarget: false, showConfirm: false, showReparent: false };
     },
     computed: {
       cat() { return this.$store.state.categories.find(x => x._id === this.catId) || null; },
@@ -8943,9 +9167,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       parentL1Id() { return this.cat ? (this.cat.parent || null) : null; },
       // L1「迁移至其他文件夹」候选：同文件夹域内、其它一级标签（排除自身与系统分类）
       otherFolders() {
-        const selfFolder = this.$store.folderOfCat(this.catId);
+        const selfFolder = this.folder || this.$store.folderOfCat(this.catId);
         return this.$store.state.categories.filter(c =>
-          !c.parent && !c.is_system && c._id !== this.catId && this.$store.folderOfCat(c._id) === selfFolder
+          !c.parent && !c.is_system && c._id !== this.catId && this.$store.catInFolder(c._id, selfFolder)
         );
       },
     },
@@ -8981,12 +9205,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.isL3) { this.showConfirm = true; }
         else { this.showChoice = true; }
       },
-      closeDel() { this.showChoice = false; this.showTarget = false; this.showConfirm = false; },
+      closeDel() { this.showChoice = false; this.showTarget = false; this.showConfirm = false; this.showReparent = false; },
       // 选项弹窗 → 迁移（直接执行，无需二次确认）
       migrateToUncat() { this.$store.migrateCategoryTasks(this.catId, null); this.$emit('close'); },
       migrateToParent() { this.$store.migrateCategoryTasks(this.catId, this.parentL1Id); this.$emit('close'); },
       migrateToOther() { this.showTarget = true; },
       pickTarget(id) { this.$store.migrateCategoryTasks(this.catId, id); this.$emit('close'); },
+      // 一级标签 → 降级为另一个一级标签的二级子标签（保留子树与任务归属）
+      reparentToOther() { this.showReparent = true; },
+      pickReparent(id) { this.$store.reParentCategory(this.catId, id); this.$emit('close'); },
       // 选项弹窗 → 批量删除任务（追加二次确认）
       toBatchDelete() { this.showChoice = false; this.showConfirm = true; },
       // 二次确认 → 执行删除（不可逆）
@@ -9017,6 +9244,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <p style="font-size:13px;color:var(--sub);margin:0 0 10px">{{ isL2 ? '其下任务将迁移或一并删除' : '其下二级与任务将迁移或一并删除' }}</p>
             <template v-if="isL1">
               <button class="choice-btn" :disabled="!otherFolders.length" @click="migrateToOther">迁移至其他文件夹</button>
+              <button class="choice-btn" :disabled="!otherFolders.length" @click="reparentToOther">转为其他一级标签的子标签（二级）</button>
               <button class="choice-btn alt" @click="migrateToUncat">迁移至未分类</button>
               <button class="choice-btn danger" @click="toBatchDelete">批量删除任务</button>
             </template>
@@ -9036,6 +9264,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button v-for="f in otherFolders" :key="f._id" @click="pickTarget(f._id)">📁 {{ f.name }}</button>
             </div>
             <button class="choice-cancel" @click="showTarget=false;showChoice=true">返回</button>
+          </div>
+        </div>
+        <!-- 转为其他一级标签的二级子标签：选择目标一级标签 -->
+        <div class="chart-confirm" v-if="showReparent" @click.self="closeDel">
+          <div class="idea-choice-box" @click.stop>
+            <div class="idea-choice-title">将「{{ name }}」转为以下一级标签的子标签（二级）</div>
+            <div class="proj-move-list">
+              <button v-for="f in otherFolders" :key="f._id" @click="pickReparent(f._id)">📁 {{ f.name }}</button>
+            </div>
+            <button class="choice-cancel" @click="showReparent=false;showChoice=true">返回</button>
           </div>
         </div>
         <!-- 二次确认（批量删除任务 / 三级标签删除）：删除不可逆 -->
@@ -10277,7 +10515,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         archLongTimer: null, archSuppressClick: false,
         toast: '', toastTimer: null,
         // 统计板块折叠状态（默认全展开；本地缓存，再次进入保留）
-        collapsed: { week: false, habit: false, health: false, arch: false },
+        collapsed: { week: false, habit: false, health: false, arch: true },
         // 归档仓库：项目条目长按操作弹窗（重命名/删除/取消）+ 项目编辑/删除二次确认
         showProjEdit: false, editPid: null,
         // 演示数据模式（本地持久化）
@@ -11576,13 +11814,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectSubEditModal = {
     name: 'ProjectSubEditModal',
     props: { pid: { type: String, required: true }, sid: { type: String, default: '' }, ideaId: { type: String, default: '' }, seedTitle: { type: String, default: '' }, seedTags: { type: Array, default: () => [] } },
-    data() { return { title: '', unit: '页', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', tags: [], tagInput: '', estH: 0, estM: 0, isEmergency: false, showDelConfirm: false }; },
+    data() { return { title: '', unit: '页', customUnit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', tags: [], tagInput: '', estH: 0, estM: 0, isEmergency: false, showDelConfirm: false }; },
     computed: {
       // 本项目已有的子任务标签，作为快捷选择项（排除已选），减少重复手输
       tagSuggestions() {
         return this.$store.getSubTags(this.pid).filter(t => this.tags.indexOf(t) < 0);
       },
       estMinInput() { return Math.max(0, (Number(this.estH) || 0) * 60 + (Number(this.estM) || 0)); },
+      // 展示用单位：自定义时取 customUnit 文本（缺省回退「页」），预设时取原值
+      dispUnit() { return this.unit === '__custom' ? (((this.customUnit || '').trim()) || '') : (this.unit || ''); },
     },
     created() {
       this.tags = (this.seedTags || []).slice();
@@ -11590,7 +11830,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const s = this.$store.state.project_subs.find(x => x.sid === this.sid);
         if (s) {
           this.title = s.title || '';
-          this.unit = s.unit || '页';
+          // 旧数据兼容：单位若不在预设列表（页/题/篇/节/次）内，视为自定义单位回填
+          const PRESET_UNITS = ['页', '题', '篇', '节', '次'];
+          if (s.unit && PRESET_UNITS.indexOf(s.unit) < 0) { this.unit = '__custom'; this.customUnit = s.unit; }
+          else { this.unit = s.unit || '页'; }
           this.tags = (s.tags || []).slice();
           const em = Number(s.estMin) || 0;
           this.estH = Math.floor(em / 60); this.estM = em % 60;
@@ -11625,7 +11868,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         const patch = {
           title,
-          unit: this.unit || '页',
+          unit: this.unit === '__custom' ? (((this.customUnit || '').trim()) || '页') : (this.unit || '页'),
           // 每日计划：未开启目标计划则该字段不参与任何计算（存 0）；开启即自带每日计划能力
           planDaily: this.enableTotal ? (Number(this.planDaily) || 0) : 0,
           enableTotal: this.enableTotal,
@@ -11678,12 +11921,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <template v-if="enableTotal">
             <div class="fld-row">
               <label class="fld">单位
-                <select v-model="unit"><option>页</option><option>题</option><option>篇</option><option>节</option><option>次</option></select>
+                <select v-model="unit">
+                  <option>页</option><option>题</option><option>篇</option><option>节</option><option>次</option>
+                  <option value="__custom">自定义…</option>
+                </select>
+              </label>
+              <label class="fld" v-if="unit==='__custom'">自定义单位
+                <input v-model="customUnit" placeholder="如：张 / 个 / 组" />
               </label>
               <label class="fld">单次填报数量<input type="number" min="0" v-model="planDaily" /></label>
             </div>
-            <label class="fld">总任务量（{{ unit }}）
-              <input type="number" min="1" v-model="total" :placeholder="'总' + unit + '数'" />
+            <label class="fld">总任务量（{{ dispUnit || '页' }}）
+              <input type="number" min="1" v-model="total" :placeholder="'总' + (dispUnit || '页') + '数'" />
             </label>
           </template>
           <div class="fld-row">
@@ -13465,7 +13714,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   const App = {
     data() {
-      return { route: location.hash.replace('#', '') || '/today', prevRoute: '/inbox', overlayStack: [] };
+      return { route: '/today', prevRoute: '/inbox', overlayStack: [] };
     },
     computed: {
       page() {
@@ -13495,12 +13744,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
     },
     watch: {
-      // 切换 Tab / 路由后界面回到顶部：各 Tab 独立滚动位置，避免「统计滑到底、切回今日也到底」的串台问题
-      route() {
+      // 路由切换时的滚动处理：
+      // - 保存离场路由的滚动位置（此时 DOM 尚未重渲染，window.scrollY 仍为旧页位置）
+      // - 从子任务/项目详情页返回（原路返回）时，恢复目标路由的滚动位置，避免「返回后跳到顶部」
+      // - 常规 Tab 切换仍回到顶部：各 Tab 独立滚动位置，避免「统计滑到底、切回今日也到底」的串台问题
+      route(newRoute, oldRoute) {
+        this._scrollCache = this._scrollCache || {};
+        if (oldRoute) this._scrollCache[oldRoute] = { win: window.scrollY || window.pageYOffset || 0 };
         this.$nextTick(() => {
-          const main = this.$el && this.$el.querySelector ? this.$el.querySelector('.app-main') : null;
-          if (main) main.scrollTop = 0;          // 兜底：若 .app-main 本身是滚动容器
-          window.scrollTo(0, 0);                 // 主滚动容器为 window/body 时的复位
+          const isChildReturn = oldRoute && (oldRoute.indexOf('/subtask/') === 0 || oldRoute.indexOf('/project/') === 0);
+          if (isChildReturn && this._scrollCache[newRoute]) {
+            window.scrollTo(0, this._scrollCache[newRoute].win || 0);   // 原路返回：恢复进入子任务页时的滑动位置
+          } else {
+            const main = this.$el && this.$el.querySelector ? this.$el.querySelector('.app-main') : null;
+            if (main) main.scrollTop = 0;          // 兜底：若 .app-main 本身是滚动容器
+            window.scrollTo(0, 0);                 // 主滚动容器为 window/body 时的复位
+          }
         });
       },
     },
@@ -13535,7 +13794,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         location.hash = target;
       },
     },
-    mounted() { window.addEventListener('hashchange', this.onHash); },
+    mounted() {
+      window.addEventListener('hashchange', this.onHash);
+      // 冷启动强制进入「今日」tab：移动端「退出 App 再进入」时，部分浏览器会恢复上次访问的
+      // 哈希（如 #/projects）导致误入「项目」tab；这里统一把地址栏规范为 #/today 并切到今日，
+      // 同时避免地址栏为空/残留哈希造成后续导航错位。
+      if (location.hash.replace('#', '') !== '/today') {
+        try { history.replaceState(null, '', '#/today'); } catch (_) {}
+      }
+      this.route = '/today';
+    },
     beforeUnmount() { window.removeEventListener('hashchange', this.onHash); },
     template: `
     <div class="app-shell">
