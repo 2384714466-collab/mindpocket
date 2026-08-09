@@ -30,6 +30,9 @@
   --line: #eceef3;
   --radius: 16px;
   --shadow: 0 6px 20px rgba(40, 50, 90, .08);
+  /* 悬浮球 / 安装条 距底部的安全距离：避让底部 tab 栏（约 50px）+ iOS 安全区（home indicator ~34px） */
+  --fab-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  --pill-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; padding: 0; }
@@ -456,6 +459,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* 打卡成功：整颗按钮置灰，一眼区分未打卡 / 已打卡 */
 .habit-grid-btn.done { background: #eef0f5; border-color: #e3e6ee; box-shadow: none; }
 .habit-grid-btn.done .hg-name { color: var(--sub); }
+/* 记录型习惯：打卡后变绿（与戒掉型「已戒」灰、破戒红区分） */
+.habit-grid-btn.rec-done { background: #e8f6ee; border-color: #bce8cb; box-shadow: none; }
+.habit-grid-btn.rec-done .hg-name { color: #1f9d57; }
 .habit-grid-btn.fail { background: linear-gradient(135deg, #e74c3c, #c0392b); border-color: transparent; box-shadow: none; }
 .habit-grid-btn.fail .hg-name, .habit-grid-btn.fail .hg-val { color: #fff; }
 .hg-name { font-size: 13px; font-weight: 600; color: var(--text); line-height: 1.25; }
@@ -576,13 +582,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .seg { display: inline-flex; gap: 4px; margin-bottom: 4px; }
 .seg button { padding: 5px 12px; font-size: 12px; border-radius: 8px; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); }
 .seg button.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+.chart-head { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 4px; }
+.nav-arrow { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: #f0f1f6; color: var(--text); font-size: 18px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.nav-arrow:active { background: #e6e8f0; }
 .chart { margin-top: 12px; }
 .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
 .bars { display: flex; align-items: flex-end; gap: 6px; height: 120px; }
 .bar { flex: 1; background: linear-gradient(180deg, #6a7bff, #8a5bff); border-radius: 6px 6px 0 0; position: relative; min-height: 4px; }
 .bar-v { position: absolute; top: -16px; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--sub); }
 .bar-m { position: absolute; bottom: -18px; left: 0; right: 0; text-align: center; font-size: 10px; color: var(--sub); }
-.bars.dense { gap: 2px; }
+.bars.dense { gap: 2px; padding-bottom: 16px; }
 .bars.dense .bar-v, .bars.dense .bar-m { display: none; }
 .bars.dense .bar-m.axis-key { display: block; font-size: 9px; line-height: 1; bottom: -15px; color: var(--sub); }
 .bars.dense .bar { min-height: 3px; }
@@ -747,7 +756,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .widget-title { font-weight: 700; margin-bottom: 10px; }
 
 /* ============ 底部导航 ============ */
-.app-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: flex; background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(40,50,90,.06); z-index: 50; }
+.app-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; display: flex; background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(40,50,90,.06); z-index: 900; padding-bottom: env(safe-area-inset-bottom, 0px); }
 .app-nav button { flex: 1; background: transparent; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; color: var(--sub); }
 .app-nav button.on { color: var(--primary); }
 .nav-ico { font-size: 20px; }
@@ -755,7 +764,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
 /* ============ 安装到主屏幕（PWA） ============ */
 #install-pill {
-  position: fixed; right: 14px; bottom: 72px; z-index: 80;
+  position: fixed; right: 14px; bottom: var(--pill-bottom); z-index: 80;
   background: var(--primary); color: #fff; border: none; border-radius: 22px;
   padding: 10px 16px; font-size: 13px; font-weight: 600; box-shadow: 0 6px 18px rgba(40,50,90,.25);
 }
@@ -764,7 +773,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* ============ 全局悬浮快速录入（紫色；支持长按拖动） ============ */
 .quick-entry { position: static; }
 .fab {
-  position: fixed; z-index: 1100;
+  position: fixed; z-index: 850;
   width: 56px; height: 56px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
   background: linear-gradient(135deg, #a06bff, #7b5bff); color: #fff; font-size: 24px; line-height: 1;
   box-shadow: 0 8px 22px rgba(123, 91, 255, .45);
@@ -906,12 +915,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .proj-actions .btn-mini { padding: 5px 11px; font-size: 12px; border-radius: 9px; }
 
 .pidea { background: var(--card); border-radius: var(--radius); padding: 13px; box-shadow: var(--shadow); border: 1px solid var(--line); }
-.pidea-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.pidea-title { font-size: 15px; font-weight: 600; }
+.pidea-top { display: flex; align-items: center; justify-content: flex-start; gap: 6px; }
+.pidea-title { font-size: 15px; font-weight: 600; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .idea-badge { font-size: 11px; padding: 2px 9px; border-radius: 9px; }
 .idea-badge.todo { background: #fff3e0; color: #e08e0b; }
 .idea-badge.picked { background: #e8f6ee; color: #1f9d57; }
 .pidea-content { white-space: pre-wrap; background: #f7f8fc; border-radius: 10px; padding: 10px; font-size: 13px; color: var(--text); line-height: 1.6; margin: 8px 0; max-height: 160px; overflow-y: auto; }
+.pidea-preview { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f7f8fc; border-radius: 10px; padding: 8px 10px; font-size: 13px; color: var(--text); line-height: 1.5; margin: 8px 0; }
+.link-ico { flex: 0 0 auto; width: 28px; height: 28px; border: none; background: transparent; color: var(--primary); font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; border-radius: 8px; }
+.link-ico:active { background: rgba(91,108,255,.12); }
 .pidea-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 
 /* 列表 / 甘特图 视图切换 */
@@ -1771,6 +1783,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!h) return;
     let rec = h.records.find(r => r.date === date);
     const prevStatus = rec ? rec.status : '';
+    const isNew = !rec;
     if (!rec) { rec = { date, status, note: note || '' }; h.records.push(rec); }
     else { rec.status = status; if (note !== undefined) rec.note = note; }
     // —— 状态实质变更 → 先清算该日旧积分，再按新状态重新结算 ——
@@ -1779,6 +1792,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 若不先把旧记录置为 reversed，改状态后既扣不回旧分、也算不出新分。
     if (prevStatus && prevStatus !== status) {
       reverseHabitDayPoints(h, date, prevStatus, status);
+    } else if (isNew) {
+      // 新打卡 / 补卡：若该日此前已被结算（如漏完成 -5、破戒 -10），先回滚旧结算再按新状态重算；
+      // 否则「已完成」会被幂等门挡住、旧的漏扣记录残留 → 已完成仍被记成漏完成、积分被错误扣减
+      reverseHabitDayPoints(h, date, '', status);
     }
     persist();
     // 触发当日结算（幂等：同一天重复调用不会重复积分）
@@ -6030,7 +6047,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.confirmArchive = false;
         this.$emit('close');
       },
+      // 图表月份 / 年份导航（与统计页同逻辑）：补卡后切换月份即可看到对应月份的打卡条
+      navChart(dir) {
+        if (this.tab === 'year') { this.year += dir; return; }
+        let y = this.year, m = this.month + dir;
+        if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
+        this.year = y; this.month = m;
+      },
     },
+    watch: { '$store.state.revision'() { this.$forceUpdate(); } },
     template: `
     <div class="modal-mask" @click.self="$emit('close')">
       <div class="modal">
@@ -6049,11 +6074,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
           <div class="readonly-row" v-if="isEdit">自创建以来已完成 {{ doneCount }} 次</div>
 
-          <div class="habit-arch-chart" v-if="isEdit && chartData">
-            <div class="seg">
-              <button type="button" :class="{on:tab==='month'}" @click="tab='month'">月</button>
-              <button type="button" :class="{on:tab==='year'}" @click="tab='year'">年</button>
-            </div>
+            <div class="habit-arch-chart" v-if="isEdit && chartData">
+              <div class="chart-head">
+                <button type="button" class="nav-arrow" @click="navChart(-1)" aria-label="上一周期">‹</button>
+                <div class="seg">
+                  <button type="button" :class="{on:tab==='month'}" @click="tab='month'">月</button>
+                  <button type="button" :class="{on:tab==='year'}" @click="tab='year'">年</button>
+                </div>
+                <button type="button" class="nav-arrow" @click="navChart(1)" aria-label="下一周期">›</button>
+              </div>
             <div class="chart">
               <template v-if="chartData.mode==='year'">
                 <div class="chart-title">{{ chartData.name }} — {{ year }} 年 共 {{ chartData.annual }} 次</div>
@@ -6067,7 +6096,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <div class="chart-title">{{ chartData.name }} — {{ year }}年{{ month }}月 共 {{ chartData.monthTotal }} 次</div>
                 <div class="bars dense">
                   <div class="bar" v-for="(v,i) in chartData.byDay" :key="i" :style="{height:(v/maxDay()*100)+'%'}" :title="(i+1)+'日 · '+v+' 次'">
-                    <span class="bar-v">{{ v }}</span><span class="bar-m">{{ i+1 }}</span>
+                    <span class="bar-v">{{ v }}</span><span class="bar-m" :class="{ 'axis-key': (i+1) % 5 === 1 || (i+1) === chartData.dim }">{{ i+1 }}</span>
                   </div>
                 </div>
               </template>
@@ -8210,6 +8239,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           delete_rollback: { label: '删除回滚', icon: '🗑️', records: [] },
         };
         all.forEach(r => {
+          // 已撤销 / 已扣回 / 删除回滚 / 撤销兑换 的明细不展示（余额均已回退或独立留痕，纯展示记录）
+          if (r.status === 'reversed') return;
+          if (r.category === 'habit_undo' || r.category === 'delete_rollback' || r.category === 'redeem_undo') return;
           const cat = r.category;
           if (cat && groups[cat]) { groups[cat].records.push(r); }
           else if (r.recordType === 'redeem') {
@@ -8741,7 +8773,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const st = this.statusOf(h);
         // 已打卡：记录型习惯撤销需二次确认；其余类型（戒掉型等）直接撤销，保持原交互
         if (st) {
-          if (h.type === 'RECORD_HABIT') { this.pendingUndo = h._id; return; }
+          // 已打卡：记录型 / 戒掉型 撤销均需二次确认；其余类型（如养成型重复打卡）直接撤销，保持原交互
+          if (h.type === 'RECORD_HABIT' || h.type === 'QUIT_HABIT') { this.pendingUndo = h._id; return; }
           this.$store.removeHabitRecord(h._id, this.today); return;
         }
         if (h.type === 'RECORD_HABIT') {
@@ -9046,7 +9079,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <h3 class="block-title" @click="toggleCol('record')">记录型习惯 <span class="caret">{{ collapsed.record ? '▶' : '▼' }}</span></h3>
         <div class="habit-grid" v-show="!collapsed.record" v-if="recordHabits.length">
           <button class="habit-grid-btn" v-for="h in recordHabits" :key="h._id"
-                  :class="{ done: isRecordDone(h) }"
+                  :class="{ 'rec-done': isRecordDone(h) }"
                   @pointerdown="habitDown($event,h)" @pointermove="habitMove" @pointerup="habitUp($event,h)" @pointercancel="habitUp($event,h)" @contextmenu.prevent>
             <span class="hg-name">{{ h.name }}</span>
           </button>
@@ -11613,7 +11646,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // —— 悬浮球位置与拖拽 ——
         pos: { x: null, y: null },     // 像素坐标；null 表示使用默认右下角
         ballSize: 56,
-        navReserved: 56,  // 底部 tab 栏占位高度，确保悬浮球不遮挡
+        navReserved: 84,  // 底部 tab 栏占位高度（约 50px）+ iOS 安全区（~34px），确保悬浮球不遮挡 tab
         startX: null, startY: null,
         pressing: false,
         dragging: false,
@@ -11644,7 +11677,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       ballStyle() {
         const s = {};
         if (this.pos.x != null && this.pos.y != null) { s.left = this.pos.x + 'px'; s.top = this.pos.y + 'px'; }
-        else { s.right = '16px'; s.bottom = '84px'; }
+        else { s.right = '16px'; s.bottom = 'var(--fab-bottom)'; }
         return s;
       },
       /* —— 长按拖拽 / 短按打开 —— */
@@ -13636,6 +13669,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const pa = this.$store.util.parseDate(a), pb = this.$store.util.parseDate(b);
         return Math.round((pb.getTime() - pa.getTime()) / 86400000);
       },
+      // 灵感笔记预览：仅取首句（首个换行 / 句末标点前）；首句后仍有内容则补省略号，避免单条灵感条目过长
+      ideaPreview(i) {
+        const c = (i && i.content || '').trim();
+        if (!c) return '';
+        const first = c.split('\n')[0].split(/[。.!?！？；;]/)[0].trim();
+        const rest = c.slice(first.length).replace(/^[\s。.!?！？；;]+/, '');
+        return rest ? first + '…' : first;
+      },
     },
     template: `
     <div class="page">
@@ -13722,9 +13763,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <!-- 操作区：填报入口（含耗时记录）+ 完成 / 撤销；按钮阻断卡片滑动与长按手势 -->
           <div class="psub-acts" @pointerdown.stop @pointerup.stop @pointercancel.stop>
             <button class="btn-mini" @click.stop="openRecord(s)">📝 填报</button>
-            <button class="btn-mini" :class="isSubComplete(s) ? 'success' : ''" @click.stop="toggleDone(s)">
-              {{ isSubComplete(s) ? '↩ 撤销完成' : '✓ 标记完成' }}
-            </button>
             <button class="btn-mini" @click.stop="openSubEdit(s)">✎ 编辑</button>
           </div>
         </div>
@@ -13746,14 +13784,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
              @pointerup="onIdeaUp()" @pointercancel="onIdeaUp()">
           <div class="pidea-top" @click="onIdeaMainClick(i)">
             <div class="pidea-title">{{ i.title }}</div>
-            <span class="idea-badge" :class="i.is_picked ? 'picked' : 'todo'">{{ i.is_picked ? '已领取' : '备选' }}</span>
+            <span class="idea-badge picked" v-if="i.is_picked">已领取</span>
+            <button class="link-ico" v-if="isValidMaterialLink(i.link)" @pointerdown.stop @click.stop="openMaterialLink(i.link)" title="打开素材链接" aria-label="打开素材链接">🔗</button>
           </div>
-          <pre class="pidea-content" v-if="i.content">{{ i.content }}</pre>
-          <!-- 素材链接：识别规则 / 交互样式 / 跳转行为与待归档任务素材链接完全一致；阻断卡片滑动与长按手势 -->
-          <button class="block-note" v-if="isValidMaterialLink(i.link)" style="margin:0"
-                  @pointerdown.stop @click.stop="openMaterialLink(i.link)">
-            <span>🔗 打开素材链接</span>
-          </button>
+          <div class="pidea-preview" v-if="i.content">{{ ideaPreview(i) }}</div>
         </div>
         <p v-if="!ideas.length" class="empty-tip">灵感库为空，记录选题 / 学习笔记 / 想法吧</p>
       </div>
