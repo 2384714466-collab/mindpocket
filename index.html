@@ -171,7 +171,7 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 10p
 .handcard-name { font-size: 19px; font-weight: 700; margin-top: 8px; line-height: 1.25; }
 .handcard-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; opacity: .92; margin-top: auto; padding-top: 6px; }
 .handcard-remind { opacity: .8; }
-.handcards-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.handcards-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; position: relative; z-index: 200; }
 .hn-page { display: flex; align-items: center; gap: 6px; }
 .hn-arrow { background: #eef0f5; color: var(--text); width: 30px; height: 30px; font-size: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
 .hn-arrow:disabled { opacity: .4; }
@@ -936,6 +936,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* 子任务状态标签（右上角，跟随完成状态自动切换） */
 .psub-status { flex: 0 0 auto; font-size: 11px; padding: 2px 9px; border-radius: 9px; background: #eef0ff; color: var(--primary); white-space: nowrap; }
 .psub-status.done { background: #e8f6ee; color: #1f9d57; }
+.psub-status.custom { background: #fff4e0; color: #c77800; } /* 自定义非完成状态，琥珀色区分 */
+/* 状态选择器（子任务编辑弹窗） */
+.status-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.status-chip { font-size: 12px; padding: 5px 11px; border-radius: 14px; border: 1px solid #e3e5ee; background: #fff; color: var(--sub); cursor: pointer; }
+.status-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.status-chip.done.on { background: #1f9d57; border-color: #1f9d57; }
+.status-chip.custom.on { background: #c77800; border-color: #c77800; }
+.status-add { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+.status-add input { flex: 1; }
 
 /* —— 标签体系（项目 / 子任务 #标签） —— */
 .proj-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
@@ -1003,12 +1012,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .gantt-tip { margin: 10px 2px 2px; }
 
 .rec-hist { max-height: 200px; overflow-y: auto; margin: 8px 0; }
-.rec-row { display: flex; align-items: center; justify-content: space-between; padding: 7px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.rec-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 7px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .rec-main { display: flex; align-items: center; gap: 8px; }
 .rec-row b { color: var(--primary); }
 .hist-time { color: var(--sub); font-size: 12px; }
 .rec-undo { margin-left: auto; background: none; border: none; color: var(--sub); font-size: 12px; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
 .rec-undo:hover { color: #e74c3c; background: #ffeaea; }
+/* 填报历史中的备注：占满整行换行显示 */
+.rec-note { font-size: 12px; color: var(--sub); margin-left: 6px; white-space: pre-wrap; word-break: break-word; }
 /* 填报历史标题行 + 图表入口；.hist-head 供「执行历史」折叠标题行复用同一布局
    （不并入 .rec-head 的 h4 margin:0 规则，保证执行历史标题原有间距不变） */
 .rec-head, .hist-head { display: flex; align-items: center; justify-content: space-between; }
@@ -1585,7 +1596,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   /* ----------------------------- 响应式状态 ----------------------------- */
   const state = reactive({ revision: 0, habits: [], tasks: [], categories: [], settings: { quickToQuickView: true, autoExtend: false },
-    projects: [], project_subs: [], project_records: [], project_ideas: [], project_folders: [],
+    projects: [], project_subs: [], project_records: [], project_ideas: [], project_folders: [], sub_custom_statuses: [],
     wish_items: [], wish_records: [] });
 
   /* ----------------------------- 持久化 ----------------------------- */
@@ -1596,6 +1607,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         projects: state.projects, project_subs: state.project_subs,
         project_records: state.project_records, project_ideas: state.project_ideas,
         project_folders: state.project_folders,
+        sub_custom_statuses: state.sub_custom_statuses,
         wish_items: state.wish_items, wish_records: state.wish_records,
       }));
     } catch (e) { console.error('[MP] persist failed', e); }
@@ -1656,6 +1668,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.project_records = o.project_records || [];
       state.project_ideas = o.project_ideas || [];
       state.project_folders = o.project_folders || [];
+      state.sub_custom_statuses = o.sub_custom_statuses || [];
       state.wish_items = o.wish_items || [];
       state.wish_records = o.wish_records || [];
       autoExtendOverdue(); // 过期任务自动延期（仅在开关开启时生效）
@@ -3972,7 +3985,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const sub = Object.assign({
       sid: uid('psub'), pid: pid, title: '', unit: '页',
       planDaily: 1, enableTotal: false, total: null, finished: 0,
-      sub_start: null, sub_end: null, sub_done: false,
+      sub_start: null, sub_end: null, sub_done: false, status: '进行中',
       tags: [], estMin: 0, spentMin: 0, done_at: null,
       isEmergency: false,
     }, newSync(), s || {});
@@ -4012,6 +4025,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (isSubComplete(s)) {
       s.sub_done = false;
       s.done_at = null; // 复位完成时间戳 → 重新回到未完成分区
+      s.status = '进行中'; // 取消完成 → 回到进行中（自定义非完成状态可再手动设回）
       if (s.enableTotal && s.total > 0) {
         const sum = state.project_records.filter(r => r.sid === sid && !r.deleted_at)
           .reduce((a, r) => a + (Number(r.actualNum) || 0), 0);
@@ -4021,17 +4035,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (s.enableTotal && s.total > 0) s.finished = Number(s.total);
       s.sub_done = true;
       s.done_at = Date.now(); // 记录完成时刻 → 完成区内按完成先后排列
+      s.status = '已完成';   // 标记完成 → 工作流状态同步为已完成
       s.isEmergency = false;  // 标记完成即清空紧急标记（视为已处理）
     }
     touch(s); persist();
   }
 
+  // —— 项目子任务自定义状态（全局清单，用户自由新增；均为「非完成」状态）——
+  function addCustomSubStatus(name) {
+    const v = (name || '').trim();
+    if (!v) return false;
+    if (v === '进行中' || v === '已完成') return false;            // 内置状态不可重复添加
+    if (!state.sub_custom_statuses) state.sub_custom_statuses = [];
+    if (state.sub_custom_statuses.indexOf(v) >= 0) return false;   // 去重
+    state.sub_custom_statuses.push(v);
+    persist();
+    return true;
+  }
+
   // —— ProjectRecord 填报留痕表 ——
   // spentMin：本次填报花费时间（分钟）。与完成量彼此独立，可只填时间、也可只填完成量
-  function addRecord(sid, recordDate, actualNum, spentMin) {
+  function addRecord(sid, recordDate, actualNum, spentMin, note) {
     const n = Number(actualNum) || 0;
     const sp = Math.max(0, Math.round(Number(spentMin) || 0));
-    const rec = Object.assign({ rid: uid('rec'), sid: sid, recordDate: recordDate, actualNum: n, spentMin: sp }, newSync());
+    const noteStr = (note == null ? '' : String(note)).trim();
+    const rec = Object.assign({ rid: uid('rec'), sid: sid, recordDate: recordDate, actualNum: n, spentMin: sp, note: noteStr }, newSync());
     state.project_records.push(rec);
     // 累加子任务 finished（无数字校验，0/大于/小于计划均可）+ 累加已花费时间
     const s = state.project_subs.find(x => x.sid === sid);
@@ -4041,7 +4069,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       touch(s);
     }
     persist();
-    // 积分联动：子任务专注时长 25min=6分，线性折算（project_sub，与 study_work 独立并行）
+    // 积分联动：项目填报基础分 —— 每填报一次即 +7（与专注时长 / 标签积分彼此独立，按记录独立计入、可独立撤销）
+    addPoints(7, 'project_report', '项目填报: ' + (s ? s.title : sid), rec.rid);
+    // 积分联动：子任务专注时长 25min=6分，线性折算（project_sub，与 study_work / 基础分 独立并行）
     if (sp > 0) {
       const pts = Math.round(sp / 25 * 6);
       if (pts > 0) {
@@ -4049,19 +4079,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         addPoints(pts, 'project_sub', '子任务专注: ' + (sub ? sub.title : '') + ' (' + sp + '分钟)', sid, sp);
       }
     }
-    // 积分联动：学习工作类标签项目子任务 → study_work 积分（与 project_sub 独立并行）
+    // 积分联动：学习工作类标签项目子任务 → study_work 积分（仅「有专注时长」时按 25min=7分 线性叠加，与基础分独立并行）
     if (s) {
       const hasStudyTag = (s.tags || []).some(tag => STUDY_WORK_TAGS.includes(tag));
-      if (hasStudyTag) {
-        if (sp > 0) {
-          // 有专注时长：25min=7分线性（study_work 基准，与 project_sub 的 25min=6分 独立发放）
-          const pts = Math.round(sp / 25 * 7 * 10) / 10;
-          if (pts > 0) {
-            addPoints(pts, 'study_work', '项目子任务专注: ' + s.title + ' (' + sp + '分钟)', sid + '_study', sp);
-          }
-        } else if (n > 0) {
-          // 无专注时长但有完成量：按时完成 +7
-          addPoints(7, 'study_work', '项目子任务完成: ' + s.title, sid + '_study');
+      if (hasStudyTag && sp > 0) {
+        // 有专注时长：25min=7分线性（study_work 基准，与 project_sub 的 25min=6分 独立发放）
+        const pts = Math.round(sp / 25 * 7 * 10) / 10;
+        if (pts > 0) {
+          addPoints(pts, 'study_work', '项目子任务专注: ' + s.title + ' (' + sp + '分钟)', sid + '_study', sp);
         }
       }
     }
@@ -4081,6 +4106,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (sp > 0) { reversePoints(sid, 'project_sub'); }
     const hasStudyTag = (s.tags || []).some(tag => STUDY_WORK_TAGS.includes(tag));
     if (hasStudyTag) { reversePoints(sid + '_study', 'study_work'); }
+    // 收回「项目填报基础分」（每条记录独立计入、独立撤销）
+    reversePoints(rec.rid, 'project_report');
     rec.deleted_at = Date.now();
     touch(rec);
     s.finished = Math.max(0, (Number(s.finished) || 0) - amt);
@@ -4528,6 +4555,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 现统一移除习惯上的 is_system 标记，转为普通用户习惯；历史记录完整保留不清空。
   function migrate() {
     let changed = false;
+    // 项目子任务自定义状态清单：旧数据补齐（默认空数组，用户自由新增）
+    if (state.sub_custom_statuses === undefined) { state.sub_custom_statuses = []; changed = true; }
     state.habits.forEach(h => {
       if (h && h.is_system) { delete h.is_system; changed = true; }
       // 养成型习惯补齐 plan_time 字段（旧数据可能缺失，缺省置空 -> 排末尾）
@@ -4547,6 +4576,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (s.sub_start === undefined) { s.sub_start = ''; changed = true; }
       if (s.sub_end === undefined) { s.sub_end = (s.sub_deadline != null ? s.sub_deadline : ''); changed = true; }
       if (s.sub_done === undefined) { s.sub_done = false; changed = true; }
+      // 工作流状态：旧数据按完成态补齐（已完成 ↔ sub_done；其余 ↔ 进行中）
+      if (s.status === undefined) { s.status = s.sub_done ? '已完成' : '进行中'; changed = true; }
       // —— 耗时统计 / 标签 / 完成时刻：旧数据补齐，缺失不影响任何既有逻辑 ——
       if (s.tags === undefined) { s.tags = []; changed = true; }
       if (s.estMin === undefined) { s.estMin = 0; changed = true; }
@@ -4564,6 +4595,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 项目填报留痕：旧记录补齐花费时间字段（默认 0，不影响既有完成量统计）
     state.project_records.forEach(r => {
       if (r && r.spentMin === undefined) { r.spentMin = 0; changed = true; }
+      if (r && r.note === undefined) { r.note = ''; changed = true; } // 填报备注：旧记录默认空
     });
     // 任务：截止日期 / 提醒新模型兼容迁移（不丢旧数据）
     state.tasks.forEach(t => {
@@ -4625,9 +4657,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }
       // 时间模式：旧任务兜底归类（收藏四类 / 有日期或周期 → 日 / 其余 → 月未规划）
       if (t.time_mode === undefined) { t.time_mode = defaultModeFor(t); changed = true; }
+      // 指定月任务补全 time_mode='month'（历史由表单落库为 null，导致今日Tab「本月」折叠不展示副本）
+      if (t.time_mode == null && t.date_mode === 'month' && t.plan_year && t.plan_month) {
+        t.time_mode = 'month'; changed = true;
+      }
       if (t.plan_year === undefined) { t.plan_year = null; t.plan_month = null; t.plan_week = null; changed = true; }
       // 今日子任务：旧数据补齐紧急标记，保证今日列表排序逻辑一致
       (t.sub_tasks || []).forEach(s => {
+        // 指定月子任务同样补全 time_mode='month'（与今日Tab「本月」折叠口径一致）
+        if (s.time_mode == null && s.date_mode === 'month' && s.plan_year && s.plan_month) {
+          s.time_mode = 'month'; changed = true;
+        }
         if (s.isEmergency === undefined) { s.isEmergency = false; changed = true; }
         // 周期 / 区间打卡记录字段补齐（与主任务一致，避免 subCopyDone push 崩溃）
         if (s.cycle_history === undefined) { s.cycle_history = []; changed = true; }
@@ -4962,7 +5002,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 项目模块
     addProject, updateProject, archiveProject, reopenProject, deleteProject,
     addFolder, renameFolder, deleteFolder, getFolders, moveProjectToFolder, archiveFolder, reopenFolder, moveFolderToFolder,
-    addSub, updateSub, removeSub, isSubComplete, toggleSubDone, addRecord, getRecords, deleteRecord,
+    addSub, updateSub, removeSub, addCustomSubStatus, isSubComplete, toggleSubDone, addRecord, getRecords, deleteRecord,
     addIdea, updateIdea, removeIdea, pickIdea,
     addTaskIdea, getTaskIdeas,
     getProjects, getSubs, getIdeas, projectProgress, projectCountdown, subProgress,
@@ -4985,6 +5025,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         projects: state.projects, project_subs: state.project_subs,
         project_records: state.project_records, project_ideas: state.project_ideas,
         project_folders: state.project_folders,
+        sub_custom_statuses: state.sub_custom_statuses,
         wish_items: state.wish_items, wish_records: state.wish_records,
       });
     },
@@ -5007,6 +5048,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.project_records = Array.isArray(o.project_records) ? o.project_records : [];
       state.project_ideas = Array.isArray(o.project_ideas) ? o.project_ideas : [];
       state.project_folders = Array.isArray(o.project_folders) ? o.project_folders : [];
+      state.sub_custom_statuses = Array.isArray(o.sub_custom_statuses) ? o.sub_custom_statuses : [];
       state.wish_items = Array.isArray(o.wish_items) ? o.wish_items : [];
       state.wish_records = Array.isArray(o.wish_records) ? o.wish_records : [];
       try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
@@ -5673,7 +5715,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const off = i - this.currentIndex;
         if (off < 0) return { transform: 'translateX(-60%) scale(0.92)', opacity: 0, zIndex: 0, pointerEvents: 'none' };
         if (off === 0) return { transform: `translateX(${this.dragX}px) rotate(${this.dragX * 0.02}deg)`, zIndex: 100, opacity: 1 };
-        return { transform: `translateY(${off * 12}px) scale(${1 - off * 0.05})`, zIndex: 100 - off, opacity: Math.max(0, 1 - off * 0.18) };
+        // 仅展示前 3 张预览卡，超出部分隐藏并禁用指针事件，避免手牌过多时卡片向下溢出覆盖导航「右切」按钮
+        if (off > 3) return { transform: 'translateY(60px) scale(0.6)', zIndex: 1, opacity: 0, pointerEvents: 'none' };
+        const capped = off; // off ∈ {1, 2, 3}
+        return { transform: `translateY(${capped * 12}px) scale(${1 - capped * 0.05})`, zIndex: 100 - capped, opacity: Math.max(0, 1 - capped * 0.18) };
       },
       cardClass(i) {
         const h = this.habits[i];
@@ -5702,25 +5747,38 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const h = this.habits[this.currentIndex]; if (!h) return;
         const holiday = this.isHoliday(h);
         if (dir === 'right') {
-          // 右滑 = 未完成
+          // 右滑 = 未完成：标记后自动右切到下一张待完成手牌
           if (!holiday) this.$store.markHabitRecord(h._id, this.today, 'fail');
-          this.currentIndex = Math.min(this.currentIndex + 1, this.habits.length - 1);
+          this.goNextPending();
         } else {
           // 左滑 = 完成
-          if (holiday) { this.currentIndex = Math.max(0, this.currentIndex - 1); return; }
           this.completeCurrent();
         }
       },
-      // 标记当前习惯完成：阅读习惯且存在书籍任务时弹出同步弹窗（不立即打卡），其余直接打卡
+      // 标记当前习惯完成：阅读习惯且存在书籍任务时弹出同步弹窗，完成后仍自动右切到下一张待完成手牌
       completeCurrent() {
         const h = this.habits[this.currentIndex]; if (!h) return;
-        if (this.isHoliday(h)) return;
+        if (this.isHoliday(h)) { this.goNextPending(); return; }   // 请假中不可打卡，直接右切
         if (this.$store.requestReadingSync(h._id, this.today)) {
           this.$emit('reading-sync', { habitId: h._id, date: this.today });
-          return; // 等待弹窗确认 / 跳过后再标记习惯
+          this.goNextPending(); // 等待弹窗确认 / 跳过后再标记习惯，手牌先切到下一张
+          return;
         }
         this.$store.markHabitRecord(h._id, this.today, 'success');
-        this.currentIndex = Math.max(0, this.currentIndex - 1);
+        this.goNextPending();
+      },
+      // 是否「今日待完成」：非请假、且尚未打卡（未完成也未跳过）
+      isPending(h) {
+        if (!h || this.isHoliday(h)) return false;
+        const st = this.statusOf(h);
+        return st !== 'success' && st !== 'fail';
+      },
+      // 自动右切到下一张待完成手牌：从当前之后找第一张未打卡的；后续无则停在末张（保持右切方向收尾）
+      goNextPending() {
+        for (let i = this.currentIndex + 1; i < this.habits.length; i++) {
+          if (this.isPending(this.habits[i])) { this.currentIndex = i; return; }
+        }
+        if (this.currentIndex < this.habits.length - 1) this.currentIndex = this.currentIndex + 1;
       },
       prev() { this.currentIndex = Math.max(0, this.currentIndex - 1); },
       next() { this.currentIndex = Math.min(this.habits.length - 1, this.currentIndex + 1); },
@@ -6173,7 +6231,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (mode === 'month') {
       const ym = (d.plan_month || '').match(/^(\d{4})-(\d{2})$/);
       const y = ym ? Number(ym[1]) : null, m = ym ? Number(ym[2]) : null;
-      return { date_mode: 'month', plan_year: y, plan_month: m, plan_week: null, execute_date: null, date_start: '', date_end: '', week_offset: null, time_mode: null };
+      return { date_mode: 'month', plan_year: y, plan_month: m, plan_week: null, execute_date: null, date_start: '', date_end: '', week_offset: null, time_mode: 'month' };
     }
     if (mode === 'day') {
       return { date_mode: 'single', plan_year: null, plan_month: null, plan_week: null, execute_date: d.execute_date || null, date_start: '', date_end: '', week_offset: null, time_mode: null };
@@ -8142,6 +8200,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           habit: { label: '习惯', icon: '🔄', records: [] },
           cycle_task: { label: '周期任务', icon: '🔁', records: [] },
           project_sub: { label: '项目-子任务填报', icon: '📝', records: [] },
+          project_report: { label: '项目-填报基础分', icon: '✅', records: [] },
           project_finish: { label: '项目-完结加成', icon: '🏆', records: [] },
           study_work: { label: '学习工作', icon: '📚', records: [] },
           study_task: { label: '学习工作', icon: '📚', records: [] },  // 兼容旧 category
@@ -11785,7 +11844,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button type="button" :class="{on: importance==='high'}" @click="importance='high'">高度重要</button>
             </div>
           </label>
-          <p class="tip">仅 UI 倒数日展示；留空 = 无倒数。系统不内置任何模板，项目由你手动创建。</p>
           <div class="modal-actions">
             <button class="btn ghost" @click="$emit('close')">取消</button>
             <button class="btn primary" @click="save">保存</button>
@@ -11814,7 +11872,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectSubEditModal = {
     name: 'ProjectSubEditModal',
     props: { pid: { type: String, required: true }, sid: { type: String, default: '' }, ideaId: { type: String, default: '' }, seedTitle: { type: String, default: '' }, seedTags: { type: Array, default: () => [] } },
-    data() { return { title: '', unit: '页', customUnit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', tags: [], tagInput: '', estH: 0, estM: 0, isEmergency: false, showDelConfirm: false }; },
+    data() { return { title: '', unit: '页', customUnit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', newStatus: '', tags: [], tagInput: '', estH: 0, estM: 0, isEmergency: false, showDelConfirm: false }; },
     computed: {
       // 本项目已有的子任务标签，作为快捷选择项（排除已选），减少重复手输
       tagSuggestions() {
@@ -11823,6 +11881,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       estMinInput() { return Math.max(0, (Number(this.estH) || 0) * 60 + (Number(this.estM) || 0)); },
       // 展示用单位：自定义时取 customUnit 文本（缺省回退「页」），预设时取原值
       dispUnit() { return this.unit === '__custom' ? (((this.customUnit || '').trim()) || '') : (this.unit || ''); },
+      // 状态可选项：内置 进行中 / 已完成 + 用户自定义状态（均为非完成状态）
+      statusOptions() {
+        const builtin = ['进行中', '已完成'];
+        const custom = (this.$store.state.sub_custom_statuses || []).slice();
+        return builtin.concat(custom);
+      },
     },
     created() {
       this.tags = (this.seedTags || []).slice();
@@ -11841,6 +11905,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           this.enableTotal = !!s.enableTotal;
           this.total = (s.total == null ? '' : s.total);
           this.isEmergency = !!s.isEmergency;
+          // 工作流状态：已完成 ↔ sub_done；其余 ↔ 进行中 / 自定义状态
+          this.status = s.status || (s.sub_done ? '已完成' : '进行中');
           // 旧数据兼容：仅有单个截止 sub_deadline 时，映射为 结束=原截止、开始=空
           if (s.sub_start !== undefined || s.sub_end !== undefined) {
             this.sub_start = s.sub_start || '';
@@ -11866,6 +11932,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           alert('结束日期不能早于开始日期');
           return;
         }
+        const cur = this.sid ? this.$store.state.project_subs.find(x => x.sid === this.sid) : null;
+        const wasDone = !!(cur && cur.sub_done);
+        const nowDone = this.status === '已完成';
         const patch = {
           title,
           unit: this.unit === '__custom' ? (((this.customUnit || '').trim()) || '页') : (this.unit || '页'),
@@ -11880,7 +11949,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 预计耗时：0 = 未设置，此时时间进度条改用项目内相对刻度展示
           estMin: this.estMinInput,
           isEmergency: !!this.isEmergency, // 紧急标记：强制置顶今日Tab
+          // 工作流状态：选「已完成」即标记完成（sub_done=true），否则为非完成（含自定义状态）
+          status: this.status || '进行中',
+          sub_done: nowDone,
         };
+        // 完成态切换时同步完成时间戳与紧急标记（与 toggleSubDone 口径一致）
+        if (nowDone && !wasDone) { patch.done_at = Date.now(); patch.isEmergency = false; }
+        else if (!nowDone && wasDone) { patch.done_at = null; }
         if (this.sid) this.$store.updateSub(this.sid, patch);
         else this.$store.addSub(this.pid, patch);
         if (this.ideaId) this.$store.pickIdea(this.ideaId);
@@ -11898,6 +11973,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.tagInput = '';
       },
       pickSuggest(t) { if (this.tags.indexOf(t) < 0) this.tags.push(t); },
+      // 状态类型判断：内置状态之外即为自定义（非完成）状态
+      isCustomStatus(opt) { return opt !== '进行中' && opt !== '已完成'; },
+      // 新增自定义状态：写入全局清单并立即选中（内置状态 / 空 / 重复 均拦截）
+      addCustomStatus() {
+        const v = (this.newStatus || '').trim();
+        if (!v) return;
+        if (v === '进行中' || v === '已完成') { alert('「进行中 / 已完成」为内置状态，无需添加'); this.newStatus = ''; return; }
+        if ((this.$store.state.sub_custom_statuses || []).indexOf(v) >= 0) { alert('该状态已存在'); this.newStatus = ''; return; }
+        if (this.$store.addCustomSubStatus(v)) { this.status = v; this.newStatus = ''; }
+      },
       confirmDelete() {
         if (!this.sid) return;
         this.$store.removeSub(this.sid);
@@ -11917,6 +12002,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <input v-model="title" @keyup.enter="save" placeholder="如：查阅文献 / 写框架" />
           </div>
           <p class="tip emg-tip" v-if="isEmergency">勾选后无视所有日期、周期排序规则，固定放在今日Tab首位，需优先完成。</p>
+          <!-- 工作流状态：内置 进行中 / 已完成，可自定非完成状态；选「已完成」即标记完成 -->
+          <label class="fld">状态
+            <div class="status-pick">
+              <button type="button" v-for="opt in statusOptions" :key="opt" class="status-chip"
+                :class="{ on: status===opt, done: opt==='已完成', custom: isCustomStatus(opt) }"
+                @click="status = opt">{{ opt }}</button>
+            </div>
+            <div class="status-add">
+              <input v-model="newStatus" placeholder="新增自定义状态，如：待审核 / 受阻" @keyup.enter.stop="addCustomStatus" />
+              <button type="button" class="btn-mini" @click="addCustomStatus">＋ 添加</button>
+            </div>
+          </label>
           <label class="fld check"><input type="checkbox" v-model="enableTotal" /> 开启目标计划</label>
           <template v-if="enableTotal">
             <div class="fld-row">
@@ -11960,7 +12057,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <span class="ptag" style="background:#f0f1f6;color:var(--sub);cursor:pointer" v-for="t in tagSuggestions" :key="'sg'+t" @click="pickSuggest(t)">＋ {{ t }}</span>
           </div>
 
-          <p class="tip">子任务可设一段工作周期（开始 ~ 结束），与项目整体时间相互独立、可任意选择；结束日期不能早于开始日期；留空 = 不设时间跨度。标签用于列表筛选与甘特图耗时分布统计（首个标签作为分布图归类依据）。所有子任务都是平级，不支持多层嵌套。</p>
           <div class="modal-actions">
             <button class="btn danger" v-if="sid" @click="showDelConfirm=true">删除</button>
             <button class="btn ghost" @click="$emit('close')">取消</button>
@@ -11984,7 +12080,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectRecordModal = {
     name: 'ProjectRecordModal',
     props: { sid: { type: String, required: true } },
-    data() { return { actualNum: 0, recordDate: '', spentH: 0, spentM: 0, undoTarget: null, showChart: false, chartTab: 0, dragStartX: 0, draggingChart: false }; },
+    data() { return { actualNum: 0, recordDate: '', spentH: 0, spentM: 0, note: '', undoTarget: null, showChart: false, chartTab: 0, dragStartX: 0, draggingChart: false }; },
     computed: {
       sub() { return this.$store.state.project_subs.find(x => x.sid === this.sid) || null; },
       history() { return this.$store.getRecords(this.sid); },
@@ -12087,9 +12183,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           alert('请至少填写「完成量」或「本次花费时间」其中一项');
           return;
         }
-        this.$store.addRecord(this.sid, this.recordDate || this.$store.util.todayStr(), this.actualNum, this.spentMinInput);
+        this.$store.addRecord(this.sid, this.recordDate || this.$store.util.todayStr(), this.actualNum, this.spentMinInput, this.note);
         if (this.sub) this.actualNum = this.sub.planDaily; // 重置为默认，便于连续填报
         this.spentH = 0; this.spentM = 0;                  // 耗时归零，避免下一次误重复计时
+        this.note = '';                                    // 备注清空，避免串到下一笔填报
       },
       // 请求撤销单条填报：先校验扣减后不为负，否则提示并阻止；否则弹出二次确认
       askUndo(r) {
@@ -12124,7 +12221,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             ⏱ 本次记为 <b>{{ spentInputLabel }}</b> · 该子任务累计已花费 <b>{{ totalSpentLabel }}</b>
             <template v-if="estMin > 0"> / 预计 {{ estLabel }}</template>
           </p>
-          <p class="tip">默认预填每日计划 {{ sub ? sub.planDaily : 0 }}{{ sub ? sub.unit : '' }}；可填任意数字（0、大于/小于计划均可）。完成量与花费时间相互独立，至少填其一即可保存并生成留痕。</p>
+          <!-- 填报备注：可选，随填报留痕一并保存并在填报历史中展示 -->
+          <label class="fld">备注（可选）
+            <textarea v-model="note" rows="2" placeholder="本次填报说明，如：完成第 3 章 / 遇到阻塞待协调…"></textarea>
+          </label>
           <button class="btn primary" @click="save">保存填报</button>
           <div class="rec-head">
             <h4>填报历史（{{ history.length }}）</h4>
@@ -12136,6 +12236,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <span>{{ r.recordDate }}</span>
                 <b v-if="r.actualNum">+{{ r.actualNum }} {{ sub ? sub.unit : '' }}</b>
                 <span class="rec-spent" v-if="r.spentMin">⏱ {{ fmtSpent(r.spentMin) }}</span>
+                <span class="rec-note" v-if="r.note">{{ r.note }}</span>
               </span>
               <button class="rec-undo" @click="askUndo(r)">撤销</button>
             </div>
@@ -13494,6 +13595,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       subPct(s) { return this.$store.subProgress(s); },
       isSubComplete(s) { return this.$store.isSubComplete(s); },
       toggleDone(s) { this.$store.toggleSubDone(s.sid); },
+      // 工作流状态标签：已完成→「已完成」；否则展示其状态（进行中 / 自定义非完成状态）
+      subStatusLabel(s) { return this.isSubComplete(s) ? '已完成' : (s.status || '进行中'); },
+      // 工作流状态样式类：已完成→done；自定义非完成状态→custom；进行中→默认
+      subStatusClass(s) {
+        if (this.isSubComplete(s)) return 'done';
+        return (s.status && s.status !== '进行中') ? 'custom' : '';
+      },
       // —— 已花费时间：数值 / 文案 / 进度条宽度 ——
       spentMin(s) { return this.$store.subSpentMin(s); },
       spentText(s) { return this.$store.fmtSpent(this.spentMin(s)); },
@@ -13584,7 +13692,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
              @pointerup="onSubUp()" @pointercancel="onSubUp()">
           <div class="psub-top" @click="onSubMainClick(s)">
             <div class="psub-title">{{ s.title }}<span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span></div>
-            <span class="psub-status" :class="{ done: isSubComplete(s) }">{{ isSubComplete(s) ? '已完成' : '进行中' }}</span>
+            <span class="psub-status" :class="subStatusClass(s)">{{ subStatusLabel(s) }}</span>
           </div>
           <!-- 完成量进度条（仅开启目标计划的子任务） -->
           <div class="psub-prog" v-if="subPct(s) !== null">
