@@ -900,7 +900,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .meta-none { font-size: 13px; color: var(--sub); }
 
 .sub-list2, .idea-list2 { display: flex; flex-direction: column; gap: 12px; }
-.psub { position: relative; overflow: hidden; background: var(--card); border-radius: var(--radius); padding: 13px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.psub { position: relative; overflow: hidden; background: var(--card); border-radius: var(--radius); padding: 13px; box-shadow: var(--shadow); border: 1px solid var(--line); transition: background .45s ease, box-shadow .45s ease, border-color .45s ease; }
 .psub-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .psub-title { font-size: 15px; font-weight: 600; }
 .psub-unit { font-size: 12px; color: var(--sub); white-space: nowrap; }
@@ -917,6 +917,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .pidea { background: var(--card); border-radius: var(--radius); padding: 13px; box-shadow: var(--shadow); border: 1px solid var(--line); transition: background .45s ease, box-shadow .45s ease, border-color .45s ease; }
 /* 搜索灵感跳转：绿闪突出 2 秒后由 .idea-flash 移除，transition 平滑回落 */
 .pidea.idea-flash { background: #d8f5e2; border-color: #2ecc71; box-shadow: 0 0 0 2px rgba(46,204,113,.45), var(--shadow); }
+/* 搜索子任务跳转：绿闪突出 2 秒后由 .sub-flash 移除，transition 平滑回落（!important 以盖过 .emergency-bg 的紧急底色） */
+.psub.sub-flash { background: #d8f5e2 !important; border-color: #2ecc71 !important; box-shadow: 0 0 0 2px rgba(46,204,113,.45), var(--shadow) !important; }
 .pidea-top { display: flex; align-items: center; justify-content: flex-start; gap: 6px; }
 .pidea-title { font-size: 15px; font-weight: 600; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .idea-badge { font-size: 11px; padding: 2px 9px; border-radius: 9px; }
@@ -944,7 +946,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .proj-meta .meta-cd, .proj-meta .meta-prog, .proj-meta .meta-none { padding-right: 40px; }
 
 /* —— 项目子任务 / 灵感素材卡片：滑动 + 长按手势（仅项目详情页） —— */
-.psub.swipe-card, .pidea.swipe-card { touch-action: pan-y; -webkit-user-select: none; user-select: none; will-change: transform; transition: transform .18s ease; }
+.psub.swipe-card, .pidea.swipe-card { touch-action: pan-y; -webkit-user-select: none; user-select: none; will-change: transform; transition: transform .18s ease, background .45s ease, box-shadow .45s ease, border-color .45s ease; }
 .psub.swipe-card.dragging, .pidea.swipe-card.dragging { transition: none; }
 
 /* 子任务状态标签（右上角，跟随完成状态自动切换） */
@@ -1834,7 +1836,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const net = Math.round((earn - penalty) * 10) / 10;
     hits.forEach(r => { r.status = 'reversed'; });
     if (net === 0) { persist(); return { net: 0, count: hits.length, recordId: null }; }
-    const STATUS_LABEL = { success: '已完成', record: '已打卡', fail: '未完成', holiday: '跳过', none: '未打卡', '': '未打卡' };
+    const failLabel = (habit && habit.type === 'QUIT_HABIT') ? '破戒' : '未完成';
+    const STATUS_LABEL = { success: '已完成', record: '已打卡', fail: failLabel, holiday: '跳过', none: '未打卡', '': '未打卡' };
     const toLabel = STATUS_LABEL[toStatus] || '未打卡';
     const nm = (habit.name || '').trim() || '未命名';
     const recordId = uid('wrec');
@@ -1883,13 +1886,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       } else if (h.type === 'SOP_HABIT') {
         if (rec && rec.status === 'success') {
           addPoints(8, 'habit', '完成: ' + h.name, refId);
-        } else if (!rec) {
-          // 无打卡记录 = 漏完成，扣基础分（仅结算历史日期时触发；今天不扣，给用户机会）
-          if (date < todayStr()) {
-            addPoints(-5, 'habit', '漏完成: ' + h.name, refId);
-          }
+        } else if (rec && rec.status === 'fail') {
+          // 仅「打卡 未完成」才扣基础分（含今天：显式选择即生效）；漏完成（—，无记录）不扣分
+          addPoints(-5, 'habit', '未完成: ' + h.name, refId);
         }
-        // fail 状态：已由手动标记处理（不额外扣分，避免与漏扣重叠）
+        // 漏完成（—，无打卡记录）：不扣分，避免对未登录的日子误罚
       }
     });
   }
@@ -2818,13 +2819,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const key = copyKey(t, ws);
       const overdue = isOverdueTask(t); // 单点过期日 / 区间结束日已过 → 过期单次记录
       t.doneDates = t.doneDates || [];
-      if (!t.doneDates.includes(key)) t.doneDates.push(key);
+      const newlyDone = !t.doneDates.includes(key);
+      if (newlyDone) t.doneDates.push(key);
       if (overdue) {
         t.doneOverdueDates = t.doneOverdueDates || [];
         if (!t.doneOverdueDates.includes(key)) t.doneOverdueDates.push(key);
       }
       // 「所有日期副本全部完成自动归档母本」：非周期任务全部窗口副本完成后归档母本
       if (copiesAllDone(t)) { t.is_archived = true; t.autoArchivedByCopies = true; }
+      // 积分联动：普通单点任务「完成」（非周期/非区间/非学习工作类/非收藏）→ 基础分 +3；
+      // 仅首次完成发放（newlyDone 守卫），避免重复完成重复加分
+      if (newlyDone && !isCollectionTask(t) && !isStudyWorkTask(t)) {
+        addPoints(3, 'task_archive', '完成: ' + t.title, t._id);
+      }
     }
     persist();
     // 积分联动：任务完成
@@ -2860,12 +2867,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function markCopyUndone(id, ws, we) {
     const t = findTask(id);
     if (!t) return;
-    // 积分联动：撤销任务完成（两类积分分别独立收回）
+    // 积分联动：撤销任务完成（各类积分分别独立收回）
     if (t.cycle || (t.date_mode === 'range' && t.date_start)) {
       reversePoints(t._id, 'cycle_task');
     }
     if (isStudyWorkTask(t)) {
       reversePoints(t._id, 'study_work');
+    }
+    // 普通单点任务「完成」撤销 → 收回基础分 +3（与 markCopyDone 发放口径对齐；reversePoints 幂等，重复撤销安全）
+    if (!t.cycle && !(t.date_mode === 'range' && t.date_start) && !isStudyWorkTask(t) && !isCollectionTask(t) && !t.is_template) {
+      reversePoints(t._id, 'task_archive');
     }
     if (t.cycle) {
       let cur = parseDate(ws), end = parseDate(we);
@@ -4261,7 +4272,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (d.getFullYear() !== year) return false;
       if (month && d.getMonth() + 1 !== month) return false;
       if (h.type === 'SOP_HABIT') return r.status === 'success';
-      if (h.type === 'QUIT_HABIT') return r.status !== 'fail';
+      if (h.type === 'QUIT_HABIT') return r.status === 'fail';
       if (h.type === 'RECORD_HABIT') return r.status === 'record';
       return false;
     }).length;
@@ -5901,6 +5912,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     computed: {
       habit() { return this.$store.findHabit(this.habitId); },
       today() { return this.$store.util.todayStr(); },
+      // 状态选择：戒掉型仅 —、破戒、请假（无「完成」项，破戒即记 fail）；其余三类为 —、完成、未完成、请假
+      statusOptions() {
+        const t = this.habit ? this.habit.type : 'SOP_HABIT';
+        if (t === 'QUIT_HABIT') {
+          return [
+            { value: 'none', label: '—' },
+            { value: 'fail', label: '❌ 破戒' },
+            { value: 'holiday', label: '🏖 请假' },
+          ];
+        }
+        return [
+          { value: 'none', label: '—' },
+          { value: t === 'RECORD_HABIT' ? 'record' : 'success', label: '✅ 完成' },
+          { value: 'fail', label: '❌ 未完成' },
+          { value: 'holiday', label: '🏖 请假' },
+        ];
+      },
     },
     created() { this.buildDays(); },
     methods: {
@@ -5936,11 +5964,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div v-for="d in days" :key="d.date" class="habit-day" :class="'st-'+(d.status||'none')">
               <div class="hd-date">{{ d.date }}</div>
               <select :value="d.status||'none'" @change="setStatus(d.date, $event.target.value)">
-                <option value="none">—</option>
-                <option value="success">✅ 完成</option>
-                <option value="fail">❌ 未完成</option>
-                <option value="holiday">🏖 请假</option>
-                <option value="record">📝 记录</option>
+                <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
             </div>
           </div>
@@ -5979,11 +6003,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     computed: {
       title() { return this.isEdit ? '编辑习惯' : '新增习惯'; },
-      // 自创建以来已完成次数（仅展示，不可编辑）
+      // 自创建以来次数（仅展示，不可编辑）：戒掉型记录「破戒次数」，其余记录「完成次数」
       doneCount() {
         if (!this.habitId) return 0;
         const h = this.$store.findHabit(this.habitId);
         if (!h || !h.records) return 0;
+        if (h.type === 'QUIT_HABIT') return h.records.filter(r => r.status === 'fail').length;
         return h.records.filter(r => r.status === 'success' || r.status === 'record').length;
       },
       // 复用原统计页习惯次数统计可视化（月/年柱状图）；只读展示，不修改原始打卡数据
@@ -6012,7 +6037,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return (h.records || []).filter(r => {
           if (r.date !== dateStr) return false;
           if (h.type === 'SOP_HABIT') return r.status === 'success';
-          if (h.type === 'QUIT_HABIT') return r.status !== 'fail';
+          if (h.type === 'QUIT_HABIT') return r.status === 'fail';
           if (h.type === 'RECORD_HABIT') return r.status === 'record';
           return false;
         }).length;
@@ -6068,7 +6093,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <label class="fld" v-if="form.type==='SOP_HABIT'">计划执行时间（可留空）<input type="time" v-model="form.plan_time" /></label>
           <p class="tip" v-if="form.type==='SOP_HABIT'">留空 = 不设置时间，自动排在列表最末尾</p>
 
-          <div class="readonly-row" v-if="isEdit">自创建以来已完成 {{ doneCount }} 次</div>
+          <div class="readonly-row" v-if="isEdit">{{ habit && habit.type === 'QUIT_HABIT' ? '自创建以来已破戒' : '自创建以来已完成' }} {{ doneCount }} 次</div>
 
             <div class="habit-arch-chart" v-if="isEdit && chartData">
               <div class="chart-head">
@@ -10910,7 +10935,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         h.records.forEach(r => {
           let ok = false;
           if (h.type === 'SOP_HABIT') ok = r.status === 'success';
-          else if (h.type === 'QUIT_HABIT') ok = r.status !== 'fail';
+          else if (h.type === 'QUIT_HABIT') ok = r.status === 'fail';
           else if (h.type === 'RECORD_HABIT') ok = r.status === 'record';
           if (ok) set.add(r.date);
         });
@@ -10972,7 +10997,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return h.records.filter(r => {
           if (r.date !== dateStr) return false;
           if (h.type === 'SOP_HABIT') return r.status === 'success';
-          if (h.type === 'QUIT_HABIT') return r.status !== 'fail';
+          if (h.type === 'QUIT_HABIT') return r.status === 'fail';
           if (h.type === 'RECORD_HABIT') return r.status === 'record';
           return false;
         }).length;
@@ -12918,6 +12943,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       go(p) { location.hash = '#/project/' + p.pid; },
       // 搜索灵感结果跳转：进入母本项目详情页并定位到该灵感（路由带 ?idea= 参数，详情页绿闪 2 秒）
       goIdea(r) { location.hash = '#/project/' + r.p.pid + '?idea=' + encodeURIComponent(r.i.idea_id); },
+      // 搜索子任务结果跳转：进入母本项目详情页并定位到该子任务（路由带 ?sub= 参数，详情页绿闪 2 秒）
+      goSub(r) { location.hash = '#/project/' + r.p.pid + '?sub=' + encodeURIComponent(r.s.sid); },
       // 灵感笔记预览：仅取首句，首句后仍有内容则补省略号（与详情页一致）
       ideaPreview(i) {
         const c = (i && i.content || '').trim();
@@ -13372,7 +13399,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
         <div class="list" style="margin-top:8px">
           <div class="row task-row" v-for="r in searchSubs" :key="'ss'+r.s.sid"
-               :class="{ 'emergency-bg': r.s.isEmergency }" @click="go(r.p)">
+               :class="{ 'emergency-bg': r.s.isEmergency }" @click="goSub(r)">
             <div class="row-main">
               <div class="row-title">
                 <span class="sub-prefix">↳</span>{{ r.s.title }}
@@ -13470,12 +13497,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     name: 'ProjectDetailPage',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
     components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie },
-    props: { pid: { type: String, required: true }, ideaId: { type: String, default: '' } },
+    props: { pid: { type: String, required: true }, ideaId: { type: String, default: '' }, subId: { type: String, default: '' } },
     data() {
       return {
         tab: 'sub', view: 'list',
         // 搜索灵感跳转高亮：被高亮的灵感 id（2 秒后清除，对应 .idea-flash 绿闪）
         highlightIdeaId: '', flashTimer: null,
+        // 搜索子任务跳转高亮：被高亮的子任务 id（2 秒后清除，对应 .sub-flash 绿闪）
+        highlightSubId: '',
         // 子任务标签筛选（默认折叠，选中标签后列表与甘特图同步生效）
         tagbarOpen: false, filterTag: '',
         showProjEdit: false,
@@ -13523,12 +13552,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return { min, max };
       },
     },
-    created() { this.restoreUiState(); if (this.ideaId) this.flashIdea(this.ideaId); },
+    created() { this.restoreUiState(); if (this.ideaId) this.flashIdea(this.ideaId); if (this.subId) this.flashSub(this.subId); },
     beforeUnmount() { this.saveUiState(); if (this.flashTimer) { clearTimeout(this.flashTimer); this.flashTimer = null; } },
     watch: {
       // 路由切换（已在同一项目详情页内跳转不同灵感，或父路由带灵感参数进入）时重新高亮
       ideaId(v) { if (v) this.flashIdea(v); },
-      pid() { if (this.ideaId) this.flashIdea(this.ideaId); },
+      pid() { if (this.ideaId) this.flashIdea(this.ideaId); if (this.subId) this.flashSub(this.subId); },
+      // 同一项目详情页内跳转不同子任务，或父路由带子任务参数进入时重新高亮
+      subId(v) { if (v) this.flashSub(v); },
     },
     methods: {
       // —— 页面 UI 状态缓存（进行中 / 灵感库 标签），随路由栈返回时自动还原 ——
@@ -13557,6 +13588,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.$nextTick(scrollTo);
         // 兜底：tab 切换后 DOM 可能延迟渲染，再补一次滚动
         this.flashTimer = setTimeout(() => { scrollTo(); this.highlightIdeaId = ''; this.flashTimer = null; }, 2000);
+      },
+      // 搜索子任务跳转：切到子任务 tab，绿闪突出目标子任务条目 2 秒，并滚动到可视位置
+      flashSub(subId) {
+        if (!subId) return;
+        this.tab = 'sub'; this.view = 'list';
+        if (this.flashTimer) { clearTimeout(this.flashTimer); this.flashTimer = null; }
+        this.highlightSubId = subId;
+        const scrollTo = () => { try { const el = this.$el.querySelector('[data-sub="' + (window.CSS && CSS.escape ? CSS.escape(subId) : subId) + '"]'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} };
+        this.$nextTick(scrollTo);
+        // 兜底：tab 切换后 DOM 可能延迟渲染，再补一次滚动
+        this.flashTimer = setTimeout(() => { scrollTo(); this.highlightSubId = ''; this.flashTimer = null; }, 2000);
       },
       // —— 子任务标签筛选 ——
       toggleTagbar() { this.tagbarOpen = !this.tagbarOpen; },
@@ -13772,9 +13814,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <div v-if="tab==='sub' && view!=='gantt'" class="sub-list2">
         <button class="btn primary block-new" @click="openSubNew">＋ 新增子任务</button>
-        <div class="psub swipe-card" v-for="s in subs" :key="s.sid"
+        <div class="psub swipe-card" v-for="s in subs" :key="s.sid" :data-sub="s.sid"
              :style="{ transform: 'translateX(' + (subDragId===s.sid ? subX : 0) + 'px)' }"
-             :class="{ dragging: subDragId===s.sid && subMoved, done: isSubComplete(s), 'done-sub': isSubComplete(s), 'emergency-bg': isEmg(s) }"
+             :class="{ dragging: subDragId===s.sid && subMoved, done: isSubComplete(s), 'done-sub': isSubComplete(s), 'emergency-bg': isEmg(s), 'sub-flash': highlightSubId===s.sid }"
              @pointerdown="onSubDown(s,$event)" @pointermove="onSubMove($event)"
              @pointerup="onSubUp()" @pointercancel="onSubUp()">
           <div class="psub-top" @click="onSubMainClick(s)">
@@ -13923,6 +13965,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const m = this.route.match(/[?&]idea=([^&]+)/);
         return m ? decodeURIComponent(m[1]) : '';
       },
+      // 项目详情页「搜索子任务跳转」：路由 #/project/PID?sub=SID 中的子任务 id
+      routeSubId() {
+        const m = this.route.match(/[?&]sub=([^&]+)/);
+        return m ? decodeURIComponent(m[1]) : '';
+      },
       routeSubTid() {
         const m = this.route.match(/^\/subtask\/(.+)$/);
         return m ? m[1] : '';
@@ -14001,7 +14048,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     template: `
     <div class="app-shell">
       <main class="app-main">
-        <component :is="page" :pid="routePid" :tid="routeSubTid" :idea-id="routeIdeaId" />
+        <component :is="page" :pid="routePid" :tid="routeSubTid" :idea-id="routeIdeaId" :sub-id="routeSubId" />
       </main>
       <nav class="app-nav">
         <button v-for="n in navItems" :key="n.path" :class="{on: route.startsWith(n.path)}" @click="go(n.path)">
