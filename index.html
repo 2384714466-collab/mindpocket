@@ -914,7 +914,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .detail-acts .btn-mini { padding: 5px 11px; font-size: 13px; border-radius: 9px; }
 .proj-actions .btn-mini { padding: 5px 11px; font-size: 12px; border-radius: 9px; }
 
-.pidea { background: var(--card); border-radius: var(--radius); padding: 13px; box-shadow: var(--shadow); border: 1px solid var(--line); }
+.pidea { background: var(--card); border-radius: var(--radius); padding: 13px; box-shadow: var(--shadow); border: 1px solid var(--line); transition: background .45s ease, box-shadow .45s ease, border-color .45s ease; }
+/* 搜索灵感跳转：绿闪突出 2 秒后由 .idea-flash 移除，transition 平滑回落 */
+.pidea.idea-flash { background: #d8f5e2; border-color: #2ecc71; box-shadow: 0 0 0 2px rgba(46,204,113,.45), var(--shadow); }
 .pidea-top { display: flex; align-items: center; justify-content: flex-start; gap: 6px; }
 .pidea-title { font-size: 15px; font-weight: 600; flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .idea-badge { font-size: 11px; padding: 2px 9px; border-radius: 9px; }
@@ -2284,10 +2286,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     }
     t.isEmergency = false;
     persist();
-    // 积分联动：收藏夹归档 +9；临时任务完成 +5（仅「未归档→归档」单向任务计分，避免重复完成重复加分）
+    // 积分联动：收藏夹归档 +9；临时任务完成 +5；普通任务归档 +3（仅「未归档→归档」单向任务计分，避免重复完成重复加分）
     if (!wasArchived && !t.cycle) {
       if (isCollectionTask(t)) addPoints(9, 'collection', '归档: ' + t.title, t._id);
       else if (t.category_id === QUICK_VIEW_ID) addPoints(5, 'temp_task', '完成临时任务: ' + t.title, t._id);
+      else addPoints(3, 'task_archive', '归档: ' + t.title, t._id);
     }
   }
 
@@ -2298,19 +2301,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     t.is_archived = true;
     t.isEmergency = false;
     persist();
-    // 积分联动：收藏夹彻底归档 +9；临时任务完成 +5
+    // 积分联动：收藏夹彻底归档 +9；临时任务完成 +5；普通任务归档 +3
     if (!t.cycle) {
       if (isCollectionTask(t)) addPoints(9, 'collection', '归档: ' + t.title, t._id);
       else if (t.category_id === QUICK_VIEW_ID) addPoints(5, 'temp_task', '完成临时任务: ' + t.title, t._id);
+      else addPoints(3, 'task_archive', '归档: ' + t.title, t._id);
     }
   }
 
   function undoArchive(id) {
     const t = findTask(id);
     if (!t) return;
-    // 积分联动：撤销收藏归档 / 撤销临时任务完成
+    // 积分联动：撤销收藏归档 / 撤销临时任务完成 / 撤销普通任务归档
     if (isCollectionTask(t)) { reversePoints(id, 'collection'); }
     else if (t.category_id === QUICK_VIEW_ID) { reversePoints(id, 'temp_task'); }
+    else { reversePoints(id, 'task_archive'); }
     if (t.is_archived) {
       t.is_archived = false;
       t.autoArchivedByCopies = false;
@@ -4437,23 +4442,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function addPoints(amount, category, detail, refId, focusMin) {
     if (!amount || amount === 0) return null;
     const absAmount = Math.abs(amount);
-    if (amount < 0) {
-      const currentPts = availablePoints();
-      if (currentPts <= 0) return null;
-      const effective = Math.min(absAmount, currentPts);
-      const recordId = uid('wrec');
-      state.wish_records.push({
-        _id: recordId, wish_id: '', wish_name: detail, cost: effective,
-        time: new Date().toISOString(), status: 'normal', recordType: 'penalty',
-        category: category, detail: detail, refId: refId || '', focusMin: focusMin || 0,
-      });
-      persist();
-      return recordId;
-    }
+    // 扣分（漏完成 / 破戒等强制扣减）一律按全额记入，由 availablePoints() 的 Math.max(0, …) 兜底显示不为负。
+    // 不可因「当前可用积分为 0」丢弃强制扣减 —— 否则会破坏 lazySettleHabits 的幂等：
+    // 遗漏日在积分=0 时漏记、后续赚分后又补记，出现「一个遗漏一天重复扣」/「已完成被记成漏完成」的账实不符。
+    const recordType = amount < 0 ? 'penalty' : 'earn';
     const recordId = uid('wrec');
     state.wish_records.push({
       _id: recordId, wish_id: '', wish_name: detail, cost: absAmount,
-      time: new Date().toISOString(), status: 'normal', recordType: 'earn',
+      time: new Date().toISOString(), status: 'normal', recordType: recordType,
       category: category, detail: detail, refId: refId || '', focusMin: focusMin || 0,
     });
     persist();
@@ -5910,7 +5906,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     methods: {
       buildDays() {
         const arr = [];
-        for (let i = 29; i >= 0; i--) {
+        for (let i = 24; i >= 0; i--) {
           const d = this.$store.util.addDays(this.today, -i);
           const rec = this.$store.getHabitRecord(this.habitId, d);
           arr.push({ date: d, status: rec ? rec.status : null, note: rec ? rec.note : '' });
@@ -5935,7 +5931,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="modal">
         <div class="modal-head"><h3>补卡 / 请假 — {{ habit && habit.name }}</h3><button class="btn-mini" @click="$emit('edit', habitId)">编辑</button><button class="x" @click="$emit('close')">✕</button></div>
         <div class="modal-body">
-          <h4>近 30 天记录（可改任意日期）</h4>
+          <h4>近 25 天记录（可改任意日期）</h4>
           <div class="habit-days">
             <div v-for="d in days" :key="d.date" class="habit-day" :class="'st-'+(d.status||'none')">
               <div class="hd-date">{{ d.date }}</div>
@@ -8234,6 +8230,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           study_work: { label: '学习工作', icon: '📚', records: [] },
           study_task: { label: '学习工作', icon: '📚', records: [] },  // 兼容旧 category
           collection: { label: '收藏归档', icon: '📦', records: [] },
+          task_archive: { label: '任务归档', icon: '📥', records: [] },
           habit_undo: { label: '习惯撤销', icon: '↩️', records: [] },
           redeem_undo: { label: '撤销兑换', icon: '💸', records: [] },
           delete_rollback: { label: '删除回滚', icon: '🗑️', records: [] },
@@ -8571,7 +8568,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.TodayPage = {
     name: 'TodayPage',
     components: { HandCards: C.HandCards, HabitManageModal: C.HabitManageModal, HabitEditModal: C.HabitEditModal, HabitTypeChooseModal: C.HabitTypeChooseModal, TaskDetailModal: C.TaskDetailModal, TaskAddModal: C.TaskAddModal, ReadingSyncModal: C.ReadingSyncModal, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal, LeisureCard: C.LeisureCard, WishPool: C.WishPool },
-    data() { return { manageHabitId: null, showHabitEdit: false, editHabitId: null, detailId: null, quickCollapsed: false, addType: 'RECORD_HABIT', showTypeChoose: false, showTaskAdd: false, pressId: null, startY: 0, pressTimer: null, pendingUndo: null,
+    data() { return { manageHabitId: null, manageFromEdit: false, showHabitEdit: false, editHabitId: null, detailId: null, quickCollapsed: false, addType: 'RECORD_HABIT', showTypeChoose: false, showTaskAdd: false, pressId: null, startY: 0, pressTimer: null, pendingUndo: null,
       // —— 习惯 / 闲趣随机卡 区块折叠：默认全部收起；切 tab 重新挂载即回到默认折叠态 ——
       collapsed: { record: true, quit: true, leisure: true },
       // —— 滑动手势状态（与待归档页 / 今日页 HandCards 方向定义统一：左滑=完成，右滑=未完成，长按=详情）——
@@ -9105,8 +9102,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <!-- 许愿池：今日页底部，闲趣随机卡下方 -->
       <WishPool />
 
-      <HabitManageModal v-if="manageHabitId" :habit-id="manageHabitId" @close="manageHabitId=null" @edit="id => { manageHabitId = null; openEdit(id); }" />
-      <HabitEditModal v-if="showHabitEdit" :habit-id="editHabitId" :default-type="addType" @close="showHabitEdit=false" @manage="id => { showHabitEdit=false; manageHabitId = id; }" />
+      <HabitManageModal v-if="manageHabitId" :habit-id="manageHabitId" @close="() => { manageHabitId = null; if (manageFromEdit) { showHabitEdit = true; manageFromEdit = false; } }" @edit="id => { manageHabitId = null; manageFromEdit = false; openEdit(id); }" />
+      <HabitEditModal v-if="showHabitEdit" :habit-id="editHabitId" :default-type="addType" @close="showHabitEdit=false" @manage="id => { showHabitEdit = false; manageHabitId = id; manageFromEdit = true; }" />
       <HabitTypeChooseModal v-if="showTypeChoose" @close="showTypeChoose=false" @choose="onChooseType" />
 
       <!-- 撤销打卡二次确认（居中圆角样式） -->
@@ -9631,6 +9628,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() {
       const LS = (k, d) => { try { const v = localStorage.getItem('mindpocket:' + k); return v === null ? d : v; } catch (e) { return d; } };
       return {
+        // —— 习惯编辑 / 补卡模态状态（与今日页 / 统计页共用同一套变量，保证补卡后返回编辑页刷新月视图条）——
+        showHabitEdit: false, editHabitId: null, manageHabitId: null, manageFromEdit: false,
         activeCat: LS('inboxCat', '__all__'), showArchived: false,
         detailId: null, showCatManage: false,
         // —— 子任务副本（看板）编辑弹窗 ——
@@ -10438,8 +10437,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </template>
       </div>
 
-      <HabitEditModal v-if="showHabitEdit" :habit-id="editHabitId" :default-type="'RECORD_HABIT'" @close="showHabitEdit=false" @manage="id => { showHabitEdit=false; manageHabitId = id; }" />
-      <HabitManageModal v-if="manageHabitId" :habit-id="manageHabitId" @close="manageHabitId=null" @edit="id => { manageHabitId = null; editHabitId = id; showHabitEdit = true; }" />
+      <HabitEditModal v-if="showHabitEdit" :habit-id="editHabitId" :default-type="'RECORD_HABIT'" @close="showHabitEdit=false" @manage="id => { showHabitEdit = false; manageHabitId = id; manageFromEdit = true; }" />
+      <HabitManageModal v-if="manageHabitId" :habit-id="manageHabitId" @close="() => { manageHabitId = null; if (manageFromEdit) { showHabitEdit = true; manageFromEdit = false; } }" @edit="id => { manageHabitId = null; manageFromEdit = false; editHabitId = id; showHabitEdit = true; }" />
       <TaskDetailModal v-if="detailId" :task-id="detailId" @close="detailId=null" />
       <SubTaskEditModal v-if="showSubEdit" :task-id="editSubPid" :sub-id="editSubSid" @close="showSubEdit=false" />
       <CategoryManageModal v-if="showCatManage" @close="showCatManage=false" />
@@ -10594,7 +10593,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         chartHabitId: null, showHabitPicker: false, archCat: '__all__', archKeyword: '', detailId: null,
         // 时间线编辑弹窗 / 周期任务汇总弹窗 状态（点击时间线条目 / 查看汇总按钮时写入）
         tlEditItem: null, csTasks: [],
-        showHabitEdit: false, editHabitId: null, manageHabitId: null, suppressTitleClick: false, titleTimer: null,
+        showHabitEdit: false, editHabitId: null, manageHabitId: null, manageFromEdit: false, suppressTitleClick: false, titleTimer: null,
         healthData: null, healthLoading: false,
         // 归档仓库：独立日历状态 + 日期筛选
         archYear: new Date().getFullYear(), archMonth: new Date().getMonth() + 1, archView: 'month',
@@ -11621,8 +11620,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </section>
 
 
-      <HabitEditModal v-if="showHabitEdit" :habit-id="editHabitId" :default-type="'RECORD_HABIT'" @close="showHabitEdit=false" @manage="id => { showHabitEdit=false; manageHabitId = id; }" />
-      <HabitManageModal v-if="manageHabitId" :habit-id="manageHabitId" @close="manageHabitId=null" @edit="id => { manageHabitId = null; editHabitId = id; showHabitEdit = true; }" />
+      <HabitEditModal v-if="showHabitEdit" :habit-id="editHabitId" :default-type="'RECORD_HABIT'" @close="showHabitEdit=false" @manage="id => { showHabitEdit = false; manageHabitId = id; manageFromEdit = true; }" />
+      <HabitManageModal v-if="manageHabitId" :habit-id="manageHabitId" @close="() => { manageHabitId = null; if (manageFromEdit) { showHabitEdit = true; manageFromEdit = false; } }" @edit="id => { manageHabitId = null; manageFromEdit = false; editHabitId = id; showHabitEdit = true; }" />
       <TaskDetailModal v-if="detailId" :task-id="detailId" @close="detailId=null" />
       <ProjectEditModal v-if="showProjEdit" :pid="editPid" @close="showProjEdit=false" />
       <TimelineTimeModal v-if="tlEditItem" :item="tlEditItem" @close="tlEditItem=null" />
@@ -12682,6 +12681,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* -------- ProjectsPage —— 项目总览页 -------- */
   C.ProjectsPage = {
     name: 'ProjectsPage',
+    mixins: [C.MaterialLinkMixin], // 素材链接识别：与详情页/待归档任务共用同一实现（搜索灵感结果可展示 🔗）
     components: { ProjectEditModal: C.ProjectEditModal },
     data() {
       return {
@@ -12765,20 +12765,27 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!kw) return [];
         const out = [];
         this.baseList.forEach(p => {
-          const hay = [ p.name || '', p.desc || '', p.material_notes || '', p.material_link || '' ];
-          (p.tags || []).forEach(t => hay.push(t || ''));
-          this.$store.getIdeas(p.pid).forEach(i => { hay.push(i.title || ''); hay.push(i.content || ''); hay.push(i.link || ''); });
-          if (hay.join(' ').toLowerCase().indexOf(kw) >= 0) out.push({ type: 'project', p });
+          // 项目自身字段（标题/描述/素材备注/素材链接/一级#标签）：命中展示项目条目
+          const phay = [ p.name || '', p.desc || '', p.material_notes || '', p.material_link || '' ];
+          (p.tags || []).forEach(t => phay.push(t || ''));
+          if (phay.join(' ').toLowerCase().indexOf(kw) >= 0) out.push({ type: 'project', p });
+          // 子任务：命中展示子任务条目（归属项目作上下文）
           this.$store.getSubs(p.pid).forEach(s => {
             const shay = [ s.title || '', s.desc || '', s.material_notes || '', s.material_link || '' ];
             (s.tags || []).forEach(t => shay.push(t || ''));
             if (shay.join(' ').toLowerCase().indexOf(kw) >= 0) out.push({ type: 'sub', p, s });
+          });
+          // 灵感素材：标题/详细笔记/素材链接 命中 → 以灵感条目展示（而非所属项目条目）
+          this.$store.getIdeas(p.pid).forEach(i => {
+            const ihay = [ i.title || '', i.content || '', i.link || '' ];
+            if (ihay.join(' ').toLowerCase().indexOf(kw) >= 0) out.push({ type: 'idea', p, i });
           });
         });
         return out;
       },
       searchProjects() { return this.searchResults.filter(r => r.type === 'project'); },
       searchSubs() { return this.searchResults.filter(r => r.type === 'sub'); },
+      searchIdeas() { return this.searchResults.filter(r => r.type === 'idea'); },
       // —— 项目重要等级排序：开启后按 高度重要 > 一般重要 > 普通 降序；同级保持原有顺序（稳定排序）——
       sortedList() {
         if (!this.importanceSort) return this.list;
@@ -12909,6 +12916,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         try { const d = localStorage.getItem('mindpocket:projVizDim'); if (d === 'day' || d === 'week' || d === 'month') this.vizDim = d; } catch (e) {}
       },
       go(p) { location.hash = '#/project/' + p.pid; },
+      // 搜索灵感结果跳转：进入母本项目详情页并定位到该灵感（路由带 ?idea= 参数，详情页绿闪 2 秒）
+      goIdea(r) { location.hash = '#/project/' + r.p.pid + '?idea=' + encodeURIComponent(r.i.idea_id); },
+      // 灵感笔记预览：仅取首句，首句后仍有内容则补省略号（与详情页一致）
+      ideaPreview(i) {
+        const c = (i && i.content || '').trim();
+        if (!c) return '';
+        const first = c.split('\n')[0].split(/[。.!?！？；;]/)[0].trim();
+        return (first + (first.length < c.length ? '…' : '')).slice(0, 60);
+      },
       openNew() { this.editPid = ''; this.showEdit = true; },
       openEdit(p) { this.editPid = p.pid; this.showEdit = true; },
       openEditById(pid) {
@@ -13369,6 +13385,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
           </div>
         </div>
+        <!-- 灵感素材命中：以灵感条目（而非所属项目条目）展示；点击跳转到母本项目详情页并绿闪定位 -->
+        <div class="idea-list2" style="margin-top:8px">
+          <div class="pidea" v-for="r in searchIdeas" :key="'si'+r.i.idea_id" @click="goIdea(r)">
+            <div class="pidea-top" @click="goIdea(r)">
+              <div class="pidea-title">{{ r.i.title }}</div>
+              <span class="idea-badge picked" v-if="r.i.is_picked">已领取</span>
+              <button class="link-ico" v-if="isValidMaterialLink(r.i.link)" @pointerdown.stop @click.stop="openMaterialLink(r.i.link)" title="打开素材链接" aria-label="打开素材链接">🔗</button>
+            </div>
+            <div class="pidea-preview" v-if="r.i.content">{{ ideaPreview(r.i) }}</div>
+            <div class="row-sub" style="margin-top:4px"><span class="sub-parent">📁 {{ r.p.name }}</span></div>
+          </div>
+        </div>
         <p v-if="!searchResults.length" class="empty-tip">暂无匹配任务</p>
       </template>
 
@@ -13442,10 +13470,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     name: 'ProjectDetailPage',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
     components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie },
-    props: { pid: { type: String, required: true } },
+    props: { pid: { type: String, required: true }, ideaId: { type: String, default: '' } },
     data() {
       return {
         tab: 'sub', view: 'list',
+        // 搜索灵感跳转高亮：被高亮的灵感 id（2 秒后清除，对应 .idea-flash 绿闪）
+        highlightIdeaId: '', flashTimer: null,
         // 子任务标签筛选（默认折叠，选中标签后列表与甘特图同步生效）
         tagbarOpen: false, filterTag: '',
         showProjEdit: false,
@@ -13493,8 +13523,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return { min, max };
       },
     },
-    created() { this.restoreUiState(); },
-    beforeUnmount() { this.saveUiState(); },
+    created() { this.restoreUiState(); if (this.ideaId) this.flashIdea(this.ideaId); },
+    beforeUnmount() { this.saveUiState(); if (this.flashTimer) { clearTimeout(this.flashTimer); this.flashTimer = null; } },
+    watch: {
+      // 路由切换（已在同一项目详情页内跳转不同灵感，或父路由带灵感参数进入）时重新高亮
+      ideaId(v) { if (v) this.flashIdea(v); },
+      pid() { if (this.ideaId) this.flashIdea(this.ideaId); },
+    },
     methods: {
       // —— 页面 UI 状态缓存（进行中 / 灵感库 标签），随路由栈返回时自动还原 ——
       saveUiState() {
@@ -13511,6 +13546,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 标签可能已被删除：仅在标签仍存在时还原筛选，避免出现「空列表但查不到原因」
           if (s.filterTag && this.$store.getSubTags(this.pid).indexOf(s.filterTag) >= 0) this.filterTag = s.filterTag;
         } catch (e) {}
+      },
+      // 搜索灵感跳转：切到灵感库 tab，绿闪突出目标灵感条目 2 秒，并滚动到可视位置
+      flashIdea(ideaId) {
+        if (!ideaId) return;
+        this.tab = 'idea';
+        if (this.flashTimer) { clearTimeout(this.flashTimer); this.flashTimer = null; }
+        this.highlightIdeaId = ideaId;
+        const scrollTo = () => { try { const el = this.$el.querySelector('[data-idea="' + (window.CSS && CSS.escape ? CSS.escape(ideaId) : ideaId) + '"]'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {} };
+        this.$nextTick(scrollTo);
+        // 兜底：tab 切换后 DOM 可能延迟渲染，再补一次滚动
+        this.flashTimer = setTimeout(() => { scrollTo(); this.highlightIdeaId = ''; this.flashTimer = null; }, 2000);
       },
       // —— 子任务标签筛选 ——
       toggleTagbar() { this.tagbarOpen = !this.tagbarOpen; },
@@ -13777,9 +13823,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <div v-if="tab==='idea'" class="idea-list2">
         <button class="btn primary block-new" @click="openIdeaNew">＋ 新增灵感素材</button>
-        <div class="pidea swipe-card" v-for="i in ideas" :key="i.idea_id"
+        <div class="pidea swipe-card" v-for="i in ideas" :key="i.idea_id" :data-idea="i.idea_id"
              :style="{ transform: 'translateX(' + (ideaDragId===i.idea_id ? ideaX : 0) + 'px)' }"
-             :class="{ dragging: ideaDragId===i.idea_id && ideaMoved }"
+             :class="{ dragging: ideaDragId===i.idea_id && ideaMoved, 'idea-flash': highlightIdeaId===i.idea_id }"
              @pointerdown="onIdeaDown(i,$event)" @pointermove="onIdeaMove($event)"
              @pointerup="onIdeaUp()" @pointercancel="onIdeaUp()">
           <div class="pidea-top" @click="onIdeaMainClick(i)">
@@ -13869,8 +13915,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return 'TodayPage';
       },
       routePid() {
-        const m = this.route.match(/^\/project\/(.+)$/);
+        const m = this.route.split('?')[0].match(/^\/project\/(.+)$/);
         return m ? m[1] : '';
+      },
+      // 项目详情页「搜索灵感跳转」：路由 #/project/PID?idea=IDEA_ID 中的灵感 id
+      routeIdeaId() {
+        const m = this.route.match(/[?&]idea=([^&]+)/);
+        return m ? decodeURIComponent(m[1]) : '';
       },
       routeSubTid() {
         const m = this.route.match(/^\/subtask\/(.+)$/);
@@ -13950,7 +14001,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     template: `
     <div class="app-shell">
       <main class="app-main">
-        <component :is="page" :pid="routePid" :tid="routeSubTid" />
+        <component :is="page" :pid="routePid" :tid="routeSubTid" :idea-id="routeIdeaId" />
       </main>
       <nav class="app-nav">
         <button v-for="n in navItems" :key="n.path" :class="{on: route.startsWith(n.path)}" @click="go(n.path)">
