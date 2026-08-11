@@ -5804,10 +5804,40 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         if (this.currentIndex < this.habits.length - 1) this.currentIndex = this.currentIndex + 1;
       },
+      // 固定定位到第一张「待记录（—）」手牌：
+      // 进入今日页 / 切回 App 时，把已打卡（完成 / 未完成）的手牌自动切走，
+      // 让顶部直接显示第一张尚未完成也未跳过的习惯，省去手动翻找
+      focusFirstPending() {
+        if (!this.hasCards) return;
+        let firstPending = -1;
+        for (let i = 0; i < this.habits.length; i++) {
+          const h = this.habits[i];
+          if (this.isHoliday(h)) continue;            // 请假中（显示「请假中」而非「—」）跳过
+          const st = this.statusOf(h);
+          if (st !== 'success' && st !== 'fail') { firstPending = i; break; }
+        }
+        // 存在待记录手牌 → 跳到第一张；全部已打卡 / 请假 → 停首张兜底
+        this.currentIndex = firstPending >= 0 ? firstPending : 0;
+      },
       prev() { this.currentIndex = Math.max(0, this.currentIndex - 1); },
       next() { this.currentIndex = Math.min(this.habits.length - 1, this.currentIndex + 1); },
       openManage() { if (this.hasCards) this.$emit('manage', this.habits[this.currentIndex]); },
       openEdit() { if (this.hasCards) this.$emit('edit', this.habits[this.currentIndex]._id); },
+    },
+    // 进入今日页（含切 tab 重新挂载）/ 切回 App 前台时，自动定位到第一张待记录手牌
+    mounted() {
+      this.focusFirstPending();
+      // 切到后台再回到前台（锁屏 / 切 App）：把顶部手牌重新定位到待记录的那张
+      this._onHCVisible = () => { if (!document.hidden) this.focusFirstPending(); };
+      document.addEventListener('visibilitychange', this._onHCVisible);
+      // iOS Safari 经「切 App / 锁屏」后再回来，部分场景对 visibilitychange 首帧节流，
+      // 用 pageshow 兜底，确保回到前台仍能定位到待记录手牌
+      this._onHCShow = () => { this.focusFirstPending(); };
+      window.addEventListener('pageshow', this._onHCShow);
+    },
+    beforeUnmount() {
+      if (this._onHCVisible) document.removeEventListener('visibilitychange', this._onHCVisible);
+      if (this._onHCShow) window.removeEventListener('pageshow', this._onHCShow);
     },
     template: `
     <div class="handcards">
