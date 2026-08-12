@@ -21,7 +21,7 @@
    * ====================================================================== */
   var FIXED = {
     owner:  '2384714466-collab',
-    repo:   'mindpocket',
+    repo:   'mindpocket-vaults',
     branch: 'main',
     path:   'data/mindpocket.json'
   };
@@ -46,7 +46,7 @@
 
   /* ----------------------------- GitHub 直连 ----------------------------- */
   function ghHeaders(token, method) {
-    var h = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'User-Agent': 'mindpocket' };
+    var h = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'User-Agent': 'mindpocket-vaults' };
     if (method === 'PUT') h['Content-Type'] = 'application/json';
     return h;
   }
