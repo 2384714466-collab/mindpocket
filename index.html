@@ -31,7 +31,7 @@
   --radius: 16px;
   --shadow: 0 6px 20px rgba(40, 50, 90, .08);
   /* 悬浮球 / 安装条 距底部的安全距离：避让底部 tab 栏（约 50px）+ iOS 安全区（home indicator ~34px） */
-  --fab-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+  --fab-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
   --pill-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -762,18 +762,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .nav-ico { font-size: 20px; }
 .nav-txt { font-size: 11px; }
 
-/* ============ 安装到主屏幕（PWA） ============ */
-#install-pill {
-  position: fixed; right: 14px; bottom: var(--pill-bottom); z-index: 80;
-  background: var(--primary); color: #fff; border: none; border-radius: 22px;
-  padding: 10px 16px; font-size: 13px; font-weight: 600; box-shadow: 0 6px 18px rgba(40,50,90,.25);
-}
-#install-pill[hidden] { display: none; }
 
 /* ============ 全局悬浮快速录入（紫色；支持长按拖动） ============ */
 .quick-entry { position: static; }
 .fab {
-  position: fixed; z-index: 850;
+  position: fixed; z-index: 9999;
   width: 56px; height: 56px; border-radius: 50%; border: none; padding: 0; cursor: pointer;
   background: linear-gradient(135deg, #a06bff, #7b5bff); color: #fff; font-size: 24px; line-height: 1;
   box-shadow: 0 8px 22px rgba(123, 91, 255, .45);
@@ -1413,7 +1406,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   .modal { max-width: 560px; border-radius: 18px; margin: auto; }
   .modal-lg { max-width: 820px; }
 
-  #install-pill { bottom: 24px; }
 }
 </style>
 </head>
@@ -1421,7 +1413,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   <div id="app">
     <div class="boot">MindPocket 加载中…</div>
   </div>
-  <button id="install-pill" hidden>📲 安装到主屏幕</button>
   <script>
 
 /* ===== assets/vue.global.prod.js ===== */
@@ -14246,20 +14237,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
 
 /* ===== assets/install.js ===== */
-/* To Do —— PWA 安装脚本
- * 1) 注册 Service Worker（仅 https 或 localhost 生效，file:// 下静默跳过）
- * 2) 捕获 beforeinstallprompt，显示「安装到主屏幕」入口
- * 3) iOS 无自动安装事件，点击后给出手动引导
- * 4) 新版本 Service Worker 接管页面后自动刷新，确保用户立即看到最新内容 */
+/* Service Worker 注册（仅 https / localhost 生效，file:// 与缺失 sw.js 时静默跳过）。
+ * 若部署环境提供 sw.js，新版本接管页面后自动刷新，确保用户看到最新内容；无任何 UI 入口。 */
 (function () {
-  var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
-
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker
         .register('./sw.js', { updateViaCache: 'none' })
         .then(function (reg) {
-          // 仅在检测到「新版本」时刷新一次，避免首次加载即刷新
           reg.addEventListener('updatefound', function () {
             var installing = reg.installing;
             installing.addEventListener('statechange', function () {
@@ -14272,31 +14257,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         .catch(function () { /* 离线/非安全上下文忽略 */ });
     });
   }
-
-  var deferred = null;
-  var pill = document.getElementById('install-pill');
-
-  window.addEventListener('beforeinstallprompt', function (e) {
-    e.preventDefault();
-    deferred = e;
-    if (pill) pill.hidden = false;
-  });
-
-  if (pill) {
-    if (isIOS) pill.hidden = false; // iOS 无法触发 prompt，常驻引导
-    pill.addEventListener('click', function () {
-      if (deferred) {
-        deferred.prompt();
-        deferred.userChoice.finally(function () { deferred = null; pill.hidden = true; });
-      } else if (isIOS) {
-        alert('iOS 安装：点击 Safari 底部「分享」按钮 ➜ 选择「添加到主屏幕」即可。');
-      } else {
-        alert('请通过浏览器菜单的「安装应用 / 添加到主屏幕」完成安装。');
-      }
-    });
-  }
-
-  window.addEventListener('appinstalled', function () { if (pill) pill.hidden = true; });
 })();
 
   </script>
