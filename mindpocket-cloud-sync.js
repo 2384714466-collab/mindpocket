@@ -1,226 +1,179 @@
-/* =============================================================================
- * MindPocket 云同步适配器（前端）
- * -----------------------------------------------------------------------------
- * 两种后端模式（在 ☁ 设置面板里切换）：
- *   - worker ：经 Cloudflare Worker 代理（数据库仍是 GitHub 仓库）。浏览器只持 MP_TOKEN。
- *   - github ：前端直连 GitHub API（不依赖 Cloudflare）。浏览器持 GitHub PAT（细粒度、单仓库）。
- * 数据流：
- *   豆包建待办 → 落 GitHub → 本适配器轮询拉取 → 出现在页面
- *   你勾掉任务 → 本地变更被 Vue.watch 捕获 → 防抖推送 → 落 GitHub → 豆包可复盘
+/**
+ * MindPocket 云同步代理（薄层）
+ * ----------------------------------------------------------------------------
+ * 数据库 = 你的 GitHub 仓库里的 data/mindpocket.json（符合「GitHub 仓库当数据库」的选择）
+ * 本 Worker 只做一件事：把干净的 JSON 请求，转成 GitHub Contents API 的读写（处理 base64 / sha / 冲突合并）。
+ * 持有 GitHub PAT（存为 Worker Secret，不暴露给浏览器 / 豆包）。
  *
- * 用法：随 index.html 一起部署，并在 </body> 前加 <script src="./mindpocket-cloud-sync.js"></script>
- * ========================================================================== */
-(function () {
-  'use strict';
-  var CFG_KEY = 'mp_cloud_cfg';
-  var PUSH_DEBOUNCE = 1500;
-  var PULL_DEFAULT = 15;
+ * 部署（Cloudflare 控制台 → Workers → 新建 → 粘贴本文件）：
+ *   需设置的 Secret / 变量（Settings → Variables）：
+ *     GH_TOKEN   细粒度 PAT，仅授予目标仓库的 Contents: read&write
+ *     GH_OWNER   仓库所有者（用户名或组织名）
+ *     GH_REPO    仓库名
+ *     GH_PATH    数据文件路径，默认 data/mindpocket.json
+ *     GH_BRANCH  分支，默认 main
+ *     MP_TOKEN   应用令牌（自定义字符串），前端与豆包插件都靠它鉴权
+ *
+ * 如果你不想用 Cloudflare，也可以用任意 serverless（Vercel/Netlify/Fly…）跑同一份逻辑，数据库仍是 GitHub。
+ */
 
-  function loadCfg() {
-    try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch (e) { return {}; }
-  }
-  function saveCfg(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
-  function ready() {
-    var c = loadCfg();
-    if (!c.enabled || !window.MPStore || !window.MPStore.state) return false;
-    return c.mode === 'github' ? !!(c.owner && c.repo && c.token) : !!(c.apiBase && c.token);
-  }
+const DEFAULT_PATH = 'data/mindpocket.json';
+const DEFAULT_BRANCH = 'main';
+const UA = 'mindpocket-sync';
 
-  /* ----------------------------- GitHub 直连 ----------------------------- */
-  function ghHeaders(token, method) {
-    var h = { Authorization: 'Bearer ' + token, Accept: 'application/vnd.github+json', 'User-Agent': 'mindpocket' };
-    if (method === 'PUT') h['Content-Type'] = 'application/json';
-    return h;
-  }
-  function ghUrl(c) {
-    return 'https://api.github.com/repos/' + c.owner + '/' + c.repo + '/contents/' +
-      (c.path || 'data/mindpocket.json') + '?ref=' + (c.branch || 'main');
-  }
-  function b64e(s) { return btoa(unescape(encodeURIComponent(s))); }
-  function b64d(s) { return decodeURIComponent(escape(atob(s.replace(/\s/g, '')))); }
+/* ----------------------------- 工具 ----------------------------- */
+function b64encode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64decode(b64) {
+  const bin = atob(String(b64).replace(/\s/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+function jsonResp(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { 'content-type': 'application/json; charset=utf-8', 'access-control-allow-origin': '*' },
+  });
+}
+function noCors() {
+  return new Response(null, { status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET,POST,PUT,OPTIONS', 'access-control-allow-headers': 'content-type,authorization,x-mp-token' } });
+}
 
-  function ghGetTasks(c) {
-    return fetch(ghUrl(c), { headers: ghHeaders(c.token) }).then(function (r) {
-      if (r.status === 404) return { tasks: [], sha: null };
-      if (!r.ok) throw new Error('GitHub GET ' + r.status);
-      return r.json().then(function (j) {
-        var tasks = [];
-        try { tasks = JSON.parse(b64d(j.content)).tasks || []; } catch (e) { tasks = []; }
-        return { tasks: tasks, sha: j.sha };
-      });
-    });
+/* 读取仓库文件 → { tasks: [], sha }；文件不存在返回 { tasks: [], sha: null } */
+async function ghRead(env) {
+  const path = env.GH_PATH || DEFAULT_PATH;
+  const branch = env.GH_BRANCH || DEFAULT_BRANCH;
+  const url = `https://api.github.com/repos/${env.GH_OWNER}/${env.GH_REPO}/contents/${path}?ref=${branch}`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'User-Agent': UA } });
+  if (r.status === 404) return { tasks: [], sha: null };
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error('GitHub 读取失败 ' + r.status + ': ' + t.slice(0, 200));
   }
-  function ghPutTasks(c, tasks, sha) {
-    var body = { message: 'mindpocket sync ' + new Date().toISOString(), content: b64e(JSON.stringify({ tasks: tasks })), branch: c.branch || 'main' };
-    if (sha) body.sha = sha;
-    return fetch(ghUrl(c).split('?')[0], { method: 'PUT', headers: ghHeaders(c.token, 'PUT'), body: JSON.stringify(body) })
-      .then(function (r) { if (!r.ok) throw new Error('GitHub PUT ' + r.status); return r.json(); });
-  }
+  const j = await r.json();
+  let tasks = [];
+  try { tasks = JSON.parse(b64decode(j.content)).tasks || []; } catch (e) { tasks = []; }
+  return { tasks, sha: j.sha };
+}
 
-  /* ----------------------------- Worker 模式 ----------------------------- */
-  function wApi(c, path, opts) {
-    opts = opts || {};
-    opts.headers = Object.assign({ 'content-type': 'application/json', 'x-mp-token': c.token }, opts.headers || {});
-    return fetch((c.apiBase || '').replace(/\/+$/, '') + path, opts).then(function (r) {
-      if (!r.ok) return r.text().then(function (t) { throw new Error('HTTP ' + r.status + ' ' + t.slice(0, 120)); });
-      return r.json();
-    });
+/* 写入仓库文件（合并后整体提交） */
+async function ghWrite(env, tasks, sha) {
+  const path = env.GH_PATH || DEFAULT_PATH;
+  const branch = env.GH_BRANCH || DEFAULT_BRANCH;
+  const url = `https://api.github.com/repos/${env.GH_OWNER}/${env.GH_REPO}/contents/${path}`;
+  const body = {
+    message: 'mindpocket sync ' + new Date().toISOString(),
+    content: b64encode(JSON.stringify({ tasks }, null, 0)),
+    branch,
+  };
+  if (sha) body.sha = sha;
+  const r = await fetch(url, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${env.GH_TOKEN}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json', 'User-Agent': UA },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    throw new Error('GitHub 写入失败 ' + r.status + ': ' + t.slice(0, 200));
   }
+  return r.json();
+}
 
-  /* ----------------------------- 统一读写 ----------------------------- */
-  function getTasks() {
-    var c = loadCfg();
-    if (c.mode === 'github') return ghGetTasks(c).then(function (x) { return x.tasks; });
-    return wApi(c, '/tasks').then(function (j) { return j.tasks || []; });
-  }
-  function putTasks(tasks) {
-    var c = loadCfg();
-    if (c.mode === 'github') return ghGetTasks(c).then(function (x) { return ghPutTasks(c, tasks, x.sha); });
-    return wApi(c, '/tasks', { method: 'PUT', body: JSON.stringify({ tasks: tasks }) });
-  }
+/* 按 _id 合并两个任务数组：b 覆盖 a（同 id 时取 b） */
+function mergeTasks(a, b) {
+  const map = new Map();
+  for (const t of (a || [])) if (t && t._id) map.set(t._id, t);
+  for (const t of (b || [])) if (t && t._id) map.set(t._id, t);
+  return Array.from(map.values());
+}
 
-  function mergeTasks(a, b, preferB) {
-    var map = {};
-    (a || []).forEach(function (t) { if (t && t._id) map[t._id] = t; });
-    (b || []).forEach(function (t) {
-      if (!t || !t._id) return;
-      if (map[t._id] && !preferB) return;
-      map[t._id] = t;
-    });
-    return Object.keys(map).map(function (k) { return map[k]; });
-  }
+/* 构造一个符合 mindpocket 结构的任务对象（缺省字段与 index.html 的 addTask 对齐） */
+function makeTask(input) {
+  const id = 'task_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const base = {
+    _id: id, title: (input && input.title) || '新任务', desc: '', category_id: null,
+    parent_category: '', category: '', is_archived: false, execute_date: null, cycle: null,
+    enable_remind: false, deadline_time: '', remind_option: 'none', add_to_calendar: false,
+    date_mode: 'single', date_start: '', date_end: '',
+    sub_tasks: [], progress_info: { enable: false, media_type: 'book', progress_value: '' },
+    material_notes: '', cycle_history: [], expect_hint_date: null, create_at: Date.now(),
+    plan_year: null, plan_month: null, plan_week: null, time_mode: null, week_offset: null,
+    cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0,
+    doneDates: [], doneOverdueDates: [],
+    is_template: false, is_collection: false, material_link: '', isEmergency: false,
+  };
+  // 覆盖调用方提供的字段（仅接受白名单，避免脏数据）
+  const allow = ['title', 'desc', 'category_id', 'parent_category', 'category', 'execute_date',
+    'deadline_time', 'date_mode', 'date_start', 'date_end', 'sub_tasks', 'isEmergency', 'cycle', 'remind_option'];
+  for (const k of allow) if (input && input[k] !== undefined) base[k] = input[k];
+  return base;
+}
 
-  /* ----------------------------- 推送 / 拉取 ----------------------------- */
-  var lastPullAt = 0, pushTimer = null, pushing = false;
+/* 判断任务是否在近 N 天内完成（doneDates 最新一条在窗口内，或已归档） */
+function isDoneRecently(t, days) {
+  if (!t) return false;
+  if (t.is_archived) return true;
+  const ds = t.doneDates || [];
+  if (!ds.length) return false;
+  const latest = ds.reduce((a, b) => (b > a ? b : a));
+  const cutoff = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  return latest >= cutoff;
+}
 
-  function pushLocal() {
-    if (!ready() || pushing) return Promise.resolve();
-    pushing = true;
-    return getTasks().then(function (remote) {
-      var local = window.MPStore.state.tasks.map(function (t) { return JSON.parse(JSON.stringify(t)); });
-      return putTasks(mergeTasks(remote, local, true));
-    }).catch(function (e) { console.warn('[MP云同步] 推送失败:', e.message); })
-      .then(function () { pushing = false; });
-  }
-  function pullRemote() {
-    if (!ready()) return Promise.resolve();
-    return getTasks().then(function (remote) {
-      var local = window.MPStore.state.tasks;
-      local.length = 0;
-      Array.prototype.push.apply(local, mergeTasks(local, remote, true));
-      lastPullAt = Date.now();
-      setBadge('ok');
-    }).catch(function (e) { console.warn('[MP云同步] 拉取失败:', e.message); setBadge('err'); });
-  }
-  function schedulePush() {
-    if (!ready()) return;
-    if (Date.now() - lastPullAt < 2000) return;
-    if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = setTimeout(pushLocal, PUSH_DEBOUNCE);
-  }
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (request.method === 'OPTIONS') return noCors();
 
-  /* ----------------------------- 启动 ----------------------------- */
-  var started = false;
-  function start() {
-    if (started || !window.MPStore) return;
-    started = true;
-    var c = loadCfg();
+    // 鉴权：Authorization: Bearer <MP_TOKEN> 或 x-mp-token 头
+    if (env.MP_TOKEN) {
+      const auth = request.headers.get('authorization') || '';
+      const tok = request.headers.get('x-mp-token') || '';
+      if (auth.replace(/^Bearer\s+/i, '') !== env.MP_TOKEN && tok !== env.MP_TOKEN) {
+        return jsonResp({ error: 'unauthorized' }, 401);
+      }
+    }
+
     try {
-      if (window.Vue && Vue.watch) Vue.watch(function () { return window.MPStore.state.tasks; }, function () { schedulePush(); }, { deep: true });
-      else { var o = window.MPStore.persist; window.MPStore.persist = function () { var r = o.apply(this, arguments); schedulePush(); return r; }; }
-    } catch (e) { console.warn('[MP云同步] watch 初始化失败', e); }
-    if (c.enabled) {
-      pullRemote();
-      if (c.pollSec && c.pollSec > 0) setInterval(pullRemote, Math.max(5, c.pollSec) * 1000);
+      if (url.pathname === '/health') return jsonResp({ ok: true });
+
+      if (url.pathname === '/tasks' && request.method === 'GET') {
+        const { tasks } = await ghRead(env);
+        const done = url.searchParams.get('done');
+        const days = parseInt(url.searchParams.get('days') || '7', 10);
+        let out = tasks;
+        if (done === '1' || done === 'true') out = tasks.filter((t) => isDoneRecently(t, days));
+        return jsonResp({ tasks: out, total: tasks.length });
+      }
+
+      if (url.pathname === '/tasks' && request.method === 'POST') {
+        const input = await request.json().catch(() => ({}));
+        if (!input || !input.title) return jsonResp({ error: 'title required' }, 400);
+        const created = makeTask(input);
+        const { tasks, sha } = await ghRead(env);
+        const merged = mergeTasks(tasks, [created]);
+        await ghWrite(env, merged, sha);
+        return jsonResp({ task: created }, 201);
+      }
+
+      if (url.pathname === '/tasks' && request.method === 'PUT') {
+        // 客户端已合并好的全量任务，服务端再做一次 id 合并以防并发覆盖
+        const input = await request.json().catch(() => ({}));
+        const incoming = Array.isArray(input) ? input : (input.tasks || []);
+        const { tasks, sha } = await ghRead(env);
+        const merged = mergeTasks(tasks, incoming);
+        await ghWrite(env, merged, sha);
+        return jsonResp({ tasks: merged, total: merged.length });
+      }
+
+      return jsonResp({ error: 'not found', hint: 'supported: GET/POST/PUT /tasks, /health' }, 404);
+    } catch (e) {
+      return jsonResp({ error: String(e && e.message || e) }, 500);
     }
-    buildUI();
-  }
-
-  /* ----------------------------- 浮层 UI ----------------------------- */
-  function setBadge(s) {
-    var b = document.getElementById('mp-sync-badge'); if (!b) return;
-    b.textContent = s === 'ok' ? '☁ 已同步' : (s === 'err' ? '☁ 同步异常' : '☁');
-    b.style.background = s === 'err' ? '#ff6b6b' : '#2ecc71';
-  }
-  function buildUI() {
-    if (document.getElementById('mp-sync-root')) return;
-    var css = '#mp-sync-fab{position:fixed;right:14px;bottom:14px;z-index:99999;width:42px;height:42px;border-radius:50%;background:#2ecc71;color:#fff;border:none;font-size:20px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3)}' +
-      '#mp-sync-badge{position:fixed;right:14px;bottom:62px;z-index:99999;background:#2ecc71;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;display:none;pointer-events:none}' +
-      '#mp-sync-modal{position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center}' +
-      '#mp-sync-box{background:#fff;color:#222;width:330px;max-width:92vw;border-radius:12px;padding:18px;font:14px/1.5 system-ui}' +
-      '#mp-sync-box h3{margin:0 0 10px}#mp-sync-box label{display:block;margin:8px 0 2px;font-size:12px;color:#555}' +
-      '#mp-sync-box input,#mp-sync-box select{width:100%;box-sizing:border-box;padding:7px;border:1px solid #ccc;border-radius:7px}' +
-      '#mp-sync-box .row{display:flex;gap:8px;margin-top:14px}#mp-sync-box button{flex:1;padding:8px;border:none;border-radius:7px;cursor:pointer}' +
-      '#mp-sync-box .pri{background:#2ecc71;color:#fff}#mp-sync-box .sec{background:#eee;color:#333}.mp-hide{display:none}';
-    var style = document.createElement('style'); style.textContent = css; document.head.appendChild(style);
-
-    var fab = document.createElement('button'); fab.id = 'mp-sync-fab'; fab.textContent = '☁'; fab.title = 'MindPocket 云同步设置';
-    var badge = document.createElement('div'); badge.id = 'mp-sync-badge'; badge.textContent = '☁';
-    var modal = document.createElement('div'); modal.id = 'mp-sync-modal';
-    modal.innerHTML = '<div id="mp-sync-box">' +
-      '<h3>☁ MindPocket 云同步</h3>' +
-      '<label><input type="checkbox" id="mp-c-en"> 启用同步</label>' +
-      '<label>模式</label><select id="mp-c-mode"><option value="github">直连 GitHub（无需 Cloudflare）</option><option value="worker">Cloudflare Worker 代理</option></select>' +
-      '<div id="mp-github">' +
-      '  <label>GitHub 用户名 / 组织</label><input id="mp-c-owner" placeholder="owner">' +
-      '  <label>仓库名</label><input id="mp-c-repo" placeholder="repo">' +
-      '  <label>分支</label><input id="mp-c-branch" value="main">' +
-      '  <label>数据文件路径</label><input id="mp-c-path" value="data/mindpocket.json">' +
-      '  <label>GitHub PAT（细粒度，仅本仓库 Contents:rw）</label><input id="mp-c-token" placeholder="ghp_... 或 github_pat_...">' +
-      '</div>' +
-      '<div id="mp-worker" class="mp-hide">' +
-      '  <label>Worker 地址</label><input id="mp-c-base" placeholder="https://xxx.workers.dev">' +
-      '  <label>MP_TOKEN</label><input id="mp-c-wtoken" placeholder="应用令牌">' +
-      '</div>' +
-      '<label>轮询间隔（秒）</label><input id="mp-c-poll" type="number" value="15">' +
-      '<div class="row"><button class="sec" id="mp-c-pull">立即拉取</button><button class="sec" id="mp-c-push">立即推送</button></div>' +
-      '<div class="row"><button class="sec" id="mp-c-cancel">取消</button><button class="pri" id="mp-c-save">保存</button></div>' +
-      '</div>';
-    document.body.appendChild(fab); document.body.appendChild(badge); document.body.appendChild(modal);
-    var $ = function (id) { return modal.querySelector(id); };
-
-    function syncModeUI(mode) {
-      $('#mp-github').classList.toggle('mp-hide', mode !== 'github');
-      $('#mp-worker').classList.toggle('mp-hide', mode !== 'worker');
-    }
-    $('#mp-c-mode').onchange = function () { syncModeUI(this.value); };
-
-    fab.onclick = function () {
-      var c = loadCfg();
-      $('#mp-c-en').checked = !!c.enabled;
-      $('#mp-c-mode').value = c.mode || 'github'; syncModeUI(c.mode || 'github');
-      $('#mp-c-owner').value = c.owner || ''; $('#mp-c-repo').value = c.repo || '';
-      $('#mp-c-branch').value = c.branch || 'main'; $('#mp-c-path').value = c.path || 'data/mindpocket.json';
-      $('#mp-c-token').value = c.mode === 'github' ? (c.token || '') : '';
-      $('#mp-c-base').value = c.apiBase || ''; $('#mp-c-wtoken').value = c.mode === 'worker' ? (c.token || '') : '';
-      $('#mp-c-poll').value = c.pollSec || PULL_DEFAULT;
-      modal.style.display = 'flex';
-    };
-    $('#mp-c-cancel').onclick = function () { modal.style.display = 'none'; };
-    $('#mp-c-pull').onclick = function () { pullRemote(); };
-    $('#mp-c-push').onclick = function () { pushLocal(); };
-    $('#mp-c-save').onclick = function () {
-      var mode = $('#mp-c-mode').value;
-      var c = loadCfg();
-      c.enabled = $('#mp-c-en').checked;
-      c.mode = mode;
-      c.owner = $('#mp-c-owner').value.trim();
-      c.repo = $('#mp-c-repo').value.trim();
-      c.branch = $('#mp-c-branch').value.trim() || 'main';
-      c.path = $('#mp-c-path').value.trim() || 'data/mindpocket.json';
-      c.apiBase = $('#mp-c-base').value.trim();
-      c.token = mode === 'github' ? $('#mp-c-token').value.trim() : $('#mp-c-wtoken').value.trim();
-      c.pollSec = parseInt($('#mp-c-poll').value, 10) || PULL_DEFAULT;
-      saveCfg(c); modal.style.display = 'none';
-      if (c.enabled) { badge.style.display = 'block'; pullRemote(); }
-      else badge.style.display = 'none';
-    };
-    if (loadCfg().enabled) badge.style.display = 'block';
-  }
-
-  window.MPCloud = { pushNow: pushLocal, pullNow: pullRemote, configure: function (c) { saveCfg(Object.assign(loadCfg(), c)); }, status: function () { return loadCfg(); } };
-
-  if (document.readyState === 'complete' || document.readyState === 'interactive') setTimeout(start, 300);
-  else window.addEventListener('DOMContentLoaded', function () { setTimeout(start, 300); });
-  var iv = setInterval(function () { if (window.MPStore) { clearInterval(iv); start(); } }, 500);
-})();
+  },
+};
