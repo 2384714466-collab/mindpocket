@@ -2284,6 +2284,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }
     } else {
       t.is_archived = true;
+      t.archived_at = todayStr();            // 记录实际归档当日，供全局已归档仓库按归档日归属
     }
     t.isEmergency = false;
     persist();
@@ -2300,6 +2301,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!t || t.is_archived) return;
     archiveMasterCopies(t);
     t.is_archived = true;
+    t.archived_at = todayStr();              // 记录实际归档当日，供全局已归档仓库按归档日归属
     t.isEmergency = false;
     persist();
     // 积分联动：收藏夹彻底归档 +9；临时任务完成 +5；普通任务归档 +3
@@ -2319,6 +2321,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     else { reversePoints(id, 'task_archive'); }
     if (t.is_archived) {
       t.is_archived = false;
+      t.archived_at = '';                    // 清空归档日：重新归档时会按新归档当日重算归属
       t.autoArchivedByCopies = false;
       restoreArchiveSnapshot(t);
       // restoreArchiveSnapshot 已从快照恢复 cycle_history，无需额外清空
@@ -3482,16 +3485,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return out;
   }
 
-  // 归档条目的「归属日期」：归档时间 > 任务完成时间 > 创建时间
-  // 说明：当前数据模型未单独存 archived_at；其余字段按此优先级映射
+  // 归档条目的「归属日期」：归档时间 > 计划执行日 > 创建时间
+  // 任务 / 习惯归档时写入 archived_at（实际归档当日）；无归档日时回落计划执行日，最后回落创建日
   function archiveDateOf(t) {
     if (t.cycle && t.cycle_history && t.cycle_history.length) {
       const arch = t.cycle_history.filter(h => h.is_archived).map(h => h.execute_date).sort();
-      if (arch.length) return arch[arch.length - 1];
+      if (arch.length) return arch[arch.length - 1];   // 周期任务：取最后一次已归档出现日
     }
-    if (t.execute_date) return t.execute_date;
-    if (t.archived_at) return t.archived_at; // 习惯归档：以归档日作为归属日期
-    if (t.create_at) return fmt(new Date(t.create_at));
+    if (t.archived_at) return t.archived_at;            // 实际归档当日优先（任务 / 习惯）
+    if (t.execute_date) return t.execute_date;         // 兜底：未记录归档日时按计划执行日
+    if (t.create_at) return fmt(new Date(t.create_at)); // 最后兜底：创建当日
     return null;
   }
 
