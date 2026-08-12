@@ -40,9 +40,16 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
   background: var(--bg); color: var(--text); font-size: 15px; line-height: 1.5;
 }
-#app { min-height: 100vh; }
+#app { min-height: 100vh; min-height: 100dvh; }
 
-.app-shell { max-width: 480px; margin: 0 auto; min-height: 100vh; background: var(--bg); display: flex; flex-direction: column; }
+/* 动态视口兜底：对不支持 dvh 的浏览器，用 JS 注入的 --vh（= 当前可视高度/100）保证底部栏不随地址栏伸缩而跳动 */
+@supports not (min-height: 100dvh) {
+  #app { min-height: calc(var(--vh, 1vh) * 100); }
+}
+.app-shell { max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; background: var(--bg); display: flex; flex-direction: column; }
+@supports not (min-height: 100dvh) {
+  .app-shell { min-height: calc(var(--vh, 1vh) * 100); }
+}
 .app-main { flex: 1; padding: 16px 16px 90px; }
 .boot { padding: 40px; text-align: center; color: var(--sub); }
 
@@ -1351,6 +1358,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     flex-direction: row;
     align-items: stretch;
     min-height: 100vh;
+    min-height: 100dvh;
   }
   .app-nav {
     order: -1;                 /* 移到最左作为侧栏 */
@@ -1361,6 +1369,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     width: 220px;
     max-width: 220px;
     height: 100vh;
+    height: 100dvh;
     flex-direction: column;
     align-items: stretch;
     gap: 4px;
@@ -1407,6 +1416,135 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   .modal-lg { max-width: 820px; }
 
 }
+
+/* ================== 财务复盘 Tab ================== */
+.fin-page { padding: 0; }
+.fin-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.fin-titlerow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.fin-title { font-size: 20px; font-weight: 800; color: var(--text); }
+.fin-actions { display: flex; align-items: center; gap: 6px; }
+.fin-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 11px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.fin-act:hover { border-color: var(--primary); color: var(--primary); }
+.fin-act:active { filter: brightness(0.95); }
+.fin-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.fin-tools { min-height: 18px; }
+.fin-msg { font-size: 12px; color: #10b981; font-weight: 600; }
+.fin-menu-wrap { position: relative; }
+.fin-pop-backdrop { position: fixed; inset: 0; z-index: 50; }
+.fin-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 51;
+  min-width: 172px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(20,24,60,.18);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: finPopIn .14s ease-out;
+}
+@keyframes finPopIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: none; }
+}
+.fin-pop-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+}
+.fin-pop-item:hover { background: var(--bg); }
+.fin-pop-item:active { background: #eceef6; }
+.fin-navbtn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: #fff; font-size: 16px; color: var(--text); }
+.fin-year { font-weight: 700; min-width: 56px; text-align: center; }
+.fin-sel { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 14px; background: #fff; color: var(--text); }
+.fin-sel.on { background: #6a7bff; color: #fff; border-color: #6a7bff; font-weight: 700; }
+.fin-sel:not(select) { cursor: pointer; font-family: inherit; }
+.fin-viz-btn { margin-left: auto; }
+.fin-section { margin-top: 8px; }
+.fin-sec-head { font-size: 15px; font-weight: 700; color: var(--text); margin: 0 2px 8px; }
+.fin-mod { padding: 10px; }
+.fin-mod-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
+.fin-mod-ico { font-size: 18px; }
+.fin-mod-name { font-weight: 700; color: var(--text); }
+.fin-mod-sum { font-weight: 700; color: var(--sub); margin-right: 2px; }
+.fin-mod-btns { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.fin-ibtn { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 17px; line-height: 1; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); cursor: pointer; transition: background .15s ease, transform .1s ease, box-shadow .15s ease; }
+.fin-ibtn.add { background: var(--primary); color: #fff; border-color: var(--primary); }
+.fin-ibtn.add:hover { background: var(--primary-d); }
+.fin-ibtn.edit { background: #f0f1f6; color: var(--sub); }
+.fin-ibtn.edit:hover { background: #e7eaf3; }
+.fin-ibtn.del { background: #f0f1f6; color: #ef4444; }
+.fin-ibtn.del:hover { background: #ffeaea; }
+.fin-ibtn:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(20,24,40,.12); }
+.fin-entry { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; background: #fff; }
+.fin-entry-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.fin-entry-amt { font-size: 16px; font-weight: 800; }
+.fin-entry-date { font-size: 12px; color: var(--sub); }
+.fin-entry-fields { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: var(--text); }
+.fin-ef i { color: var(--sub); font-style: normal; margin-right: 3px; }
+.fin-entry-calcs { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: #6a7bff; margin-top: 4px; }
+.fin-entry-tags { margin-top: 4px; }
+.fin-tpl { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: 10px; margin-bottom: 8px; }
+.fin-tpl-name { font-weight: 600; color: var(--text); }
+.block-btn { width: 100%; border: 1px dashed var(--line); background: #f7f8fc; color: var(--text); border-radius: 10px; padding: 12px; font-weight: 700; margin-top: 8px; }
+.fin-subhead { font-size: 13px; font-weight: 700; color: var(--sub); margin: 10px 0 6px; }
+.fin-field-row, .fin-calc-rowedit { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.fin-field-row input, .fin-calc-rowedit input, .fin-calc-rowedit select { border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; font-size: 12px; min-width: 0; }
+.ff-key { width: 70px; } .ff-label { width: 80px; } .ff-unit { width: 46px; } .ff-opt { width: 90px; } .fc-label { width: 80px; } .fc-unit { width: 42px; }
+.fin-savetpl { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.fin-chk { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text); font-weight: 500; }
+.fin-wish-sel { width: 100%; border: 1px solid var(--line); border-radius: 8px; padding: 6px; margin-top: 4px; }
+.fin-wish-cmp { font-size: 12px; color: #ef4444; background: #fff3f3; border-radius: 8px; padding: 6px 8px; margin-top: 4px; }
+.fin-modal, .fin-viz-modal { max-width: 560px; width: 100%; }
+.fin-calcs { background: #f7f8fc; border-radius: 10px; padding: 8px 10px; margin: 8px 0; }
+.fin-calc-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+.fin-calc-row b { color: #6a7bff; }
+.fin-viz-tabs { display: flex; gap: 8px; margin-bottom: 10px; }
+.fin-viz-tabs button { flex: 1; padding: 8px; border: 1px solid var(--line); background: #fff; border-radius: 10px; font-weight: 700; color: var(--sub); }
+.fin-viz-tabs button.on { background: #6a7bff; color: #fff; border-color: #6a7bff; }
+.fin-viz-filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; font-size: 12px; color: var(--sub); }
+.fin-viz-filters select { border: 1px solid var(--line); border-radius: 8px; padding: 5px 6px; font-size: 12px; }
+.fin-chart { margin-top: 6px; }
+.fin-chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.fin-svg { width: 100%; height: auto; display: block; }
+.fin-pie-block { margin-bottom: 14px; }
+.fin-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-size: 12px; color: var(--text); }
+.fin-lg { display: inline-flex; align-items: center; gap: 4px; }
+.fin-lg i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.pos { color: #10b981; } .neg { color: #ef4444; }
+.tag.danger { background: #fff3f3; color: #ef4444; border: 1px solid #fde2e2; }
+.tag.cat { background: #eef2ff; color: #6a7bff; border: 1px solid #e0e7ff; }
+.modal-x { border: none; background: transparent; font-size: 18px; color: var(--sub); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
 </style>
 </head>
 <body>
@@ -1604,7 +1742,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* ----------------------------- 响应式状态 ----------------------------- */
   const state = reactive({ revision: 0, habits: [], tasks: [], categories: [], settings: { quickToQuickView: true, autoExtend: false },
     projects: [], project_subs: [], project_records: [], project_ideas: [], project_folders: [], sub_custom_statuses: [],
-    wish_items: [], wish_records: [] });
+    wish_items: [], wish_records: [],
+    finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] } });
 
   /* ----------------------------- 持久化 ----------------------------- */
   function persist() {
@@ -1616,6 +1755,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         project_folders: state.project_folders,
         sub_custom_statuses: state.sub_custom_statuses,
         wish_items: state.wish_items, wish_records: state.wish_records,
+        finance: state.finance,
       }));
     } catch (e) { console.error('[MP] persist failed', e); }
     notifyChange(); // 数据落盘即广播全局刷新（revision++），所有监听页面自动重载
@@ -1678,6 +1818,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.sub_custom_statuses = o.sub_custom_statuses || [];
       state.wish_items = o.wish_items || [];
       state.wish_records = o.wish_records || [];
+      state.finance = o.finance || { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] };
+      ensureFinancePresets();
       autoExtendOverdue(); // 过期任务自动延期（仅在开关开启时生效）
       autoArchiveExpiredCycles(); // 周期任务到期自动归档（母本归档，停止副本同步）
       autoArchiveCompletedCycles(); // 周期母本副本全完成批量校验（打开页面兜底，跨天场景补触发）
@@ -1692,6 +1834,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     state.categories = SYSTEM_CATEGORIES.map(c => ({ ...c }));
     PRESET_CUSTOM_CATEGORIES.forEach(n => state.categories.push({ _id: uid('cat'), name: n, is_system: false }));
     state.settings = { quickToQuickView: true, autoExtend: false, notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' } };
+    ensureFinancePresets();
 
     // —— 习惯 ——
     const drink = { _id: uid('habit'), name: '每天喝水 8 杯', type: 'SOP_HABIT', enable_remind: false, remind_time: '09:00', plan_time: '08:00', holiday_ranges: [], records: [], create_at: Date.now(), unit: '次' };
@@ -2256,7 +2399,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (idx >= 0) t.cycle_history.splice(idx, 1);
     }
     // 全部完成 → 自动归档母本（模版任务禁用：仅手动按钮可归档母本）
-    if (allOccurrencesDone(t) && !t.is_archived && !t.is_template) { t.is_archived = true; t.autoArchivedByCopies = true; }
+    if (allOccurrencesDone(t) && !t.is_archived && !t.is_template) { t.is_archived = true; t.archived_at = todayStr(); t.autoArchivedByCopies = true; }
     else if (t.is_template && allOccurrencesDone(t)) { resetTemplate(t._id); } // 模板：副本全完成→统一重置（清空时间+回收副本+重置子任务），不归档
     // 撤销后未全完成 → 母本退回待归档（仅自动归档情形，手动归档不受影响；模版任务不触发）
     if (!done && t.is_archived && t.autoArchivedByCopies && !allOccurrencesDone(t) && !t.is_template) { t.is_archived = false; t.autoArchivedByCopies = false; }
@@ -2678,7 +2821,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         archiveSubTask(id, subId);
         // 规则③：仅【普通任务】子任务全部完成(归档) → 母本自动归档；模版任务禁用此逻辑（仅手动按钮可归档母本）
         if (!t.is_template && t.sub_tasks.length && t.sub_tasks.every(s => s.is_archived) && !t.is_archived) {
-          archiveMasterCopies(t); t.is_archived = true; persist();
+          archiveMasterCopies(t); t.is_archived = true; t.archived_at = todayStr(); persist(); // 母本随子任务全归档：记录实际归档当日，避免全局已归档仓库按创建日归属
         }
       } else {
         undoArchiveSubTask(id, subId);
@@ -2801,14 +2944,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       //   · 不调用 archiveMasterCopies：自动归档须可被撤销还原，故只置标志位；
       //     copyShouldRender 依据 is_archived 即可停止生成新周期副本。
       if (allOccurrencesDone(t) && !t.is_archived && !t.is_template) {
-        t.is_archived = true; t.autoArchivedByCopies = true;
+        t.is_archived = true; t.archived_at = today; t.autoArchivedByCopies = true;
       }
     } else if (t.date_mode === 'range' && t.date_start) {
       // 自定义区间：按「具体日期」逐日打卡（与周期同款 cycle_history 逐日记录，今日/看板逐日隐藏）
       if (!cycleArchivedToday(t, ws)) {
         t.cycle_history.push({ execute_date: ws, is_archived: true, overdue: ws < today });
       }
-      if (allOccurrencesDone(t)) { t.is_archived = true; t.autoArchivedByCopies = true; }
+      if (allOccurrencesDone(t)) { t.is_archived = true; t.archived_at = today; t.autoArchivedByCopies = true; }
     } else {
       const key = copyKey(t, ws);
       const overdue = isOverdueTask(t); // 单点过期日 / 区间结束日已过 → 过期单次记录
@@ -2820,11 +2963,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!t.doneOverdueDates.includes(key)) t.doneOverdueDates.push(key);
       }
       // 「所有日期副本全部完成自动归档母本」：非周期任务全部窗口副本完成后归档母本
-      if (copiesAllDone(t)) { t.is_archived = true; t.autoArchivedByCopies = true; }
+      if (copiesAllDone(t)) { t.is_archived = true; t.archived_at = today; t.autoArchivedByCopies = true; }
       // 积分联动：普通单点任务「完成」（非周期/非区间/非学习工作类/非收藏）→ 基础分 +3；
-      // 仅首次完成发放（newlyDone 守卫），避免重复完成重复加分
+      // 仅首次完成发放（newlyDone 守卫），避免重复完成重复加分。
+      // 延期完成按「延迟天数」递减：按时 +3，逾期 1 天 +2，逾期 2 天 +1，逾期 ≥3 天 +0（地板不为负）。
       if (newlyDone && !isCollectionTask(t) && !isStudyWorkTask(t)) {
-        addPoints(3, 'task_archive', '完成: ' + t.title, t._id);
+        const delay = delayDaysOf(t);
+        const pts = Math.max(0, 3 - delay);
+        addPoints(pts, 'task_archive', (delay > 0 ? '延期完成(' + delay + '天): ' : '完成: ') + t.title, t._id);
       }
     }
     persist();
@@ -2836,10 +2982,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 收藏夹归档、习惯模块积分保持原有逻辑不变
     if (!t.is_template && !isCollectionTask(t)) {
       const today = todayStr();
-      // ① 周期/区间任务积分（独立发放）
+      // ① 周期/区间任务积分（独立发放）：按时 +12，延期按「延迟天数」递减（地板 0）
       if (t.cycle || (t.date_mode === 'range' && t.date_start)) {
-        const isOverdue = ws < today;
-        addPoints(isOverdue ? 4 : 12, 'cycle_task', (isOverdue ? '延期完成' : '正常完成') + ': ' + t.title, t._id);
+        const delay = Math.max(0, dateDiffDays(ws, today)); // 本次出现日 ws 晚于今日 → 迟到天数
+        const pts = Math.max(0, 12 - delay);
+        addPoints(pts, 'cycle_task', (delay > 0 ? '延期完成(' + delay + '天): ' : '正常完成: ') + t.title, t._id);
       }
       // ② 学习工作类标签任务积分（独立发放，与①并行不互斥）
       if (isStudyWorkTask(t)) {
@@ -2851,9 +2998,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             addPoints(pts, 'study_work', '专注完成: ' + t.title + ' (' + focusMin + '分钟)', t._id, focusMin);
           }
         } else {
-          // 无专注时长：按时完成 +7，延期完成 +2
-          const overdue = isOverdueTask(t);
-          addPoints(overdue ? 2 : 7, 'study_work', (overdue ? '延期完成' : '按时完成') + ': ' + t.title, t._id);
+          // 无专注时长：按时完成 +7，延期完成按「延迟天数」递减（地板 0）
+          const delay = delayDaysOf(t);
+          const pts = Math.max(0, 7 - delay);
+          addPoints(pts, 'study_work', (delay > 0 ? '延期完成(' + delay + '天): ' : '按时完成: ') + t.title, t._id);
         }
       }
     }
@@ -2916,18 +3064,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }
       // 子任务母本自动归档：与顶层任务口径一致 —— 有限周期全部出现日打卡完成 → 子任务母本自动归档
       // 父任务不受影响（父子时间独立，规范⑥）；无限循环周期（无结束日）恒为 false，仅手动归档
-      if (allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.autoArchivedByCopies = true; }
+      if (allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
     } else if (s.date_mode === 'range' && s.date_start) {
       if (!cycleArchivedToday(s, ws)) {
         s.cycle_history.push({ execute_date: ws, is_archived: true, overdue: ws < today });
       }
-      if (allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.autoArchivedByCopies = true; }
+      if (allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
     } else {
       const key = copyKey(s, ws);
       s.doneDates = s.doneDates || [];
       if (!s.doneDates.includes(key)) s.doneDates.push(key);
       // 子任务全部日期副本完成 → 自动归档子任务母本（与主任务 markCopyDone 口径一致）
-      if (copiesAllDone(s) && !s.is_archived) { s.is_archived = true; s.autoArchivedByCopies = true; }
+      if (copiesAllDone(s) && !s.is_archived) { s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
     }
     persist();
     // 积分联动：子任务副本完成（学习工作类标签 → study_work 积分）
@@ -2940,9 +3088,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           addPoints(pts, 'study_work', '子任务专注完成: ' + s.title + ' (' + focusMin + '分钟)', t._id + '_' + subId, focusMin);
         }
       } else {
-        // 子任务延期判定：按子任务自身截止日判定
-        const subOverdue = s.sub_deadline ? (s.sub_deadline < today) : false;
-        addPoints(subOverdue ? 2 : 7, 'study_work', (subOverdue ? '子任务延期完成' : '子任务按时完成') + ': ' + s.title, t._id + '_' + subId);
+        // 子任务延期判定：按子任务自身截止日判定；延期按「延迟天数」递减（地板 0）
+        const subDeadline = s.sub_deadline || '';
+        const subDelay = subDeadline ? Math.max(0, dateDiffDays(subDeadline, today)) : 0;
+        const subPts = Math.max(0, 7 - subDelay);
+        addPoints(subPts, 'study_work', (subDelay > 0 ? '子任务延期完成(' + subDelay + '天): ' : '子任务按时完成: ') + s.title, t._id + '_' + subId);
       }
     }
   }
@@ -3325,6 +3475,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!t.execute_date) return false;
     return t.execute_date < ref;
   }
+  // 任务「延期天数」：截止日（单点 execute_date / 区间 date_end）相对 refDate 的迟到天数；未逾期或缺截止日返回 0
+  function delayDaysOf(t, refDate) {
+    if (!t) return 0;
+    const ref = refDate || todayStr();
+    const deadline = (t.date_mode === 'range') ? (t.date_end || '') : (t.execute_date || '');
+    if (!deadline) return 0;
+    const d = dateDiffDays(deadline, ref); // ref 晚于截止日 → 正数（迟到）
+    return d > 0 ? d : 0;
+  }
 
   // 过期任务自动延期：开关开启时，将逾期且未被手动改过截止日期的任务推延到今天
   function autoExtendOverdue() {
@@ -3367,7 +3526,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     let changed = false;
     state.tasks.forEach(t => {
       if (t.is_archived || !t.cycle || t.is_template) return;
-      if (t.cycle_end_date && t.cycle_end_date < today) { archiveMasterCopies(t); t.is_archived = true; changed = true; }
+      if (t.cycle_end_date && t.cycle_end_date < today) { archiveMasterCopies(t); t.is_archived = true; t.archived_at = today; changed = true; } // 记录实际归档当日，避免全局已归档仓库按创建日归属（延期/过期周期任务）
     });
     if (changed) persist();
   }
@@ -3382,7 +3541,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     let changed = false;
     state.tasks.forEach(t => {
       if (!t || t.is_archived || t.is_template || !t.cycle) return;
-      if (allOccurrencesDone(t)) { t.is_archived = true; t.autoArchivedByCopies = true; changed = true; }
+      if (allOccurrencesDone(t)) { t.is_archived = true; t.archived_at = todayStr(); t.autoArchivedByCopies = true; changed = true; } // 记录实际归档当日，避免全局已归档仓库按创建日归属
     });
     if (changed) persist();
   }
@@ -4334,7 +4493,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.tasks.push({
         _id: archiveTaskId, title: '已兑换愿望: ' + item.name,
         desc: '许愿池一次性愿望兑换完成 (' + item.cost + ' 积分)',
-        category_id: null, is_archived: true, execute_date: todayStr(),
+        category_id: null, is_archived: true, execute_date: todayStr(), archived_at: todayStr(),
         cycle: null, sub_tasks: [], progress_info: { enable: false },
         material_notes: '', cycle_history: [], create_at: Date.now(),
         is_template: false, is_collection: false, isEmergency: false,
@@ -4707,6 +4866,63 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     persist();
   }
 
+  /* ============================ 财务复盘（独立 Tab，数据完全隔离，不与任务/项目互通） ============================ */
+  const FINANCE_PALETTE = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'];
+  const FINANCE_PRESET_EXPENSE = [
+    { key: 'travel', name: '旅游花费支出', icon: '✈️', amountKey: 'total',
+      fields: [
+        { key: 'total', label: '总花费', type: 'number', unit: '元', required: true },
+        { key: 'start', label: '出发日期', type: 'date', required: true },
+        { key: 'end', label: '返程日期', type: 'date', required: true },
+        { key: 'destination', label: '目的地', type: 'text' },
+        { key: 'companions', label: '同行人员', type: 'text' },
+        { key: 'note', label: '行程备注', type: 'textarea' },
+      ],
+      calcs: [
+        { key: 'days', label: '游玩总天数', kind: 'datediff', from: 'start', to: 'end', unit: '天' },
+        { key: 'avg', label: '单日平均花费', kind: 'ratio', num: 'total', den: 'days', unit: '元/天', round: 1 },
+      ] },
+    { key: 'exam', name: '考证报名费支出', icon: '📝', amountKey: 'fee',
+      fields: [
+        { key: 'fee', label: '报名费', type: 'number', unit: '元', required: true },
+        { key: 'examName', label: '考试名称', type: 'text' },
+        { key: 'examDate', label: '报考时间', type: 'date' },
+        { key: 'prepCycle', label: '备考周期', type: 'text' },
+        { key: 'certStatus', label: '证书获取状态', type: 'select', options: ['已获取', '未获取', '进行中'] },
+      ], calcs: [] },
+    { key: 'device', name: '数码设备支出', icon: '💻', amountKey: 'price',
+      fields: [
+        { key: 'price', label: '购入价格', type: 'number', unit: '元', required: true },
+        { key: 'purchaseDate', label: '购入时间', type: 'date', required: true },
+        { key: 'retireDate', label: '退役/出售时间', type: 'date' },
+        { key: 'status', label: '设备当前状态', type: 'select', options: ['在用', '已出售', '已退役'] },
+      ],
+      calcs: [
+        { key: 'useDays', label: '使用总天数', kind: 'datediff', from: 'purchaseDate', to: 'retireDate', unit: '天', allowEmpty: true, toTodayIfEmpty: true },
+        { key: 'dailyAmort', label: '设备日均摊销成本', kind: 'ratio', num: 'price', den: 'useDays', unit: '元/天', round: 2, allowEmpty: true, dependsOn: 'useDays' },
+      ] },
+  ];
+  const FINANCE_PRESET_INCOME = [
+    { key: 'parttime', name: '兼职收入', icon: '💼', amountKey: 'amount',
+      fields: [
+        { key: 'amount', label: '收入金额', type: 'number', unit: '元', required: true },
+        { key: 'period', label: '工作时段', type: 'text' },
+        { key: 'ptype', label: '兼职类型', type: 'text' },
+        { key: 'hours', label: '总工时', type: 'number', unit: '小时' },
+        { key: 'note', label: '备注', type: 'textarea' },
+      ],
+      calcs: [
+        { key: 'hourly', label: '单份兼职时薪', kind: 'ratio', num: 'amount', den: 'hours', unit: '元/时', round: 1 },
+      ] },
+    { key: 'family', name: '家人生活费收入', icon: '🏠', amountKey: 'amount',
+      fields: [
+        { key: 'amount', label: '到账金额', type: 'number', unit: '元', required: true },
+        { key: 'date', label: '收款日期', type: 'date' },
+        { key: 'source', label: '资金来源', type: 'text' },
+        { key: 'note', label: '用途备注', type: 'textarea' },
+      ], calcs: [] },
+  ];
+
   if (!load()) { seed(); }
   migrate();
   ensureQuickView();
@@ -4992,6 +5208,158 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     persist();
   }
 
+
+  function finDateDiff(a, b) {
+    if (!a || !b) return null;
+    const pa = parseDate(a), pb = parseDate(b);
+    if (isNaN(pa) || isNaN(pb)) return null;
+    return Math.round((pb.getTime() - pa.getTime()) / 86400000);
+  }
+  function finNum(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
+  function finComputeCalcs(module, values) {
+    const out = {};
+    (module.calcs || []).forEach(c => {
+      try {
+        if (c.kind === 'datediff') {
+          let a = values[c.from], b = values[c.to];
+          if (c.toTodayIfEmpty && (!b || b === '')) b = todayStr();
+          const d = finDateDiff(a, b);
+          if (d === null) out[c.key] = c.allowEmpty ? null : 0;
+          else out[c.key] = c.allowEmpty ? Math.max(0, d) : Math.max(1, d);
+        } else if (c.kind === 'ratio') {
+          const den = Math.max(1, finNum(values[c.den]));
+          const dep = c.dependsOn ? values[c.dependsOn] : undefined;
+          if (c.dependsOn && c.allowEmpty && (dep === null || dep === undefined || dep === '')) out[c.key] = null;
+          else { const r = finNum(values[c.num]) / den; out[c.key] = c.round ? +r.toFixed(c.round) : r; }
+        } else if (c.kind === 'subtract') {
+          out[c.key] = finNum(values[c.num]) - finNum(values[c.sub]);
+        } else if (c.kind === 'sum') {
+          out[c.key] = finNum(values[c.num1]) + finNum(values[c.num2]);
+        }
+      } catch (e) { out[c.key] = null; }
+    });
+    return out;
+  }
+  function finEntryYM(module, values) {
+    let ds = null;
+    (module.fields || []).forEach(f => { if (f.type === 'date' && !ds && values[f.key]) ds = values[f.key]; });
+    if (!ds) ds = todayStr();
+    const d = parseDate(ds);
+    if (isNaN(d)) return { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+    return { year: d.getFullYear(), month: d.getMonth() + 1 };
+  }
+  function finAmountOf(module, entry) {
+    let key = module.amountKey;
+    if (!key) { const nf = (module.fields || []).find(f => f.type === 'number'); key = nf ? nf.key : null; }
+    if (!key) return 0;
+    return finNum((entry.values || {})[key]);
+  }
+  function ensureFinancePresets() {
+    const f = state.finance;
+    if (!f) { state.finance = { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] }; return; }
+    ['expenseModules', 'incomeModules', 'expenseEntries', 'incomeEntries', 'fieldTemplates'].forEach(k => { if (!Array.isArray(f[k])) f[k] = []; });
+    const exp = FINANCE_PRESET_EXPENSE.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'expense', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
+    const inc = FINANCE_PRESET_INCOME.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'income', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
+    // 预设模块与代码定义保持同步：已存在则就地更新字段/公式/名称/图标（保留用户记录），否则新增
+    const syncPreset = (arr, presets) => {
+      presets.forEach(p => {
+        const exist = arr.find(m => m._id === p._id);
+        if (exist) { exist.name = p.name; exist.icon = p.icon; exist.amountKey = p.amountKey; exist.fields = p.fields; exist.calcs = p.calcs; exist.isPreset = true; }
+        else arr.push(p);
+      });
+    };
+    syncPreset(f.expenseModules, exp);
+    syncPreset(f.incomeModules, inc);
+  }
+  function finNormField(f) {
+    return { key: f.key || ('f' + Math.random().toString(36).slice(2, 8)), label: f.label || '字段', type: f.type || 'text', unit: f.unit || '', options: Array.isArray(f.options) ? f.options.slice() : [], required: !!f.required };
+  }
+  function finNormCalc(c) {
+    return { key: c.key || ('c' + Math.random().toString(36).slice(2, 8)), label: c.label || '计算项', kind: c.kind || 'ratio', from: c.from, to: c.to, num: c.num, den: c.den, sub: c.sub, num1: c.num1, num2: c.num2, unit: c.unit || '', round: c.round, allowEmpty: !!c.allowEmpty, dependsOn: c.dependsOn };
+  }
+  function addFinanceModule(type, payload) {
+    const f = state.finance;
+    const mod = {
+      _id: uid('finmod'), name: (payload.name || '自定义模块').trim() || '自定义模块',
+      icon: payload.icon || (type === 'expense' ? '📦' : '💰'), type: type, isPreset: false,
+      amountKey: payload.amountKey || null,
+      fields: (payload.fields || []).map(finNormField),
+      calcs: (payload.calcs || []).map(finNormCalc),
+    };
+    if (!mod.amountKey && mod.fields.length) { const nf = mod.fields.find(x => x.type === 'number'); if (nf) mod.amountKey = nf.key; }
+    if (type === 'expense') f.expenseModules.push(mod); else f.incomeModules.push(mod);
+    persist(); return mod;
+  }
+  function updateFinanceModule(id, payload) {
+    const f = state.finance;
+    const mod = f.expenseModules.concat(f.incomeModules).find(m => m._id === id);
+    if (!mod) return;
+    if (payload.name != null) mod.name = payload.name.trim() || mod.name;
+    if (payload.icon != null) mod.icon = payload.icon;
+    if (payload.fields) mod.fields = payload.fields.map(finNormField);
+    if (payload.calcs) mod.calcs = payload.calcs.map(finNormCalc);
+    if (payload.amountKey != null) mod.amountKey = payload.amountKey;
+    persist();
+  }
+  function removeFinanceModule(id) {
+    const f = state.finance;
+    f.expenseModules = f.expenseModules.filter(m => m._id !== id);
+    f.incomeModules = f.incomeModules.filter(m => m._id !== id);
+    f.expenseEntries = f.expenseEntries.filter(e => e.moduleId !== id);
+    f.incomeEntries = f.incomeEntries.filter(e => e.moduleId !== id);
+    persist();
+  }
+  function finBuildEntry(type, moduleId, values) {
+    const f = state.finance;
+    const arr = type === 'expense' ? f.expenseModules : f.incomeModules;
+    const mod = arr.find(m => m._id === moduleId);
+    if (!mod) return null;
+    const v = Object.assign({}, values);
+    const calcs = finComputeCalcs(mod, v);
+    const ym = finEntryYM(mod, v);
+    return {
+      _id: uid('finent'), moduleId: moduleId, type: type,
+      values: v, calcs: calcs, year: ym.year, month: ym.month,
+      tags: Array.isArray(v.tags) ? v.tags.slice() : [],
+      wishId: v.wishId || null, isBig: !!v.isBig, created_at: Date.now(),
+    };
+  }
+  function addFinanceEntry(type, moduleId, values) {
+    const e = finBuildEntry(type, moduleId, values); if (!e) return null;
+    if (type === 'expense') state.finance.expenseEntries.push(e); else state.finance.incomeEntries.push(e);
+    persist(); return e;
+  }
+  function updateFinanceEntry(id, type, values) {
+    const f = state.finance; const arr = type === 'expense' ? f.expenseEntries : f.incomeEntries;
+    const e = arr.find(x => x._id === id); if (!e) return;
+    const mod = (type === 'expense' ? f.expenseModules : f.incomeModules).find(m => m._id === e.moduleId); if (!mod) return;
+    e.values = Object.assign({}, values); e.calcs = finComputeCalcs(mod, e.values);
+    const ym = finEntryYM(mod, e.values); e.year = ym.year; e.month = ym.month;
+    e.tags = Array.isArray(values.tags) ? values.tags.slice() : []; e.wishId = values.wishId || null; e.isBig = !!values.isBig;
+    persist();
+  }
+  function removeFinanceEntry(id, type) {
+    const f = state.finance;
+    if (type === 'expense') f.expenseEntries = f.expenseEntries.filter(e => e._id !== id);
+    else f.incomeEntries = f.incomeEntries.filter(e => e._id !== id);
+    persist();
+  }
+  function saveFieldTemplate(name, fields, calcs) {
+    const f = state.finance;
+    f.fieldTemplates.push({ _id: uid('fintpl'), name: (name || '模板').trim() || '模板', fields: (fields || []).map(finNormField), calcs: (calcs || []).map(finNormCalc) });
+    persist();
+  }
+  function removeFieldTemplate(id) {
+    const f = state.finance; f.fieldTemplates = f.fieldTemplates.filter(t => t._id !== id); persist();
+  }
+  function linkExpenseToWish(entryId, wishId) {
+    const e = state.finance.expenseEntries.find(x => x._id === entryId); if (!e) return;
+    e.wishId = wishId || null; persist();
+  }
+  function unlinkExpenseWish(entryId) {
+    const e = state.finance.expenseEntries.find(x => x._id === entryId); if (!e) return; e.wishId = null; persist();
+  }
+
   window.MPStore = {
     state,
     util: { uid, todayStr, fmt, parseDate, addDays, weekdayName, inHolidayRanges, cycleHits, parseWeekday, parseCycleRule, normalizeCycleRule, isoWeek, weekRange, validateDateInput, autoFormatDate, validateMonthInput, autoFormatMonth },
@@ -5035,6 +5403,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     rollbackEntityPoints, collectEntityPointRecords, POINT_ROLLBACK_CAT,
     swipeLock, swipeUnlock, swipeCleanup,
     SWIPE_ACTIVATE_PX, SWIPE_TRIGGER_PX,
+    // 财务复盘（独立 Tab，数据隔离）
+    ensureFinancePresets, addFinanceModule, updateFinanceModule, removeFinanceModule,
+    addFinanceEntry, updateFinanceEntry, removeFinanceEntry,
+    saveFieldTemplate, removeFieldTemplate, linkExpenseToWish, unlinkExpenseWish,
+    finComputeCalcs, finAmountOf, finEntryYM, FINANCE_PRESET_EXPENSE, FINANCE_PRESET_INCOME,
     // —— 数据备份 / 恢复（P0：零依赖本地备份，配合多设备迁移 / 刷新数据）——
     exportAll() {
       // 与 persist() 写入结构完全一致，保证可原样还原
@@ -5045,6 +5418,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         project_folders: state.project_folders,
         sub_custom_statuses: state.sub_custom_statuses,
         wish_items: state.wish_items, wish_records: state.wish_records,
+        finance: state.finance,
       });
     },
     importAll(raw) {
@@ -5069,8 +5443,39 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.sub_custom_statuses = Array.isArray(o.sub_custom_statuses) ? o.sub_custom_statuses : [];
       state.wish_items = Array.isArray(o.wish_items) ? o.wish_items : [];
       state.wish_records = Array.isArray(o.wish_records) ? o.wish_records : [];
+      state.finance = (o.finance && typeof o.finance === 'object') ? o.finance : { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] };
       try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
       persist(); // 落盘 + 广播全局刷新（revision++），各页面自动重载
+    },
+    // 仅导出「财务复盘」Tab 的数据（数据隔离，不含其他模块）
+    exportFinance() {
+      const f = state.finance || {};
+      const finance = {
+        expenseModules: f.expenseModules || [],
+        incomeModules: f.incomeModules || [],
+        expenseEntries: f.expenseEntries || [],
+        incomeEntries: f.incomeEntries || [],
+        fieldTemplates: f.fieldTemplates || [],
+      };
+      return JSON.stringify({
+        app: 'MindPocket', kind: 'finance', version: 1,
+        exportedAt: new Date().toISOString(),
+        finance,
+      });
+    },
+    // 仅导入/替换「财务复盘」Tab 的数据（覆盖式，保持数据隔离）
+    importFinance(raw) {
+      const o = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      if (!o || typeof o !== 'object') throw new Error('财务备份文件格式无效');
+      const f = (o.finance && typeof o.finance === 'object') ? o.finance : null;
+      if (!f) throw new Error('财务备份文件格式无效（未找到 finance 字段）');
+      const fin = (state.finance && typeof state.finance === 'object') ? state.finance : (state.finance = {});
+      fin.expenseModules = Array.isArray(f.expenseModules) ? f.expenseModules : [];
+      fin.incomeModules = Array.isArray(f.incomeModules) ? f.incomeModules : [];
+      fin.expenseEntries = Array.isArray(f.expenseEntries) ? f.expenseEntries : [];
+      fin.incomeEntries = Array.isArray(f.incomeEntries) ? f.incomeEntries : [];
+      fin.fieldTemplates = Array.isArray(f.fieldTemplates) ? f.fieldTemplates : [];
+      persist(); // 落盘 + 广播刷新
     },
     persist,
   };
@@ -6860,7 +7265,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (idx >= 0) s.cycle_history.splice(idx, 1);
         }
         // 全部完成 → 自动归档子任务母本
-        if (this.$store.allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.autoArchivedByCopies = true; }
+        if (this.$store.allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; }
         // 撤销后未全完成 → 子任务母本退回待归档（仅自动归档情形）
         if (!done && s.is_archived && s.autoArchivedByCopies && !this.$store.allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
         this.$store.persist();
@@ -6960,7 +7365,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 保存后兜底：若编辑了 cycle_end_date 且此时全部日期已打卡完成 → 立即触发自动归档
         const s = this.sub;
         if (s && s.cycle && this.$store.allOccurrencesDone(s) && !s.is_archived) {
-          s.is_archived = true; s.autoArchivedByCopies = true; this.$store.persist();
+          s.is_archived = true; s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; this.$store.persist();
         }
         // 数据已落盘（persist → notifyChange 自增 revision），周/月看板副本池自动重算同步刷新
         this.$emit('close');
@@ -7900,7 +8305,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 保存后兜底：若编辑了 cycle_end_date 且此时全部日期已打卡完成 → 立即触发自动归档
         const t = this.task;
         if (t && t.cycle && this.$store.allOccurrencesDone(t) && !t.is_archived && !t.is_template) {
-          t.is_archived = true; t.autoArchivedByCopies = true; this.$store.persist();
+          t.is_archived = true; t.archived_at = this.$store.util.todayStr(); t.autoArchivedByCopies = true; this.$store.persist();
         }
         this.$emit('close');
       },
@@ -9247,7 +9652,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button class="btn-mini" v-else disabled>删</button>
           </div>
           <!-- 二级子分类 -->
-          <div class="sub-cat" v-for="c in topCats" :key="'s'+c._id" v-if="expanded[c._id]">
+          <template v-for="c in topCats" :key="'s'+c._id"><div class="sub-cat" v-if="expanded[c._id]">
             <div class="sub-cat-row" v-for="s in subs(c._id)" :key="s._id">
               <span class="sub-drag">└</span>
               <input :value="s.name" @change="rename(s,$event)" />
@@ -9257,7 +9662,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <input v-model="subName" @keyup.enter="addSub(c._id)" placeholder="二级分类名" />
               <button class="btn-mini" @click="addSub(c._id)">确定</button>
             </div>
-          </div>
+          </div></template>
           <div class="cat-add">
             <input v-model="newName" @keyup.enter="add" placeholder="新增一级分类名称" />
             <button class="btn" @click="add">＋ 新增一级</button>
@@ -11584,7 +11989,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <section class="block">
         <h3 class="block-title">💾 数据备份与恢复</h3>
         <div class="backup-box">
-          <p class="backup-note">导出一份完整数据文件（含任务 / 习惯 / 项目 / 许愿池）。换设备、重装前先备份；导入将<b>覆盖</b>当前全部数据。</p>
+          <p class="backup-note">导出一份完整数据文件（含任务 / 习惯 / 项目 / 许愿池 / <b>财务复盘</b> 等全部 Tab）。换设备、重装前先备份；导入将<b>覆盖</b>当前全部数据。</p>
           <div class="backup-actions">
             <button class="btn primary" @click="exportBackup">⬇ 导出备份</button>
             <button class="btn ghost" @click="importBackup">⬆ 导入备份</button>
@@ -13966,6 +14371,623 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   const { createApp } = Vue;
   const C = window.MPComponents;
 
+  /* ================== 财务复盘 独立 Tab（数据隔离，不与任务/项目互通） ================== */
+  C.FinancePage = {
+    data() {
+      const now = new Date();
+      return {
+        year: now.getFullYear(), month: 0, allYears: false,
+        showEntry: false, entryMode: 'add', entryModule: null, editId: null, draft: null,
+        showModule: false, moduleEdit: null, moduleType: 'expense',
+        showViz: false, vizType: 'pie', vizRange: 'year', vizScope: 'both', vizCat: '',
+        showTpl: false,
+        confirmDelEntry: false,
+        showFinMenu: false,
+        finMsg: '', finMsgTimer: null,
+        palette: ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'],
+      };
+    },
+    computed: {
+      fin() { return this.$store.state.finance; },
+      wishItems() { return this.$store.state.wish_items || []; },
+      modulesExpense() { return (this.fin.expenseModules || []); },
+      modulesIncome() { return (this.fin.incomeModules || []); },
+      allModules() { return this.modulesExpense.concat(this.modulesIncome); },
+      filteredExpenseEntries() {
+        return (this.fin.expenseEntries || []).filter(e => (this.allYears || e.year === this.year) && (this.month === 0 || e.month === this.month));
+      },
+      filteredIncomeEntries() {
+        return (this.fin.incomeEntries || []).filter(e => (this.allYears || e.year === this.year) && (this.month === 0 || e.month === this.month));
+      },
+      // —— 全年 / 月份合并为一个下拉：periodKey 联动 allYears 与 month ——
+      periodKey: {
+        get() {
+          if (this.allYears && this.month === 0) return 'all';
+          if (!this.allYears && this.month === 0) return 'y0';
+          if (!this.allYears) return 'y' + this.month;
+          return 'a' + this.month;
+        },
+        set(v) {
+          if (v === 'all') { this.allYears = true; this.month = 0; }
+          else if (v === 'y0') { this.allYears = false; this.month = 0; }
+          else if (v[0] === 'y') { this.allYears = false; this.month = parseInt(v.slice(1), 10); }
+          else if (v[0] === 'a') { this.allYears = true; this.month = parseInt(v.slice(1), 10); }
+        }
+      },
+      liveCalcs() {
+        if (!this.showEntry || !this.entryModule || !this.draft) return {};
+        return this.$store.finComputeCalcs(this.entryModule, this.draft.values || {});
+      },
+      // —— 可视化数据 ——
+      vizWindow() {
+        const y = this.year, m = this.month;
+        if (this.allYears) {
+          if (m === 0) return () => true;
+          return e => e.month === m;
+        }
+        if (this.vizRange === 'month') return e => e.year === y && e.month === m;
+        if (this.vizRange === 'year') {
+          if (m === 0) return e => e.year === y;
+          return e => e.year === y && e.month === m;
+        }
+        if (this.vizRange === 'quarter') {
+          if (m === 0) return e => e.year === y;
+          const q = Math.ceil(m / 3);
+          return e => e.year === y && Math.ceil(e.month / 3) === q;
+        }
+        // years：全量；若选定了具体月份则按月份跨年筛选
+        if (m !== 0) return e => e.month === m;
+        return () => true;
+      },
+      vizExpense() { return (this.fin.expenseEntries || []).filter(this.vizWindow); },
+      vizIncome() { return (this.fin.incomeEntries || []).filter(this.vizWindow); },
+      vizPieExpense() { return this.pieOf(this.vizExpense, this.modulesExpense); },
+      vizPieIncome() { return this.pieOf(this.vizIncome, this.modulesIncome); },
+      vizLine() { return this.lineOf(); },
+      vizGantt() { return this.ganttOf(); },
+      lineMax() { let m = 0; (this.vizLine.series || []).forEach(s => (s.data || []).forEach(d => { if (d > m) m = d; })); return m; },
+    },
+    methods: {
+      prevYear() { this.allYears = false; this.year--; }, nextYear() { this.allYears = false; this.year++; },
+      amountOf(e) {
+        const mod = this.allModules.find(m => m._id === e.moduleId);
+        return this.$store.finAmountOf(mod || { fields: [] }, e);
+      },
+      amountKeyOf(mod) {
+        if (mod.amountKey) return mod.amountKey;
+        const nf = (mod.fields || []).find(f => f.type === 'number'); return nf ? nf.key : null;
+      },
+      entriesOf(mod) {
+        const arr = mod.type === 'expense' ? this.filteredExpenseEntries : this.filteredIncomeEntries;
+        return arr.filter(e => e.moduleId === mod._id);
+      },
+      moduleTotal(mod) { return this.entriesOf(mod).reduce((s, e) => s + this.amountOf(e), 0); },
+      fmtMoney(n) { const v = Math.round((parseFloat(n) || 0) * 100) / 100; return '¥' + v.toLocaleString('zh-CN'); },
+      fmtCalc(v, c) { if (v === null || v === undefined || v === '') return '—'; const n = Math.round((parseFloat(v) || 0) * 100) / 100; return n + (c.unit || ''); },
+      todayStr() { return (this.$store.util && this.$store.util.todayStr) ? this.$store.util.todayStr() : (function(){ const t=new Date(); const p=n=>String(n).padStart(2,'0'); return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate()); })(); },
+      diffDays(a, b) { if (!a || !b) return null; const pa = new Date(a), pb = new Date(b); if (isNaN(pa) || isNaN(pb)) return null; return Math.round((pb - pa) / 86400000); },
+      // 数码设备：始终按当前值实时摊销。在用（或空退役时间）→ 以「今日」为末时间；已退役/出售且有退役时间 → 以退役日为末时间
+      entryCalcs(e, mod) {
+        if (!mod || mod._id !== 'preset_device' || !e.values) return e.calcs || {};
+        const v = e.values;
+        const end = (v.retireDate && v.status !== '在用') ? v.retireDate : this.todayStr();
+        const days = this.diffDays(v.purchaseDate, end);
+        const useDays = (days == null) ? null : Math.max(0, days);
+        const price = parseFloat(v.price) || 0;
+        const daily = (useDays && useDays > 0) ? +(price / useDays).toFixed(2) : null;
+        return Object.assign({}, e.calcs || {}, { useDays: useDays, dailyAmort: daily });
+      },
+      fmtDate(s) { if (!s) return ''; return s; },
+      fieldVal(e, f) { const v = (e.values || {})[f.key]; if (v === null || v === undefined || v === '') return ''; return v; },
+      // 主标题已展示金额与主日期（年/月），副内容不再重复展示这两个字段
+      primaryDateKey(mod) { const f = (mod.fields || []).find(x => x.type === 'date'); return f ? f.key : null; },
+      fieldShown(e, f, mod) {
+        if (f.key === this.amountKeyOf(mod)) return false;
+        if (f.key === this.primaryDateKey(mod)) return false;
+        return !!this.fieldVal(e, f);
+      },
+      // —— 条目增改 ——
+      openAddEntry(mod) { this.entryModule = mod; this.entryMode = 'add'; this.editId = null; this.draft = { values: {}, tagText: '', linkWish: false, wishId: '', isBig: false }; this.showEntry = true; },
+      openEditEntry(e) {
+        const mod = this.allModules.find(m => m._id === e.moduleId); if (!mod) return;
+        this.confirmDelEntry = false;
+        this.entryModule = mod; this.entryMode = 'edit'; this.editId = e._id;
+        const v = Object.assign({}, e.values || {});
+        this.draft = { values: v, tagText: (e.tags || []).join('，'), linkWish: !!e.wishId, wishId: e.wishId || '', isBig: !!e.isBig, year: e.year, month: e.month };
+        this.showEntry = true;
+      },
+      closeEntry() { this.showEntry = false; this.entryModule = null; this.draft = null; },
+      saveEntry() {
+        const mod = this.entryModule; if (!mod) return;
+        const tags = (this.draft.tagText || '').split(/[，,]/).map(s => s.trim()).filter(Boolean);
+        const values = Object.assign({}, this.draft.values);
+        values.tags = tags;
+        if (mod.type === 'expense') { values.wishId = this.draft.linkWish ? this.draft.wishId : ''; values.isBig = this.draft.isBig; }
+        else { values.wishId = ''; values.isBig = false; }
+        if (this.entryMode === 'add') {
+          const e = this.$store.addFinanceEntry(mod.type, mod._id, values);
+          // 新增后让记录立即可见：把周期筛选切到记录所属年/月（避免被默认“本年”筛选隐藏，误以为没保存）
+          if (e) { this.year = e.year; this.month = e.month; this.allYears = false; }
+        } else this.$store.updateFinanceEntry(this.editId, mod.type, values);
+        this.closeEntry();
+      },
+      // —— 编辑记录弹窗内删除（复用 chart-confirm 二次确认弹窗）——
+      askDeleteEntry() { this.confirmDelEntry = true; },
+      cancelDeleteEntry() { this.confirmDelEntry = false; },
+      delEntry() {
+        if (!this.editId || !this.entryModule) return;
+        this.$store.removeFinanceEntry(this.editId, this.entryModule.type);
+        this.confirmDelEntry = false;
+        this.closeEntry();
+      },
+      // —— 模块增改 ——
+      openAddModule(type) {
+        this.moduleType = type;
+        this.moduleEdit = { name: '', icon: type === 'expense' ? '📦' : '💰', type: type, fields: [], calcs: [], saveTpl: false, tplName: '', fromTemplate: '' };
+        this.showModule = true;
+      },
+      openEditModule(mod) {
+        this.moduleType = mod.type;
+        this.moduleEdit = {
+          _id: mod._id, name: mod.name, icon: mod.icon, type: mod.type,
+          fields: (mod.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required })),
+          calcs: (mod.calcs || []).map(c => Object.assign({}, c)),
+          saveTpl: false, tplName: '', fromTemplate: '',
+        };
+        this.showModule = true;
+      },
+      closeModule() { this.showModule = false; this.moduleEdit = null; },
+      addModuleField() { this.moduleEdit.fields.push({ key: 'f' + Date.now().toString().slice(-5), label: '', type: 'text', unit: '', options: '', required: false }); },
+      removeModuleField(i) { this.moduleEdit.fields.splice(i, 1); },
+      addModuleCalc() { this.moduleEdit.calcs.push({ key: 'c' + Date.now().toString().slice(-5), label: '', kind: 'ratio', num: '', den: '', from: '', to: '', unit: '', round: 1, allowEmpty: false }); },
+      removeModuleCalc(i) { this.moduleEdit.calcs.splice(i, 1); },
+      loadTemplateIntoModule() {
+        const t = (this.fin.fieldTemplates || []).find(x => x._id === this.moduleEdit.fromTemplate); if (!t) return;
+        this.moduleEdit.fields = (t.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required }));
+        this.moduleEdit.calcs = (t.calcs || []).map(c => Object.assign({}, c));
+      },
+      saveModule() {
+        const me = this.moduleEdit; if (!me.name || !me.name.trim()) { alert('请填写模块名称'); return; }
+        const fields = me.fields.map(f => ({ key: f.key, label: f.label, type: f.type || 'text', unit: f.unit || '', options: (f.options || '').split(/[，,]/).map(s => s.trim()).filter(Boolean), required: !!f.required }));
+        const calcs = me.calcs.map(c => ({ key: c.key, label: c.label, kind: c.kind || 'ratio', from: c.from, to: c.to, num: c.num, den: c.den, unit: c.unit || '', round: c.round, allowEmpty: !!c.allowEmpty }));
+        if (me.saveTpl && me.tplName && me.tplName.trim()) this.$store.saveFieldTemplate(me.tplName.trim(), fields, calcs);
+        if (me._id) this.$store.updateFinanceModule(me._id, { name: me.name, icon: me.icon, fields: fields, calcs: calcs });
+        else this.$store.addFinanceModule(me.type, { name: me.name, icon: me.icon, fields: fields, calcs: calcs });
+        this.closeModule();
+      },
+      delModule(mod) { if (confirm('删除模块将同时删除其下所有记录，确定？')) this.$store.removeFinanceModule(mod._id); },
+      // —— 字段模板 ——
+      delTemplate(t) { if (confirm('删除模板？')) this.$store.removeFieldTemplate(t._id); },
+      applyTemplate(t) {
+        this.openAddModule('expense');
+        this.$nextTick(() => { this.moduleEdit.fromTemplate = t._id; this.loadTemplateIntoModule(); });
+      },
+      // —— 愿望池联动 ——
+      wishCost(id) { const w = this.wishItems.find(x => x._id === id); return w ? w.cost : 0; },
+      wishName(id) { const w = this.wishItems.find(x => x._id === id); return w ? w.name : ''; },
+      // —— 可视化 ——
+      openViz() { this.showViz = true; },
+      // —— 财务数据单独导出 / 导入（数据隔离）——
+      exportFinanceData() {
+        try {
+          const json = this.$store.exportFinance();
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const ts = new Date().toISOString().slice(0, 10);
+          a.href = url;
+          a.download = 'mindpocket-finance-' + ts + '.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          this.setFinMsg('✓ 财务数据已导出');
+        } catch (e) {
+          this.setFinMsg('导出失败：' + (e && e.message ? e.message : e));
+        }
+      },
+      importFinanceData(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            this.$store.importFinance(String(reader.result));
+            this.setFinMsg('✓ 财务数据已导入');
+          } catch (err) {
+            this.setFinMsg('导入失败：' + (err && err.message ? err.message : err));
+          }
+          try { e.target.value = ''; } catch (_) {}
+        };
+        reader.onerror = () => {
+          this.setFinMsg('导入失败：文件读取错误');
+          try { e.target.value = ''; } catch (_) {}
+        };
+        reader.readAsText(file);
+      },
+      setFinMsg(t) {
+        this.finMsg = t;
+        if (this.finMsgTimer) clearTimeout(this.finMsgTimer);
+        this.finMsgTimer = setTimeout(() => { this.finMsg = ''; }, 3000);
+      },
+      // —— 财务数据悬浮菜单 ——
+      toggleFinMenu() { this.showFinMenu = !this.showFinMenu; },
+      onExport() { this.showFinMenu = false; this.exportFinanceData(); },
+      onImport() { this.showFinMenu = false; this.$nextTick(() => { if (this.$refs.finFile) this.$refs.finFile.click(); }); },
+      pieOf(entries, modules) {
+        const scope = this.vizScope;
+        let list = modules;
+        if (this.vizCat) list = modules.filter(m => m._id === this.vizCat);
+        const rows = list.map(m => ({ label: m.name, value: entries.filter(e => e.moduleId === m._id).reduce((s, e) => s + this.$store.finAmountOf(m, e), 0), color: '' }));
+        const total = rows.reduce((s, r) => s + r.value, 0);
+        let ci = 0;
+        rows.forEach(r => { r.color = this.palette[ci % this.palette.length]; ci++; });
+        return { rows: rows.filter(r => r.value > 0), total };
+      },
+      lineOf() {
+        const cat = this.vizCat;
+        const multi = this.vizRange === 'years';
+        const xLabels = multi
+          ? Array.from(new Set((this.vizExpense.concat(this.vizIncome)).map(e => e.year))).sort((a, b) => a - b)
+          : (() => { const arr = []; for (let i = 1; i <= 12; i++) arr.push(i); return arr; })();
+        const series = [];
+        const pick = (entries, modules, name, color) => {
+          if (cat) {
+            const mod = modules.find(m => m._id === cat); if (!mod) return;
+            const data = xLabels.map(xl => entries.filter(e => e.moduleId === mod._id && (multi ? e.year === xl : e.month === xl)).reduce((s, e) => s + this.$store.finAmountOf(mod, e), 0));
+            series.push({ name: mod.name, color: color, data: data });
+          } else {
+            const data = xLabels.map(xl => modules.reduce((sm, m) => sm + entries.filter(e => e.moduleId === m._id && (multi ? e.year === xl : e.month === xl)).reduce((s, e) => s + this.$store.finAmountOf(m, e), 0), 0));
+            series.push({ name: name, color: color, data: data });
+          }
+        };
+        if (this.vizScope === 'expense' || this.vizScope === 'both') pick(this.vizExpense, this.modulesExpense, '总支出', '#ef4444');
+        if (this.vizScope === 'income' || this.vizScope === 'both') pick(this.vizIncome, this.modulesIncome, '总收入', '#10b981');
+        return { xLabels: xLabels, series: series, multi: multi };
+      },
+      ganttOf() {
+        const scope = this.vizScope;
+        let entries = [];
+        if (scope === 'expense' || scope === 'both') entries = entries.concat(this.vizExpense);
+        if (scope === 'income' || scope === 'both') entries = entries.concat(this.vizIncome);
+        if (this.vizCat) entries = entries.filter(e => e.moduleId === this.vizCat);
+        const rows = [];
+        entries.forEach(e => {
+          const mod = this.allModules.find(m => m._id === e.moduleId); if (!mod) return;
+          const dates = (mod.fields || []).filter(f => f.type === 'date');
+          if (!dates.length) return;
+          const s = (e.values || {})[dates[0].key]; if (!s) return;
+          let en = dates[1] ? (e.values || {})[dates[1].key] : null;
+          if (!en) en = this.$store.util.todayStr();
+          rows.push({ id: e._id, label: (mod.icon || '') + (e.values[dates[0].key.replace('Date', 'Name')] || e.values.note || mod.name), start: s, end: en, module: mod.name });
+        });
+        if (!rows.length) return { rows: [], min: null, max: null };
+        const ts = rows.map(r => this.$store.util.parseDate(r.start).getTime()).concat(rows.map(r => this.$store.util.parseDate(r.end).getTime()));
+        const min = Math.min.apply(null, ts), max = Math.max.apply(null, ts);
+        return { rows: rows, min: min, max: max };
+      },
+      ganttX(t) {
+        const g = this.vizGantt; if (!g.min) return 0;
+        const W = 300;
+        return ((this.$store.util.parseDate(t).getTime() - g.min) / Math.max(1, (g.max - g.min))) * W;
+      },
+      pieCum(rows, i) { if (i < 0) return 0; const total = rows.reduce((s, r) => s + r.value, 0) || 1; let s = 0; for (let k = 0; k <= i; k++) s += rows[k].value; return 360 * s / total; },
+      piePath(cx, cy, r, a0, a1) {
+        if (a1 - a0 >= 359.999) return 'M ' + (cx - r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx + r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx - r) + ' ' + cy + ' Z';
+        const p0 = [cx + r * Math.cos(a0 * Math.PI / 180), cy + r * Math.sin(a0 * Math.PI / 180)];
+        const p1 = [cx + r * Math.cos(a1 * Math.PI / 180), cy + r * Math.sin(a1 * Math.PI / 180)];
+        const large = (a1 - a0) > 180 ? 1 : 0;
+        return 'M ' + cx + ' ' + cy + ' L ' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + ' Z';
+      },
+    },
+    template: `
+    <div class="fin-page">
+      <div class="fin-head">
+        <div class="fin-titlerow">
+          <div class="fin-title">💰 财务复盘</div>
+          <div class="fin-actions">
+            <button class="fin-act" @click="openViz">📊 可视化</button>
+            <div class="fin-menu-wrap">
+              <button class="fin-act" @click="toggleFinMenu">🗂 数据</button>
+              <div v-if="showFinMenu" class="fin-pop-backdrop" @click="showFinMenu=false"></div>
+              <div v-if="showFinMenu" class="fin-pop">
+                <button class="fin-pop-item" @click="onExport">📤 导出财务数据</button>
+                <button class="fin-pop-item" @click="onImport">📥 导入财务数据</button>
+              </div>
+              <input ref="finFile" type="file" accept="application/json,.json" style="display:none" @change="importFinanceData" />
+            </div>
+          </div>
+        </div>
+        <div class="fin-filters">
+          <button class="fin-navbtn" @click="prevYear">‹</button>
+          <span class="fin-year" @click="allYears=false; month=0" :style="allYears?{color:'var(--sub)',cursor:'pointer'}:{cursor:'pointer'}">{{ allYears ? '全部' : year+'年' }}</span>
+          <button class="fin-navbtn" @click="nextYear">›</button>
+          <select class="fin-sel fin-period" v-model="periodKey">
+            <option value="all">全部（所有年份）</option>
+            <optgroup label="本年">
+              <option value="y0">本年 · 全部</option>
+              <option v-for="m in 12" :key="'y'+m" :value="'y'+m">本年 · {{ m }}月</option>
+            </optgroup>
+            <optgroup label="跨年（每年）">
+              <option v-for="m in 12" :key="'a'+m" :value="'a'+m">每年 · {{ m }}月</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="fin-tools">
+          <span v-if="finMsg" class="fin-msg">{{ finMsg }}</span>
+        </div>
+      </div>
+
+      <div class="fin-section">
+        <div class="fin-sec-head">📤 支出台账区</div>
+        <div v-for="mod in modulesExpense" :key="mod._id" class="block fin-mod">
+          <div class="fin-mod-head">
+            <span class="fin-mod-ico">{{ mod.icon }}</span>
+            <span class="fin-mod-name">{{ mod.name }}</span>
+            <span class="fin-mod-sum">{{ fmtMoney(moduleTotal(mod)) }}</span>
+            <div class="fin-mod-btns">
+              <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
+              <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
+              <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
+            </div>
+          </div>
+          <div v-if="entriesOf(mod).length === 0" class="empty-tip">本周期暂无记录</div>
+          <div v-for="e in entriesOf(mod)" :key="e._id" class="fin-entry" @click="openEditEntry(e)">
+            <div class="fin-entry-top">
+              <span class="fin-entry-amt">{{ fmtMoney(amountOf(e)) }}</span>
+              <span class="fin-entry-date">{{ e.year }}年{{ e.month }}月</span>
+              <span v-if="e.isBig" class="tag danger">大额</span>
+              <span v-if="e.wishId" class="tag cat">🔗{{ wishName(e.wishId) }}</span>
+            </div>
+            <div class="fin-entry-fields">
+              <template v-for="f in mod.fields" :key="f.key"><span v-if="fieldShown(e,f,mod)" class="fin-ef"><i>{{ f.label }}</i>{{ fieldVal(e,f) }}{{ f.unit||'' }}</span></template>
+            </div>
+            <div class="fin-entry-calcs" v-if="e.calcs && Object.keys(e.calcs).length">
+              <template v-for="c in mod.calcs" :key="c.key"><span v-if="entryCalcs(e, mod)[c.key] !== null && entryCalcs(e, mod)[c.key] !== undefined && entryCalcs(e, mod)[c.key] !== ''" class="fin-ec">{{ c.label }}：{{ fmtCalc(entryCalcs(e, mod)[c.key], c) }}</span></template>
+            </div>
+            <div class="fin-entry-tags" v-if="e.tags && e.tags.length">
+              <span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn block-btn" @click="openAddModule('expense')">＋ 新增支出模块</button>
+      </div>
+
+      <div class="fin-section">
+        <div class="fin-sec-head">📥 收入台账区</div>
+        <div v-for="mod in modulesIncome" :key="mod._id" class="block fin-mod">
+          <div class="fin-mod-head">
+            <span class="fin-mod-ico">{{ mod.icon }}</span>
+            <span class="fin-mod-name">{{ mod.name }}</span>
+            <span class="fin-mod-sum">{{ fmtMoney(moduleTotal(mod)) }}</span>
+            <div class="fin-mod-btns">
+              <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
+              <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
+              <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
+            </div>
+          </div>
+          <div v-if="entriesOf(mod).length === 0" class="empty-tip">本周期暂无记录</div>
+          <div v-for="e in entriesOf(mod)" :key="e._id" class="fin-entry" @click="openEditEntry(e)">
+            <div class="fin-entry-top">
+              <span class="fin-entry-amt pos">{{ fmtMoney(amountOf(e)) }}</span>
+              <span class="fin-entry-date">{{ e.year }}年{{ e.month }}月</span>
+            </div>
+            <div class="fin-entry-fields">
+              <template v-for="f in mod.fields" :key="f.key"><span v-if="fieldShown(e,f,mod)" class="fin-ef"><i>{{ f.label }}</i>{{ fieldVal(e,f) }}{{ f.unit||'' }}</span></template>
+            </div>
+            <div class="fin-entry-calcs" v-if="e.calcs && Object.keys(e.calcs).length">
+              <template v-for="c in mod.calcs" :key="c.key"><span v-if="entryCalcs(e, mod)[c.key] !== null && entryCalcs(e, mod)[c.key] !== undefined && entryCalcs(e, mod)[c.key] !== ''" class="fin-ec">{{ c.label }}：{{ fmtCalc(entryCalcs(e, mod)[c.key], c) }}</span></template>
+            </div>
+            <div class="fin-entry-tags" v-if="e.tags && e.tags.length">
+              <span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn block-btn" @click="openAddModule('income')">＋ 新增收入模块</button>
+      </div>
+
+      <div class="fin-section">
+        <div class="fin-sec-head">🧩 字段模板（自定义表单结构一键复用）</div>
+        <div v-if="(fin.fieldTemplates||[]).length === 0" class="empty-tip">暂无保存的字段模板，编辑模块时可「存为模板」</div>
+        <div v-for="t in fin.fieldTemplates" :key="t._id" class="fin-tpl">
+          <span class="fin-tpl-name">{{ t.name }}（{{ t.fields.length }}字段）</span>
+          <button class="btn mini" @click="applyTemplate(t)">应用</button>
+          <button class="btn mini danger" @click="delTemplate(t)">删除</button>
+        </div>
+      </div>
+
+      <!-- 条目编辑弹窗 -->
+      <div class="modal-mask" v-if="showEntry" @click.self="closeEntry">
+        <div class="modal fin-modal">
+          <div class="modal-head"><span>{{ entryMode==='add'?'新增记录':'编辑记录' }} · {{ entryModule.name }}</span><button class="modal-x" @click="closeEntry">✕</button></div>
+          <div class="modal-body">
+            <div v-for="f in entryModule.fields" :key="f.key" class="fld">
+              <label>{{ f.label }}{{ f.unit?('('+f.unit+')'):'' }}{{ f.required?' *':'' }}</label>
+              <input v-if="f.type==='text'" v-model="draft.values[f.key]" placeholder="请输入" />
+              <input v-else-if="f.type==='number'" type="number" v-model.number="draft.values[f.key]" placeholder="0" />
+              <input v-else-if="f.type==='date'" type="date" v-model="draft.values[f.key]" />
+              <textarea v-else-if="f.type==='textarea'" v-model="draft.values[f.key]" rows="2"></textarea>
+              <select v-else-if="f.type==='select'" v-model="draft.values[f.key]">
+                <option value="">未选择</option>
+                <option v-for="o in f.options" :key="o" :value="o">{{ o }}</option>
+              </select>
+            </div>
+            <div class="fin-calcs" v-if="entryModule.calcs && entryModule.calcs.length">
+              <div v-for="c in entryModule.calcs" :key="c.key" class="fin-calc-row">
+                <span>{{ c.label }}</span><b>{{ fmtCalc(liveCalcs[c.key], c) }}</b>
+              </div>
+            </div>
+            <div class="fld"><label>标签（逗号分隔，用于跨周期复盘）</label><input v-model="draft.tagText" placeholder="如 家庭,年度" /></div>
+            <div class="fld" v-if="entryModule.type==='expense'">
+              <label class="fin-chk"><input type="checkbox" v-model="draft.isBig" /> 标记为大额支出</label>
+              <label class="fin-chk"><input type="checkbox" v-model="draft.linkWish" /> 对接愿望池做成本权衡</label>
+              <select v-if="draft.linkWish" v-model="draft.wishId" class="fin-wish-sel">
+                <option value="">选择愿望</option>
+                <option v-for="w in wishItems" :key="w._id" :value="w._id">{{ w.name }}（成本{{ w.cost }}分）</option>
+              </select>
+              <div v-if="draft.linkWish && draft.wishId && draft.values[amountKeyOf(entryModule)]" class="fin-wish-cmp">
+                本笔支出 {{ fmtMoney(draft.values[amountKeyOf(entryModule)]) }} ｜ 愿望「{{ wishName(draft.wishId) }}」成本 {{ wishCost(draft.wishId) }} 分
+              </div>
+            </div>
+            <div class="fin-entry-meta" v-if="entryMode==='edit'">归属周期：{{ draft.year }}年{{ draft.month }}月（按主日期字段自动归类）</div>
+            <div class="modal-actions">
+              <button v-if="entryMode==='edit'" class="btn danger" @click="askDeleteEntry">删除</button>
+              <button class="btn" @click="closeEntry">取消</button>
+              <button class="btn primary" @click="saveEntry">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 删除记录二次确认（复用 chart-confirm 弹窗样式） -->
+      <div class="chart-confirm" v-if="confirmDelEntry" @click.self="cancelDeleteEntry">
+        <div class="idea-choice-box" @click.stop>
+          <div class="idea-choice-title">确定要删除这条记录？</div>
+          <p style="font-size:13px;color:var(--sub);margin:0 0 12px">删除后将无法恢复</p>
+          <div class="modal-actions">
+            <button class="btn ghost" @click="cancelDeleteEntry">取消</button>
+            <button class="btn danger" @click="delEntry">确定删除</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 模块编辑弹窗 -->
+      <div class="modal-mask" v-if="showModule" @click.self="closeModule">
+        <div class="modal fin-modal">
+          <div class="modal-head"><span>{{ moduleEdit._id?'编辑模块':'新增' + (moduleType==='expense'?'支出':'收入') + '模块' }}</span><button class="modal-x" @click="closeModule">✕</button></div>
+          <div class="modal-body">
+            <div class="fld"><label>模块名称</label><input v-model="moduleEdit.name" placeholder="如 餐饮支出" /></div>
+            <div class="fld"><label>图标 Emoji</label><input v-model="moduleEdit.icon" placeholder="📦" /></div>
+            <div class="fld" v-if="(fin.fieldTemplates||[]).length">
+              <label>从字段模板载入</label>
+              <select v-model="moduleEdit.fromTemplate" @change="loadTemplateIntoModule">
+                <option value="">不使用模板</option>
+                <option v-for="t in fin.fieldTemplates" :key="t._id" :value="t._id">{{ t.name }}</option>
+              </select>
+            </div>
+            <div class="fin-subhead">录入字段</div>
+            <div v-for="(f,i) in moduleEdit.fields" :key="i" class="fin-field-row">
+              <input class="ff-key" v-model="f.key" placeholder="字段key" />
+              <input class="ff-label" v-model="f.label" placeholder="显示名" />
+              <select v-model="f.type"><option text="text">文本</option><option value="number">数字</option><option value="date">日期</option><option value="textarea">多行</option><option value="select">下拉</option></select>
+              <input class="ff-unit" v-model="f.unit" placeholder="单位" />
+              <input v-if="f.type==='select'" class="ff-opt" v-model="f.options" placeholder="选项逗号分隔" />
+              <button class="btn mini danger" @click="removeModuleField(i)">✕</button>
+            </div>
+            <button class="btn mini" @click="addModuleField">＋ 字段</button>
+            <div class="fin-subhead">自动计算项</div>
+            <div v-for="(c,i) in moduleEdit.calcs" :key="i" class="fin-calc-rowedit">
+              <input class="fc-label" v-model="c.label" placeholder="计算名" />
+              <select v-model="c.kind">
+                <option value="ratio">除法 A÷B</option>
+                <option value="datediff">日期差 B−A</option>
+                <option value="subtract">减法 A−B</option>
+                <option value="sum">求和 A+B</option>
+              </select>
+              <template v-if="c.kind==='ratio'">
+                <select v-model="c.num"><option value="">分子</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+                <select v-model="c.den"><option value="">分母</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+              </template>
+              <template v-else-if="c.kind==='datediff'">
+                <select v-model="c.from"><option value="">起</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+                <select v-model="c.to"><option value="">止</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+              </template>
+              <template v-else-if="c.kind==='subtract'">
+                <select v-model="c.num"><option value="">A</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+                <select v-model="c.sub"><option value="">B</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+              </template>
+              <template v-else>
+                <select v-model="c.num1"><option value="">A</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+                <select v-model="c.num2"><option value="">B</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+              </template>
+              <input class="fc-unit" v-model="c.unit" placeholder="单位" />
+              <button class="btn mini danger" @click="removeModuleCalc(i)">✕</button>
+            </div>
+            <button class="btn mini" @click="addModuleCalc">＋ 计算项</button>
+            <div class="fin-savetpl">
+              <label class="fin-chk"><input type="checkbox" v-model="moduleEdit.saveTpl" /> 存为字段模板</label>
+              <input v-if="moduleEdit.saveTpl" v-model="moduleEdit.tplName" placeholder="模板名称" />
+            </div>
+            <div class="modal-actions">
+              <button class="btn" @click="closeModule">取消</button>
+              <button class="btn primary" @click="saveModule">保存模块</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 可视化弹窗 -->
+      <div class="modal-mask" v-if="showViz" @click.self="showViz=false">
+        <div class="modal fin-viz-modal">
+          <div class="modal-head"><span>📊 可视化分析</span><button class="modal-x" @click="showViz=false">✕</button></div>
+          <div class="modal-body">
+            <div class="fin-viz-tabs">
+              <button :class="{on:vizType==='pie'}" @click="vizType='pie'">饼图</button>
+              <button :class="{on:vizType==='line'}" @click="vizType='line'">折线图</button>
+              <button :class="{on:vizType==='gantt'}" @click="vizType='gantt'">甘特图</button>
+            </div>
+            <div class="fin-viz-filters">
+              <label>时间</label>
+              <select v-model="vizRange"><option value="month">单月</option><option value="quarter">单季度</option><option value="year">单年</option><option value="years">多年</option></select>
+              <label>范围</label>
+              <select v-model="vizScope"><option value="expense">仅支出</option><option value="income">仅收入</option><option value="both">收支合并</option></select>
+              <label>分类</label>
+              <select v-model="vizCat"><option value="">全部</option><option v-for="m in allModules" :key="m._id" :value="m._id">{{ m.name }}</option></select>
+            </div>
+
+            <div v-if="vizType==='pie'" class="fin-chart">
+              <div v-if="vizScope!=='income' && vizPieExpense.rows.length" class="fin-pie-block">
+                <div class="fin-chart-title">支出结构占比（合计 {{ fmtMoney(vizPieExpense.total) }}）</div>
+                <svg viewBox="0 0 320 180" class="fin-svg">
+                  <g v-for="(r,i) in vizPieExpense.rows" :key="'e'+i" :transform="'translate(160,90)'">
+                    <path :d="piePath(0,0,78, pieCum(vizPieExpense.rows,i-1), pieCum(vizPieExpense.rows,i-1) + 360* r.value/vizPieExpense.total)" :fill="r.color" />
+                  </g>
+                </svg>
+                <div class="fin-legend"><span v-for="r in vizPieExpense.rows" :key="r.label" class="fin-lg"><i :style="{background:r.color}"></i>{{ r.label }} {{ Math.round(r.value/vizPieExpense.total*100) }}%</span></div>
+              </div>
+              <div v-if="vizScope!=='expense' && vizPieIncome.rows.length" class="fin-pie-block">
+                <div class="fin-chart-title">收入结构占比（合计 {{ fmtMoney(vizPieIncome.total) }}）</div>
+                <svg viewBox="0 0 320 180" class="fin-svg">
+                  <g v-for="(r,i) in vizPieIncome.rows" :key="'i'+i" :transform="'translate(160,90)'">
+                    <path :d="piePath(0,0,78, pieCum(vizPieIncome.rows,i-1), pieCum(vizPieIncome.rows,i-1) + 360* r.value/vizPieIncome.total)" :fill="r.color" />
+                  </g>
+                </svg>
+                <div class="fin-legend"><span v-for="r in vizPieIncome.rows" :key="r.label" class="fin-lg"><i :style="{background:r.color}"></i>{{ r.label }} {{ Math.round(r.value/vizPieIncome.total*100) }}%</span></div>
+              </div>
+              <div v-if="(vizScope!=='income' && !vizPieExpense.rows.length) && (vizScope!=='expense' && !vizPieIncome.rows.length)" class="empty-tip">当前筛选无数据</div>
+            </div>
+
+            <div v-else-if="vizType==='line'" class="fin-chart">
+              <div class="fin-chart-title">{{ vizLine.multi ? '逐年趋势' : (year+'年月度趋势') }}</div>
+              <svg viewBox="0 0 320 200" class="fin-svg">
+                <line x1="40" y1="170" x2="310" y2="170" stroke="#ddd" />
+                <line x1="40" y1="20" x2="40" y2="170" stroke="#ddd" />
+                <g v-for="(s,si) in vizLine.series" :key="si">
+                  <polyline :points="s.data.map((d,i)=>(40 + i*((270)/Math.max(1,vizLine.xLabels.length-1)))+','+(170 - (d/Math.max(1,lineMax))*140)).join(' ')" :fill="'none'" :stroke="s.color" stroke-width="2" />
+                  <circle v-for="(d,i) in s.data" :key="i" :cx="40 + i*((270)/Math.max(1,vizLine.xLabels.length-1))" :cy="170 - (d/Math.max(1,lineMax))*140" r="2.5" :fill="s.color" />
+                </g>
+                <text v-for="(x,i) in vizLine.xLabels" :key="i" :x="40 + i*((270)/Math.max(1,vizLine.xLabels.length-1))" y="188" font-size="9" text-anchor="middle">{{ vizLine.multi ? x : x+'月' }}</text>
+              </svg>
+              <div class="fin-legend"><span v-for="s in vizLine.series" :key="s.name" class="fin-lg"><i :style="{background:s.color}"></i>{{ s.name }}</span></div>
+            </div>
+
+            <div v-else class="fin-chart">
+              <div class="fin-chart-title">时间周期甘特图</div>
+              <svg viewBox="0 0 320 200" class="fin-svg" v-if="vizGantt.rows.length">
+                <g v-for="(r,i) in vizGantt.rows" :key="r.id" :transform="'translate(0,'+(20 + i*22)+')'">
+                  <rect :x="20 + ganttX(r.start)" :y="2" :width="Math.max(4, ganttX(r.end)-ganttX(r.start))" height="14" rx="3" :fill="(i%2? '#6a7bff':'#10b981')" />
+                  <text x="2" y="13" font-size="9">{{ r.label.slice(0,8) }}</text>
+                  <text :x="20 + ganttX(r.start)" y="13" font-size="8" fill="#fff">{{ r.start.slice(5) }}</text>
+                </g>
+              </svg>
+              <div v-else class="empty-tip">当前筛选无含时间区间的记录</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`,
+  };
+
   const App = {
     data() {
       return { route: '/today', prevRoute: '/inbox', overlayStack: [] };
@@ -13978,6 +15000,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (r === '/projects') return 'ProjectsPage';
         if (r.startsWith('/project/')) return 'ProjectDetailPage';
         if (r.startsWith('/subtask/')) return 'InboxSubPage';
+        if (r === '/finance') return 'FinancePage';
         return 'TodayPage';
       },
       routePid() {
@@ -14004,6 +15027,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           { path: '/inbox', label: '待归档', icon: '💡' },
           { path: '/projects', label: '项目', icon: '📁' },
           { path: '/stats', label: '统计', icon: '📊' },
+          { path: '/finance', label: '财务', icon: '💰' },
         ];
       },
     },
@@ -14223,7 +15247,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   app.component('InboxSubPage', C.InboxSubPage);
   app.component('QuickEntry', C.QuickEntry);
   app.component('WishPool', C.WishPool);
+  app.component('FinancePage', C.FinancePage);
   app.mount('#app');
+
+  // 动态视口高度兜底：把当前可视高度写入 --vh（= innerHeight/100），
+  // 供不支持 100dvh 的浏览器通过 calc(var(--vh)*100) 还原，避免底部/侧边导航栏随地址栏伸缩而跳动。
+  // 监听 resize / orientationchange / visualViewport 缩放，实时刷新。
+  (function syncVH() {
+    const set = () => { try { document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01) + 'px'); } catch (e) {} };
+    set();
+    window.addEventListener('resize', set);
+    window.addEventListener('orientationchange', () => setTimeout(set, 200));
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', set);
+      window.visualViewport.addEventListener('scroll', set);
+    }
+  })();
 
   /* 全局拦截「长按呼出菜单 / 右键菜单」：保证手机端长按手势（编辑、详情、归档操作）
    * 与桌面端都不会被原生上下文菜单劫持，提升长按交互的准确与灵敏。
