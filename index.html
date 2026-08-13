@@ -1419,7 +1419,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
 /* ================== 财务复盘 Tab ================== */
 .fin-page { padding: 0; }
-.fin-head { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.fin-head { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
 .fin-titlerow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .fin-title { font-size: 20px; font-weight: 800; color: var(--text); }
 .fin-actions { display: flex; align-items: center; gap: 6px; }
@@ -1441,7 +1441,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-act:hover { border-color: var(--primary); color: var(--primary); }
 .fin-act:active { filter: brightness(0.95); }
 .fin-filters { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.fin-tools { min-height: 18px; }
+.fin-tools { min-height: 0; }
+.fin-msg { margin-bottom: 6px; }
 .fin-msg { font-size: 12px; color: #10b981; font-weight: 600; }
 .fin-menu-wrap { position: relative; }
 .fin-pop-backdrop { position: fixed; inset: 0; z-index: 50; }
@@ -1489,6 +1490,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-sel.on { background: #6a7bff; color: #fff; border-color: #6a7bff; font-weight: 700; }
 .fin-sel:not(select) { cursor: pointer; font-family: inherit; }
 .fin-viz-btn { margin-left: auto; }
+/* —— 记录搜索栏 —— */
+.fin-search { display: flex; align-items: center; gap: 6px; margin-top: 4px; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 4px 10px; }
+.fin-search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(106,123,255,.12); }
+.fin-search-ico { flex: none; font-size: 14px; opacity: 0.6; }
+.fin-search input { flex: 1; border: none; outline: none; background: transparent; font-size: 14px; font-family: inherit; color: var(--text); padding: 6px 0; }
+.fin-search-clear { flex: none; border: none; background: #f0f1f6; color: var(--sub); width: 26px; height: 26px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+.fin-search-clear:hover { background: #e7eaf3; }
+/* —— 搜索结果：总计看板 + 条目 —— */
+.fin-search-result { margin-top: 10px; }
+.fin-search-dash { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: linear-gradient(135deg, #6a7bff, #8b5cf6); border-radius: 14px; padding: 12px; color: #fff; box-shadow: 0 8px 22px rgba(106,123,255,.22); }
+.fin-dash-cell { display: flex; flex-direction: column; gap: 3px; }
+.fin-dash-label { font-size: 11px; opacity: 0.82; }
+.fin-dash-val { font-size: 16px; font-weight: 800; }
+.fin-dash-val.pos { color: #c8ffd6; }
+.fin-dash-val.neg { color: #ffe0e0; }
+.fin-search-list { margin-top: 10px; }
+.fin-search-item { border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; margin-bottom: 8px; background: #fff; cursor: pointer; transition: box-shadow .15s ease, transform .1s ease; }
+.fin-search-item:hover { box-shadow: 0 4px 14px rgba(40,50,90,.12); }
+.fin-search-item:active { transform: translateY(1px); }
+.fin-si-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px; }
+.fin-si-mod { font-size: 12px; font-weight: 700; color: var(--text); background: #f0f1f6; border-radius: 8px; padding: 2px 8px; }
+.fin-si-title { font-size: 13px; color: var(--text); margin-top: 2px; }
 .fin-section { margin-top: 8px; }
 .fin-sec-head { font-size: 15px; font-weight: 700; color: var(--text); margin: 0 2px 8px; }
 .fin-mod { padding: 10px; }
@@ -1521,6 +1544,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .block-btn { width: 100%; border: 1px dashed var(--line); background: #f7f8fc; color: var(--text); border-radius: 10px; padding: 12px; font-weight: 700; margin-top: 8px; }
 .fin-subhead { font-size: 13px; font-weight: 700; color: var(--sub); margin: 10px 0 6px; }
 .fin-field-row, .fin-calc-rowedit { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.fin-field-drag { flex: none; color: var(--sub); cursor: grab; user-select: none; font-size: 16px; line-height: 1; padding: 0 2px; opacity: 0.5; touch-action: none; align-self: center; }
+.fin-field-drag:active { opacity: 1; cursor: grabbing; }
+.fin-field-row.is-field-drag { box-shadow: 0 4px 14px rgba(40,50,90,.18); background: #f7f8ff; border-radius: 8px; }
 .fin-field-row input, .fin-calc-rowedit input, .fin-calc-rowedit select { border: 1px solid var(--line); border-radius: 6px; padding: 5px 6px; font-size: 12px; min-width: 0; }
 .ff-key { width: 70px; } .ff-label { width: 80px; } .ff-unit { width: 46px; } .ff-opt { width: 90px; } .fc-label { width: 80px; } .fc-unit { width: 42px; }
 .fin-savetpl { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
@@ -1859,6 +1885,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.wish_records = o.wish_records || [];
       state.finance = o.finance || { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] };
       ensureFinancePresets();
+      // 迁移：补全 hasDate 标记（旧数据未存该字段；按已保存的 year/month 推断）
+      (state.finance.expenseEntries || []).forEach(normFinHasDate);
+      (state.finance.incomeEntries || []).forEach(normFinHasDate);
       state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
       if (!Array.isArray(state.career.categories)) state.career.categories = [];
       if (!Array.isArray(state.career.entries)) state.career.entries = [];
@@ -5429,11 +5458,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function finEntryYM(module, values) {
     let ds = null;
     (module.fields || []).forEach(f => { if (f.type === 'date' && !ds && values[f.key]) ds = values[f.key]; });
-    if (!ds) ds = todayStr();
+    // 未填写任何日期字段 → 标记为「无日期」记录：year/month 置空，卡片/弹窗不再显示日期
+    if (!ds) return { year: null, month: null };
     const d = parseDate(ds);
-    if (isNaN(d)) return { year: new Date().getFullYear(), month: new Date().getMonth() + 1 };
+    if (isNaN(d)) return { year: null, month: null };
     return { year: d.getFullYear(), month: d.getMonth() + 1 };
   }
+  // 迁移用：按已存 year/month 推断 hasDate（旧数据可能没有该字段）
+  function normFinHasDate(e) { if (e && typeof e.hasDate === 'undefined') e.hasDate = !!(e.year && e.month); }
   function finAmountOf(module, entry) {
     let key = module.amountKey;
     if (!key) { const nf = (module.fields || []).find(f => f.type === 'number'); key = nf ? nf.key : null; }
@@ -5510,7 +5542,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const ym = finEntryYM(mod, v);
     return {
       _id: uid('finent'), moduleId: moduleId, type: type,
-      values: v, calcs: calcs, year: ym.year, month: ym.month,
+      values: v, calcs: calcs, year: ym.year, month: ym.month, hasDate: !!(ym.year && ym.month),
       tags: Array.isArray(v.tags) ? v.tags.slice() : [],
       wishId: v.wishId || null, isBig: !!v.isBig, created_at: Date.now(),
     };
@@ -5525,7 +5557,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const e = arr.find(x => x._id === id); if (!e) return;
     const mod = (type === 'expense' ? f.expenseModules : f.incomeModules).find(m => m._id === e.moduleId); if (!mod) return;
     e.values = Object.assign({}, values); e.calcs = finComputeCalcs(mod, e.values);
-    const ym = finEntryYM(mod, e.values); e.year = ym.year; e.month = ym.month;
+    const ym = finEntryYM(mod, e.values); e.year = ym.year; e.month = ym.month; e.hasDate = !!(ym.year && ym.month);
     e.tags = Array.isArray(values.tags) ? values.tags.slice() : []; e.wishId = values.wishId || null; e.isBig = !!values.isBig;
     persist();
   }
@@ -14618,8 +14650,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         confirmDelEntry: false,
         showFinMenu: false,
         finMsg: '', finMsgTimer: null,
+        searchText: '',
         palette: ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'],
         dragId: null, dragging: false,
+        dragFieldKid: null, draggingField: false, fieldSeq: 0,
       };
     },
     computed: {
@@ -14629,24 +14663,43 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       modulesIncome() { return (this.fin.incomeModules || []); },
       allModules() { return this.modulesExpense.concat(this.modulesIncome); },
       filteredExpenseEntries() {
-        return (this.fin.expenseEntries || []).filter(e => (this.allYears || e.year === this.year) && (this.month === 0 || e.month === this.month));
+        return (this.fin.expenseEntries || []).filter(e => {
+          if (!e.hasDate) return true; // 无日期记录始终展示，不受年份筛选影响
+          return (this.allYears || e.year === this.year) && (this.month === 0 || e.month === this.month);
+        });
       },
       filteredIncomeEntries() {
-        return (this.fin.incomeEntries || []).filter(e => (this.allYears || e.year === this.year) && (this.month === 0 || e.month === this.month));
+        return (this.fin.incomeEntries || []).filter(e => {
+          if (!e.hasDate) return true;
+          return (this.allYears || e.year === this.year) && (this.month === 0 || e.month === this.month);
+        });
       },
-      // —— 全年 / 月份合并为一个下拉：periodKey 联动 allYears 与 month ——
+      // —— 记录搜索：在「当前周期筛选」基础上，按关键字模糊匹配备注/标签/大额标记/模块名/字段值 ——
+      searchActive() { return (this.searchText || '').trim().length > 0; },
+      searchKw() { return (this.searchText || '').trim().toLowerCase(); },
+      searchExpense() {
+        if (!this.searchActive) return [];
+        const kw = this.searchKw;
+        return this.filteredExpenseEntries.filter(e => this.entryMatch(e, this.moduleById(e.moduleId), kw));
+      },
+      searchIncome() {
+        if (!this.searchActive) return [];
+        const kw = this.searchKw;
+        return this.filteredIncomeEntries.filter(e => this.entryMatch(e, this.moduleById(e.moduleId), kw));
+      },
+      searchExpenseTotal() { return this.searchExpense.reduce((s, e) => s + this.amountOf(e), 0); },
+      searchIncomeTotal() { return this.searchIncome.reduce((s, e) => s + this.amountOf(e), 0); },
+      searchNet() { return this.searchIncomeTotal - this.searchExpenseTotal; },
+      searchCount() { return this.searchExpense.length + this.searchIncome.length; },
+      // —— 筛选仅保留「全部年份 / 该年」：periodKey 联动 allYears（月份维度已移除）——
       periodKey: {
         get() {
-          if (this.allYears && this.month === 0) return 'all';
-          if (!this.allYears && this.month === 0) return 'y0';
-          if (!this.allYears) return 'y' + this.month;
-          return 'a' + this.month;
+          if (this.allYears) return 'all';
+          return 'y0';
         },
         set(v) {
           if (v === 'all') { this.allYears = true; this.month = 0; }
-          else if (v === 'y0') { this.allYears = false; this.month = 0; }
-          else if (v[0] === 'y') { this.allYears = false; this.month = parseInt(v.slice(1), 10); }
-          else if (v[0] === 'a') { this.allYears = true; this.month = parseInt(v.slice(1), 10); }
+          else { this.allYears = false; this.month = 0; }
         }
       },
       liveCalcs() {
@@ -14660,7 +14713,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (m === 0) return () => true;
           return e => e.month === m;
         }
-        if (this.vizRange === 'month') return e => e.year === y && e.month === m;
+        if (this.vizRange === 'month') return e => e.year === y; // 月份筛选已移除，单月维度退化为「所选年份」
         if (this.vizRange === 'year') {
           if (m === 0) return e => e.year === y;
           return e => e.year === y && e.month === m;
@@ -14693,11 +14746,50 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const nf = (mod.fields || []).find(f => f.type === 'number'); return nf ? nf.key : null;
       },
       entriesOf(mod) {
-        const arr = mod.type === 'expense' ? this.filteredExpenseEntries : this.filteredIncomeEntries;
-        return arr.filter(e => e.moduleId === mod._id);
+        const arr = (mod.type === 'expense' ? this.filteredExpenseEntries : this.filteredIncomeEntries).filter(e => e.moduleId === mod._id);
+        // 若模块含日期字段，则带日期的记录自动按该日期升序排列（无日期的排在末尾）
+        const dk = this.primaryDateKey(mod);
+        if (dk) {
+          arr.sort((a, b) => {
+            const da = (a.values && a.values[dk]) || '';
+            const db = (b.values && b.values[dk]) || '';
+            if (da && db) return da < db ? -1 : (da > db ? 1 : 0);
+            if (da) return -1;
+            if (db) return 1;
+            return 0;
+          });
+        }
+        return arr;
+      },
+      moduleById(id) { return this.allModules.find(m => m._id === id); },
+      // 拼接条目可搜索文本：备注/字段值 + 标签 + 大额标记 + 模块名 + 关联心愿，统一小写便于模糊匹配
+      entrySearchText(e, mod) {
+        const parts = [];
+        if (e.isBig) parts.push('大额 大額 big large');
+        (e.tags || []).forEach(t => { if (t) parts.push(String(t)); });
+        if (mod) parts.push(mod.name);
+        if (e.wishId) { const w = this.wishName(e.wishId); if (w) parts.push(w); }
+        const vals = e.values || {};
+        for (const k in vals) { if (vals[k] != null && vals[k] !== '') parts.push(String(vals[k])); }
+        return parts.join(' ').toLowerCase();
+      },
+      entryMatch(e, mod, kw) {
+        if (!e) return false;
+        return this.entrySearchText(e, mod).indexOf(kw) >= 0;
+      },
+      // 搜索结果条目的主标题：优先 名称/标题/备注 类字段，否则首个非空字段，否则模块名
+      entrySearchTitle(e) {
+        const mod = this.moduleById(e.moduleId);
+        if (!mod) return '';
+        const vals = e.values || {};
+        const pref = (mod.fields || []).find(f => /name|title|note|内容|备注|项目|说明|摘要|商品|商家|地点|用途/.test(f.key + f.label));
+        if (pref && vals[pref.key] != null && vals[pref.key] !== '') return String(vals[pref.key]);
+        for (const f of (mod.fields || [])) { if (vals[f.key] != null && vals[f.key] !== '') return f.label + '：' + vals[f.key]; }
+        return mod.name;
       },
       moduleTotal(mod) { return this.entriesOf(mod).reduce((s, e) => s + this.amountOf(e), 0); },
       fmtMoney(n) { const v = Math.round((parseFloat(n) || 0) * 100) / 100; return '¥' + v.toLocaleString('zh-CN'); },
+      fmtShort(n) { const v = Math.round(parseFloat(n) || 0); if (v >= 10000) { const w = v / 10000; return (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + '万'; } return String(v); },
       fmtCalc(v, c) { if (v === null || v === undefined || v === '') return '—'; const n = Math.round((parseFloat(v) || 0) * 100) / 100; return n + (c.unit || ''); },
       todayStr() { return (this.$store.util && this.$store.util.todayStr) ? this.$store.util.todayStr() : (function(){ const t=new Date(); const p=n=>String(n).padStart(2,'0'); return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate()); })(); },
       diffDays(a, b) { if (!a || !b) return null; const pd = this.$store && this.$store.util && this.$store.util.parseDate; const pa = pd ? pd(a) : new Date(a), pb = pd ? pd(b) : new Date(b); if (isNaN(pa) || isNaN(pb)) return null; return Math.round((pb.getTime() - pa.getTime()) / 86400000) + 1; }, // 含首尾当日
@@ -14722,12 +14814,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return !!this.fieldVal(e, f);
       },
       // —— 条目增改 ——
-      openAddEntry(mod) { this.entryModule = mod; this.entryMode = 'add'; this.editId = null; this.draft = { values: {}, tagText: '', linkWish: false, wishId: '', isBig: false }; this.showEntry = true; },
+      openAddEntry(mod) {
+        const values = {};
+        (mod.fields || []).forEach(f => { if (values[f.key] == null) values[f.key] = ''; });
+        this.entryModule = mod; this.entryMode = 'add'; this.editId = null;
+        this.draft = { values: values, tagText: '', linkWish: false, wishId: '', isBig: false };
+        this.showEntry = true;
+      },
       openEditEntry(e) {
         const mod = this.allModules.find(m => m._id === e.moduleId); if (!mod) return;
         this.confirmDelEntry = false;
         this.entryModule = mod; this.entryMode = 'edit'; this.editId = e._id;
         const v = Object.assign({}, e.values || {});
+        // 预填充模块全部字段 key，避免新增字段因 Vue2 新键非响应式而“丢失/隐藏”
+        (mod.fields || []).forEach(f => { if (v[f.key] == null) v[f.key] = ''; });
         this.draft = { values: v, tagText: (e.tags || []).join('，'), linkWish: !!e.wishId, wishId: e.wishId || '', isBig: !!e.isBig, year: e.year, month: e.month };
         this.showEntry = true;
       },
@@ -14741,8 +14841,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         else { values.wishId = ''; values.isBig = false; }
         if (this.entryMode === 'add') {
           const e = this.$store.addFinanceEntry(mod.type, mod._id, values);
-          // 新增后让记录立即可见：把周期筛选切到记录所属年/月（避免被默认“本年”筛选隐藏，误以为没保存）
-          if (e) { this.year = e.year; this.month = e.month; this.allYears = false; }
+          // 新增后让记录立即可见：带日期→切到所属年份；无日期→保持当前视图（无日期记录由 filtered* 始终展示）
+          if (e) { if (e.hasDate) { this.year = e.year; this.month = 0; this.allYears = false; } }
         } else this.$store.updateFinanceEntry(this.editId, mod.type, values);
         this.closeEntry();
       },
@@ -14765,15 +14865,46 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.moduleType = mod.type;
         this.moduleEdit = {
           _id: mod._id, name: mod.name, icon: mod.icon, type: mod.type,
-          fields: (mod.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required })),
+          fields: (mod.fields || []).map(f => ({ _kid: this._kid(), key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required })),
           calcs: (mod.calcs || []).map(c => Object.assign({}, c)),
           saveTpl: false, tplName: '', fromTemplate: '',
         };
         this.showModule = true;
       },
       closeModule() { this.showModule = false; this.moduleEdit = null; },
-      addModuleField() { this.moduleEdit.fields.push({ key: 'f' + Date.now().toString().slice(-5), label: '', type: 'text', unit: '', options: '', required: false }); },
-      removeModuleField(i) { this.moduleEdit.fields.splice(i, 1); },
+      _kid() { return 'fk' + (++this.fieldSeq) + '_' + Date.now().toString(36); },
+      addModuleField() { this.moduleEdit.fields.push({ _kid: this._kid(), key: 'f' + Math.random().toString(36).slice(2, 8), label: '', type: 'text', unit: '', options: '', required: false }); },
+      removeModuleField(f) { const i = this.moduleEdit.fields.indexOf(f); if (i >= 0) this.moduleEdit.fields.splice(i, 1); },
+      startFieldDrag(e, f) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        this.dragFieldKid = f._kid; this.draggingField = true; this._lastFieldTarget = null;
+        this._fieldMove = (ev) => this.onFieldDragMove(ev);
+        this._fieldUp = (ev) => this.onFieldDragUp(ev);
+        window.addEventListener('pointermove', this._fieldMove, { passive: false });
+        window.addEventListener('pointerup', this._fieldUp);
+        window.addEventListener('pointercancel', this._fieldUp);
+      },
+      onFieldDragMove(e) {
+        if (!this.dragFieldKid) return;
+        if (e.cancelable) e.preventDefault();
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el) return;
+        const row = el.closest('.fin-field-row'); if (!row) return;
+        const targetKid = row.getAttribute('data-kid');
+        if (!targetKid || targetKid === this.dragFieldKid) return;
+        const arr = this.moduleEdit.fields;
+        const from = arr.findIndex(m => m._kid === this.dragFieldKid);
+        const to = arr.findIndex(m => m._kid === targetKid);
+        if (from < 0 || to < 0 || from === to) return;
+        const [moved] = arr.splice(from, 1);
+        arr.splice(to, 0, moved);
+      },
+      onFieldDragUp() {
+        window.removeEventListener('pointermove', this._fieldMove);
+        window.removeEventListener('pointerup', this._fieldUp);
+        window.removeEventListener('pointercancel', this._fieldUp);
+        this.dragFieldKid = null; this.draggingField = false;
+      },
       addModuleCalc() { this.moduleEdit.calcs.push({ key: 'c' + Date.now().toString().slice(-5), label: '', kind: 'ratio', num: '', den: '', from: '', to: '', unit: '', round: 1, allowEmpty: false }); },
       removeModuleCalc(i) { this.moduleEdit.calcs.splice(i, 1); },
       loadTemplateIntoModule() {
@@ -14924,32 +15055,55 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.vizScope === 'income' || this.vizScope === 'both') pick(this.vizIncome, this.modulesIncome, '总收入', '#10b981');
         return { xLabels: xLabels, series: series, multi: multi };
       },
-      ganttOf() {
-        const scope = this.vizScope;
-        let entries = [];
-        if (scope === 'expense' || scope === 'both') entries = entries.concat(this.vizExpense);
-        if (scope === 'income' || scope === 'both') entries = entries.concat(this.vizIncome);
-        if (this.vizCat) entries = entries.filter(e => e.moduleId === this.vizCat);
-        const rows = [];
-        entries.forEach(e => {
-          const mod = this.allModules.find(m => m._id === e.moduleId); if (!mod) return;
-          const dates = (mod.fields || []).filter(f => f.type === 'date');
-          if (!dates.length) return;
-          const s = (e.values || {})[dates[0].key]; if (!s) return;
-          // 单日期（或第二个日期为空）不形成时间区间，与项目甘特图规则一致：仅两个日期才展示
-          let en = dates[1] ? (e.values || {})[dates[1].key] : null;
-          if (!en) return;
-          rows.push({ id: e._id, label: (mod.icon || '') + (e.values[dates[0].key.replace('Date', 'Name')] || e.values.note || mod.name), start: s, end: en, module: mod.name });
-        });
-        if (!rows.length) return { rows: [], min: null, max: null };
-        const ts = rows.map(r => this.$store.util.parseDate(r.start).getTime()).concat(rows.map(r => this.$store.util.parseDate(r.end).getTime()));
-        const min = Math.min.apply(null, ts), max = Math.max.apply(null, ts);
-        return { rows: rows, min: min, max: max };
-      },
+  ganttOf() {
+    const scope = this.vizScope;
+    let entries = [];
+    if (scope === 'expense' || scope === 'both') entries = entries.concat(this.vizExpense);
+    if (scope === 'income' || scope === 'both') entries = entries.concat(this.vizIncome);
+    if (this.vizCat) entries = entries.filter(e => e.moduleId === this.vizCat);
+    const rows = [];
+    entries.forEach(e => {
+      const mod = this.allModules.find(m => m._id === e.moduleId); if (!mod) return;
+      const dates = (mod.fields || []).filter(f => f.type === 'date');
+      if (!dates.length) return;
+      const s = (e.values || {})[dates[0].key]; if (!s) return;
+      // 单日期（或第二个日期为空）不形成时间区间，与项目甘特图规则一致：仅两个日期才展示
+      let en = dates[1] ? (e.values || {})[dates[1].key] : null;
+      if (!en) return;
+      rows.push({ id: e._id, label: (e.values[dates[0].key.replace('Date', 'Name')] || e.values.note || mod.name), start: s, end: en, module: mod.name });
+    });
+    if (!rows.length) return { rows: [], min: null, max: null, ticks: [] };
+    const ts = rows.map(r => this.$store.util.parseDate(r.start).getTime()).concat(rows.map(r => this.$store.util.parseDate(r.end).getTime()));
+    const min = Math.min.apply(null, ts), max = Math.max.apply(null, ts);
+    return { rows: rows, min: min, max: max, ticks: this.ganttTicksOf(min, max) };
+  },
       ganttX(t) {
         const g = this.vizGantt; if (!g.min) return 0;
-        const W = 300;
-        return ((this.$store.util.parseDate(t).getTime() - g.min) / Math.max(1, (g.max - g.min))) * W;
+        const W = 314 - 68;
+        return 68 + ((this.$store.util.parseDate(t).getTime() - g.min) / Math.max(1, (g.max - g.min))) * W;
+      },
+      // 横轴月份刻度：范围跨多年时年初补年份；标签过密时按 ~30px 稀疏化
+      ganttTicksOf(min, max) {
+        if (!min || !max) return [];
+        const W = 314 - 68;
+        const xOf = (t) => 68 + ((this.$store.util.parseDate(t).getTime() - min) / Math.max(1, (max - min))) * W;
+        const dMin = new Date(min), dMax = new Date(max);
+        const startY = dMin.getFullYear(), startM = dMin.getMonth();
+        const endY = dMax.getFullYear(), endM = dMax.getMonth();
+        const multi = startY !== endY;
+        const all = []; let y = startY, m = startM, guard = 0;
+        while ((y < endY || (y === endY && m <= endM)) && guard < 600) {
+          const iso = y + '-' + String(m + 1).padStart(2, '0') + '-01';
+          const x = xOf(iso);
+          let label = (m + 1) + '月';
+          if (multi && m === 0) label = y + '/' + (m + 1) + '月';
+          all.push({ x: x, label: label });
+          if (m === 11) { m = 0; y++; } else m++;
+          guard++;
+        }
+        const out = []; let lastX = -100;
+        for (const t of all) { if (out.length === 0 || t.x - lastX >= 30) { out.push(t); lastX = t.x; } }
+        return out;
       },
       pieCum(rows, i) { if (i < 0) return 0; const total = rows.reduce((s, r) => s + r.value, 0) || 1; let s = 0; for (let k = 0; k <= i; k++) s += rows[k].value; return 360 * s / total; },
       piePath(cx, cy, r, a0, a1) {
@@ -14983,18 +15137,47 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <span class="fin-year" @click="allYears=false; month=0" :style="allYears?{color:'var(--sub)',cursor:'pointer'}:{cursor:'pointer'}">{{ allYears ? '全部' : year+'年' }}</span>
           <button class="fin-navbtn" @click="nextYear">›</button>
           <select class="fin-sel fin-period" v-model="periodKey">
-            <option value="all">全部（所有年份）</option>
-            <optgroup label="本年">
-              <option value="y0">本年 · 全部</option>
-              <option v-for="m in 12" :key="'y'+m" :value="'y'+m">本年 · {{ m }}月</option>
-            </optgroup>
-            <optgroup label="跨年（每年）">
-              <option v-for="m in 12" :key="'a'+m" :value="'a'+m">每年 · {{ m }}月</option>
-            </optgroup>
+            <option value="all">全部年份</option>
+            <option value="y0">该年 · 全部</option>
           </select>
         </div>
-        <div class="fin-tools">
-          <span v-if="finMsg" class="fin-msg">{{ finMsg }}</span>
+        <div class="fin-tools" v-if="finMsg">
+          <span class="fin-msg">{{ finMsg }}</span>
+        </div>
+        <div class="fin-search">
+          <span class="fin-search-ico">🔍</span>
+          <input v-model="searchText" placeholder="搜索备注 / 标签 / 大额 / 模块名 / 任意字段…" />
+          <button v-if="searchText" class="fin-search-clear" @click="searchText=''" title="清空搜索">✕</button>
+        </div>
+      </div>
+
+      <div class="fin-search-result" v-if="searchActive">
+        <div class="fin-search-dash">
+          <div class="fin-dash-cell"><span class="fin-dash-label">匹配</span><span class="fin-dash-val">{{ searchCount }} 条</span></div>
+          <div class="fin-dash-cell"><span class="fin-dash-label">支出合计</span><span class="fin-dash-val neg">{{ fmtMoney(searchExpenseTotal) }}</span></div>
+          <div class="fin-dash-cell"><span class="fin-dash-label">收入合计</span><span class="fin-dash-val pos">{{ fmtMoney(searchIncomeTotal) }}</span></div>
+        </div>
+        <div class="fin-search-list">
+          <div v-for="e in searchExpense" :key="'se' + e._id" class="fin-search-item" @click="openEditEntry(e)">
+            <div class="fin-si-top">
+              <span class="fin-entry-amt">{{ fmtMoney(amountOf(e)) }}</span>
+              <span class="fin-si-mod">{{ moduleById(e.moduleId).icon }} {{ moduleById(e.moduleId).name }}</span>
+              <span class="fin-entry-date" v-if="e.hasDate">{{ e.year }}年{{ e.month }}月</span>
+              <span v-if="e.isBig" class="tag danger">大额</span>
+            </div>
+            <div class="fin-si-title" v-if="entrySearchTitle(e)">{{ entrySearchTitle(e) }}</div>
+            <div class="fin-entry-tags" v-if="e.tags && e.tags.length"><span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span></div>
+          </div>
+          <div v-for="e in searchIncome" :key="'si' + e._id" class="fin-search-item" @click="openEditEntry(e)">
+            <div class="fin-si-top">
+              <span class="fin-entry-amt pos">{{ fmtMoney(amountOf(e)) }}</span>
+              <span class="fin-si-mod">{{ moduleById(e.moduleId).icon }} {{ moduleById(e.moduleId).name }}</span>
+              <span class="fin-entry-date" v-if="e.hasDate">{{ e.year }}年{{ e.month }}月</span>
+            </div>
+            <div class="fin-si-title" v-if="entrySearchTitle(e)">{{ entrySearchTitle(e) }}</div>
+            <div class="fin-entry-tags" v-if="e.tags && e.tags.length"><span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span></div>
+          </div>
+          <p v-if="searchCount === 0" class="empty-tip">未找到匹配「{{ searchText }}」的记录</p>
         </div>
       </div>
 
@@ -15016,7 +15199,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div v-for="e in entriesOf(mod)" :key="e._id" class="fin-entry" @click="openEditEntry(e)">
             <div class="fin-entry-top">
               <span class="fin-entry-amt">{{ fmtMoney(amountOf(e)) }}</span>
-              <span class="fin-entry-date">{{ e.year }}年{{ e.month }}月</span>
+              <span class="fin-entry-date" v-if="e.hasDate">{{ e.year }}年{{ e.month }}月</span>
               <span v-if="e.isBig" class="tag danger">大额</span>
               <span v-if="e.wishId" class="tag cat">🔗{{ wishName(e.wishId) }}</span>
             </div>
@@ -15052,7 +15235,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div v-for="e in entriesOf(mod)" :key="e._id" class="fin-entry" @click="openEditEntry(e)">
             <div class="fin-entry-top">
               <span class="fin-entry-amt pos">{{ fmtMoney(amountOf(e)) }}</span>
-              <span class="fin-entry-date">{{ e.year }}年{{ e.month }}月</span>
+              <span class="fin-entry-date" v-if="e.hasDate">{{ e.year }}年{{ e.month }}月</span>
             </div>
             <div class="fin-entry-fields">
               <template v-for="f in mod.fields" :key="f.key"><span v-if="fieldShown(e,f,mod)" class="fin-ef"><i>{{ f.label }}</i>{{ fieldVal(e,f) }}{{ f.unit||'' }}</span></template>
@@ -15111,7 +15294,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 本笔支出 {{ fmtMoney(draft.values[amountKeyOf(entryModule)]) }} ｜ 愿望「{{ wishName(draft.wishId) }}」成本 {{ wishCost(draft.wishId) }} 分
               </div>
             </div>
-            <div class="fin-entry-meta" v-if="entryMode==='edit'">归属周期：{{ draft.year }}年{{ draft.month }}月（按主日期字段自动归类）</div>
+            <div class="fin-entry-meta" v-if="entryMode==='edit' && draft.year">归属周期：{{ draft.year }}年{{ draft.month }}月（按主日期字段自动归类）</div>
             <div class="modal-actions">
               <button v-if="entryMode==='edit'" class="btn danger" @click="askDeleteEntry">删除</button>
               <button class="btn" @click="closeEntry">取消</button>
@@ -15148,13 +15331,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               </select>
             </div>
             <div class="fin-subhead">录入字段</div>
-            <div v-for="(f,i) in moduleEdit.fields" :key="i" class="fin-field-row">
+            <div v-for="f in moduleEdit.fields" :key="f._kid" :data-kid="f._kid" class="fin-field-row" :class="{ 'is-field-drag': draggingField && dragFieldKid === f._kid }">
+              <span class="fin-field-drag" title="按住拖动调整字段顺序" @pointerdown.prevent="startFieldDrag($event, f)">⠿</span>
               <input class="ff-key" v-model="f.key" placeholder="字段key" />
               <input class="ff-label" v-model="f.label" placeholder="显示名" />
               <select v-model="f.type"><option text="text">文本</option><option value="number">数字</option><option value="date">日期</option><option value="textarea">多行</option><option value="select">下拉</option></select>
               <input class="ff-unit" v-model="f.unit" placeholder="单位" />
               <input v-if="f.type==='select'" class="ff-opt" v-model="f.options" placeholder="选项逗号分隔" />
-              <button class="btn mini danger" @click="removeModuleField(i)">✕</button>
+              <button class="btn mini danger" @click="removeModuleField(f)">✕</button>
             </div>
             <button class="btn mini" @click="addModuleField">＋ 字段</button>
             <div class="fin-subhead">自动计算项</div>
@@ -15247,6 +15431,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <g v-for="(s,si) in vizLine.series" :key="si">
                   <polyline :points="s.data.map((d,i)=>(40 + i*((270)/Math.max(1,vizLine.xLabels.length-1)))+','+(170 - (d/Math.max(1,lineMax))*140)).join(' ')" :fill="'none'" :stroke="s.color" stroke-width="2" />
                   <circle v-for="(d,i) in s.data" :key="i" :cx="40 + i*((270)/Math.max(1,vizLine.xLabels.length-1))" :cy="170 - (d/Math.max(1,lineMax))*140" r="2.5" :fill="s.color" />
+                  <text v-for="(d,i) in s.data" :key="'v'+i" :x="40 + i*((270)/Math.max(1,vizLine.xLabels.length-1))" :y="170 - (d/Math.max(1,lineMax))*140 - 5" font-size="7" text-anchor="middle" :fill="s.color">{{ d > 0 ? fmtShort(d) : '' }}</text>
                 </g>
                 <text v-for="(x,i) in vizLine.xLabels" :key="i" :x="40 + i*((270)/Math.max(1,vizLine.xLabels.length-1))" y="188" font-size="9" text-anchor="middle">{{ vizLine.multi ? x : x+'月' }}</text>
               </svg>
@@ -15255,11 +15440,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
             <div v-else class="fin-chart">
               <div class="fin-chart-title">时间周期甘特图</div>
-              <svg viewBox="0 0 320 200" class="fin-svg" v-if="vizGantt.rows.length">
+              <svg :viewBox="'0 0 320 '+(20 + vizGantt.rows.length*22 + 32)" class="fin-svg" v-if="vizGantt.rows.length">
                 <g v-for="(r,i) in vizGantt.rows" :key="r.id" :transform="'translate(0,'+(20 + i*22)+')'">
-                  <rect :x="20 + ganttX(r.start)" :y="2" :width="Math.max(4, ganttX(r.end)-ganttX(r.start))" height="14" rx="3" :fill="(i%2? '#6a7bff':'#10b981')" />
-                  <text x="2" y="13" font-size="9">{{ r.label.slice(0,8) }}</text>
-                  <text :x="20 + ganttX(r.start)" y="13" font-size="8" fill="#fff">{{ r.start.slice(5) }}</text>
+                  <rect :x="ganttX(r.start)" :y="3" :width="Math.max(7, ganttX(r.end)-ganttX(r.start))" height="14" rx="3" :fill="(i%2? '#6a7bff':'#10b981')" />
+                  <text x="2" y="14" font-size="9" fill="#3a3f52">{{ r.label.length > 7 ? r.label.slice(0,7)+'…' : r.label }}</text>
+                </g>
+                <g :transform="'translate(0,'+(20 + vizGantt.rows.length*22 + 8)+')'">
+                  <line x1="68" y1="0" x2="314" y2="0" stroke="#cbd0e0" stroke-width="1" />
+                  <g v-for="(t,i) in vizGantt.ticks" :key="'t'+i">
+                    <line :x1="t.x" y1="-4" :x2="t.x" y2="4" stroke="#cbd0e0" stroke-width="1" />
+                    <text :x="t.x" y="15" font-size="8" text-anchor="middle" fill="#8a90a6">{{ t.label }}</text>
+                  </g>
                 </g>
               </svg>
               <div v-else class="empty-tip">当前筛选无含时间区间的记录</div>
