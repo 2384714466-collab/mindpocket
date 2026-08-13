@@ -5076,6 +5076,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (opts.categoryId) cats = cats.filter(x => x._id === opts.categoryId);
       let entries = c.entries.slice();
       if (opts.categoryId) entries = entries.filter(e => e.categoryId === opts.categoryId);
+      if (opts.year) entries = entries.filter(e => {
+        const cat = c.categories.find(x => x._id === e.categoryId);
+        const dk = cat ? (cat.fields || []).find(f => f.type === 'date') : null;
+        const d = dk ? e.values[dk.key] : null;
+        return d && String(d).slice(0, 4) === opts.year;
+      });
       if (opts.tag) entries = entries.filter(e => (e.tags || []).includes(opts.tag));
       cats.forEach(cat => {
         lines.push('');
@@ -5133,6 +5139,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       c.tags = Array.isArray(car.tags) ? car.tags : [];
       ensureCareerPresets();
       persist();
+    }
+    // 导出「职业」Tab 的全部数据（JSON 全量备份，覆盖分类/条目/JD/简历/标签）
+    function exportCareer() {
+      const c = state.career || {};
+      const career = {
+        categories: c.categories || [],
+        entries: c.entries || [],
+        jds: c.jds || [],
+        resumes: c.resumes || [],
+        tags: c.tags || [],
+      };
+      return JSON.stringify({
+        app: 'MindPocket', kind: 'career', version: 1,
+        exportedAt: new Date().toISOString(),
+        career,
+      });
     }
   if (!load()) { seed(); }
   migrate();
@@ -5478,13 +5500,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     ['expenseModules', 'incomeModules', 'expenseEntries', 'incomeEntries', 'fieldTemplates'].forEach(k => { if (!Array.isArray(f[k])) f[k] = []; });
     const exp = FINANCE_PRESET_EXPENSE.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'expense', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
     const inc = FINANCE_PRESET_INCOME.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'income', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
-    // 预设模块与代码定义保持同步：已存在则就地更新字段/公式/名称/图标（保留用户记录），否则新增
+    // 预设模块与代码定义保持同步：仅当用户数据中尚不存在该预设时才新增；
+    // 已存在的预设模块完全保留用户自定义（字段 / 公式 / 名称 / 图标 / 金额字段），刷新后不再被代码预设覆盖
     const syncPreset = (arr, presets) => {
-      presets.forEach(p => {
-        const exist = arr.find(m => m._id === p._id);
-        if (exist) { exist.name = p.name; exist.icon = p.icon; exist.amountKey = p.amountKey; exist.fields = p.fields; exist.calcs = p.calcs; exist.isPreset = true; }
-        else arr.push(p);
-      });
+      presets.forEach(p => { if (!arr.find(m => m._id === p._id)) { p.isPreset = true; arr.push(p); } });
     };
     syncPreset(f.expenseModules, exp);
     syncPreset(f.incomeModules, inc);
@@ -5635,7 +5654,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     ensureCareerPresets, addCareerCategory, updateCareerCategory, removeCareerCategory, setCareerCategoriesOrder,
     addCareerEntry, updateCareerEntry, removeCareerEntry, addCareerTags,
     addJD, updateJD, removeJD, addResume, updateResume, removeResume,
-    exportCareerText, exportCareerResumes, exportCareerJDs, importCareer,
+    exportCareerText, exportCareerResumes, exportCareerJDs, exportCareer, importCareer,
     CAREER_PRESETS, CAREER_KIND_ICON,
     // —— 数据备份 / 恢复（P0：零依赖本地备份，配合多设备迁移 / 刷新数据）——
     exportAll() {
@@ -14732,7 +14751,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       vizPieExpense() { return this.pieOf(this.vizExpense, this.modulesExpense); },
       vizPieIncome() { return this.pieOf(this.vizIncome, this.modulesIncome); },
       vizLine() { return this.lineOf(); },
-      vizGantt() { return this.ganttOf(); },
       lineMax() { let m = 0; (this.vizLine.series || []).forEach(s => (s.data || []).forEach(d => { if (d > m) m = d; })); return m; },
     },
     methods: {
@@ -15055,56 +15073,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.vizScope === 'income' || this.vizScope === 'both') pick(this.vizIncome, this.modulesIncome, '总收入', '#10b981');
         return { xLabels: xLabels, series: series, multi: multi };
       },
-  ganttOf() {
-    const scope = this.vizScope;
-    let entries = [];
-    if (scope === 'expense' || scope === 'both') entries = entries.concat(this.vizExpense);
-    if (scope === 'income' || scope === 'both') entries = entries.concat(this.vizIncome);
-    if (this.vizCat) entries = entries.filter(e => e.moduleId === this.vizCat);
-    const rows = [];
-    entries.forEach(e => {
-      const mod = this.allModules.find(m => m._id === e.moduleId); if (!mod) return;
-      const dates = (mod.fields || []).filter(f => f.type === 'date');
-      if (!dates.length) return;
-      const s = (e.values || {})[dates[0].key]; if (!s) return;
-      // 单日期（或第二个日期为空）不形成时间区间，与项目甘特图规则一致：仅两个日期才展示
-      let en = dates[1] ? (e.values || {})[dates[1].key] : null;
-      if (!en) return;
-      rows.push({ id: e._id, label: (e.values[dates[0].key.replace('Date', 'Name')] || e.values.note || mod.name), start: s, end: en, module: mod.name });
-    });
-    if (!rows.length) return { rows: [], min: null, max: null, ticks: [] };
-    const ts = rows.map(r => this.$store.util.parseDate(r.start).getTime()).concat(rows.map(r => this.$store.util.parseDate(r.end).getTime()));
-    const min = Math.min.apply(null, ts), max = Math.max.apply(null, ts);
-    return { rows: rows, min: min, max: max, ticks: this.ganttTicksOf(min, max) };
-  },
-      ganttX(t) {
-        const g = this.vizGantt; if (!g.min) return 0;
-        const W = 314 - 68;
-        return 68 + ((this.$store.util.parseDate(t).getTime() - g.min) / Math.max(1, (g.max - g.min))) * W;
-      },
-      // 横轴月份刻度：范围跨多年时年初补年份；标签过密时按 ~30px 稀疏化
-      ganttTicksOf(min, max) {
-        if (!min || !max) return [];
-        const W = 314 - 68;
-        const xOf = (t) => 68 + ((this.$store.util.parseDate(t).getTime() - min) / Math.max(1, (max - min))) * W;
-        const dMin = new Date(min), dMax = new Date(max);
-        const startY = dMin.getFullYear(), startM = dMin.getMonth();
-        const endY = dMax.getFullYear(), endM = dMax.getMonth();
-        const multi = startY !== endY;
-        const all = []; let y = startY, m = startM, guard = 0;
-        while ((y < endY || (y === endY && m <= endM)) && guard < 600) {
-          const iso = y + '-' + String(m + 1).padStart(2, '0') + '-01';
-          const x = xOf(iso);
-          let label = (m + 1) + '月';
-          if (multi && m === 0) label = y + '/' + (m + 1) + '月';
-          all.push({ x: x, label: label });
-          if (m === 11) { m = 0; y++; } else m++;
-          guard++;
-        }
-        const out = []; let lastX = -100;
-        for (const t of all) { if (out.length === 0 || t.x - lastX >= 30) { out.push(t); lastX = t.x; } }
-        return out;
-      },
       pieCum(rows, i) { if (i < 0) return 0; const total = rows.reduce((s, r) => s + r.value, 0) || 1; let s = 0; for (let k = 0; k <= i; k++) s += rows[k].value; return 360 * s / total; },
       piePath(cx, cy, r, a0, a1) {
         if (a1 - a0 >= 359.999) return 'M ' + (cx - r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx + r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx - r) + ' ' + cy + ' Z';
@@ -15390,7 +15358,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="fin-viz-tabs">
               <button :class="{on:vizType==='pie'}" @click="vizType='pie'">饼图</button>
               <button :class="{on:vizType==='line'}" @click="vizType='line'">折线图</button>
-              <button :class="{on:vizType==='gantt'}" @click="vizType='gantt'">甘特图</button>
             </div>
             <div class="fin-viz-filters">
               <label>时间</label>
@@ -15423,7 +15390,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div v-if="(vizScope!=='income' && !vizPieExpense.rows.length) && (vizScope!=='expense' && !vizPieIncome.rows.length)" class="empty-tip">当前筛选无数据</div>
             </div>
 
-            <div v-else-if="vizType==='line'" class="fin-chart">
+              <div v-else-if="vizType==='line'" class="fin-chart">
               <div class="fin-chart-title">{{ vizLine.multi ? '逐年趋势' : (year+'年月度趋势') }}</div>
               <svg viewBox="0 0 320 200" class="fin-svg">
                 <line x1="40" y1="170" x2="310" y2="170" stroke="#ddd" />
@@ -15436,24 +15403,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <text v-for="(x,i) in vizLine.xLabels" :key="i" :x="40 + i*((270)/Math.max(1,vizLine.xLabels.length-1))" y="188" font-size="9" text-anchor="middle">{{ vizLine.multi ? x : x+'月' }}</text>
               </svg>
               <div class="fin-legend"><span v-for="s in vizLine.series" :key="s.name" class="fin-lg"><i :style="{background:s.color}"></i>{{ s.name }}</span></div>
-            </div>
-
-            <div v-else class="fin-chart">
-              <div class="fin-chart-title">时间周期甘特图</div>
-              <svg :viewBox="'0 0 320 '+(20 + vizGantt.rows.length*22 + 32)" class="fin-svg" v-if="vizGantt.rows.length">
-                <g v-for="(r,i) in vizGantt.rows" :key="r.id" :transform="'translate(0,'+(20 + i*22)+')'">
-                  <rect :x="ganttX(r.start)" :y="3" :width="Math.max(7, ganttX(r.end)-ganttX(r.start))" height="14" rx="3" :fill="(i%2? '#6a7bff':'#10b981')" />
-                  <text x="2" y="14" font-size="9" fill="#3a3f52">{{ r.label.length > 7 ? r.label.slice(0,7)+'…' : r.label }}</text>
-                </g>
-                <g :transform="'translate(0,'+(20 + vizGantt.rows.length*22 + 8)+')'">
-                  <line x1="68" y1="0" x2="314" y2="0" stroke="#cbd0e0" stroke-width="1" />
-                  <g v-for="(t,i) in vizGantt.ticks" :key="'t'+i">
-                    <line :x1="t.x" y1="-4" :x2="t.x" y2="4" stroke="#cbd0e0" stroke-width="1" />
-                    <text :x="t.x" y="15" font-size="8" text-anchor="middle" fill="#8a90a6">{{ t.label }}</text>
-                  </g>
-                </g>
-              </svg>
-              <div v-else class="empty-tip">当前筛选无含时间区间的记录</div>
             </div>
           </div>
         </div>
@@ -15468,13 +15417,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         tab: 'resume',
         showCat: false, catEdit: null,
         showEntry: false, entryMode: 'add', entryCat: null, editId: null, draft: null, confirmDelEntry: false,
-        filterTag: '', filterKind: '',
+        filterTag: '', filterYear: '',
         showViz: false, vizType: 'timeline',
         jdText: '', jdTitle: '', jdCompany: '', parsing: false, activeJD: null,
         showResume: false, resumeMode: 'new', resumeTitle: '', resumeContent: '', editResumeId: null, genJDId: '',
         showData: false,
         carMsg: '', carMsgTimer: null,
         dragId: null, dragging: false,
+        dragFieldKid: null, draggingField: false, fieldSeq: 0,
         kindOptions: [
           { value: 'skill', label: '专业技能' }, { value: 'cert', label: '证书' }, { value: 'comp', label: '竞赛' },
           { value: 'intern', label: '实习' }, { value: 'project', label: '项目' }, { value: 'club', label: '社团经历' },
@@ -15488,13 +15438,44 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       entries() { return (this.career.entries || []); },
       allTags() { return (this.career.tags || []); },
       catById() { return id => this.categories.find(c => c._id === id); },
+      entryYears() {
+        const set = new Set();
+        this.entries.forEach(e => {
+          const c = this.catById(e.categoryId);
+          const dk = c ? this.primaryField(c) : null;
+          const d = dk ? e.values[dk] : null;
+          if (d && typeof d === 'string' && d.length >= 4) set.add(d.slice(0, 4));
+        });
+        return Array.from(set).sort((a, b) => b - a); // 年份降序（最近在前）
+      },
       filteredEntries() {
         let es = this.entries.slice();
-        if (this.filterKind) es = es.filter(e => { const c = this.catById(e.categoryId); return c && c.kind === this.filterKind; });
+        if (this.filterYear) es = es.filter(e => {
+          const c = this.catById(e.categoryId);
+          const dk = c ? this.primaryField(c) : null;
+          const d = dk ? e.values[dk] : null;
+          if (!d) return true; // 无日期的条目在年份筛选下始终显示，避免误以为丢失
+          return String(d).slice(0, 4) === this.filterYear;
+        });
         if (this.filterTag) es = es.filter(e => (e.tags || []).includes(this.filterTag));
         return es;
       },
-      entriesOf() { return cat => this.filteredEntries.filter(e => e.categoryId === cat._id); },
+      entriesOf() {
+        return cat => {
+          const list = this.filteredEntries.filter(e => e.categoryId === cat._id);
+          const dk = this.primaryField(cat); // 含日期字段的分类：带日期的记录按日期升序，无日期排末尾
+          if (dk && list.length) {
+            list.sort((a, b) => {
+              const da = a.values[dk], db = b.values[dk];
+              if (!da && !db) return 0;
+              if (!da) return 1;
+              if (!db) return -1;
+              return String(da) < String(db) ? -1 : (String(da) > String(db) ? 1 : 0);
+            });
+          }
+          return list;
+        };
+      },
       jds() { return (this.career.jds || []); },
       resumes() { return (this.career.resumes || []); },
       vizTimeline() {
@@ -15555,13 +15536,44 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       openAddCategory() { this.catEdit = { name: '', icon: '📦', kind: 'skill', fields: [], defaultTags: '' }; this.showCat = true; },
       openEditCategory(cat) {
         this.catEdit = { _id: cat._id, name: cat.name, icon: cat.icon, kind: cat.kind,
-          fields: (cat.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required })),
+          fields: (cat.fields || []).map(f => ({ _kid: this._kid(), key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required })),
           defaultTags: (cat.defaultTags || []).join('，') };
         this.showCat = true;
       },
       closeCat() { this.showCat = false; this.catEdit = null; },
-      addCatField() { this.catEdit.fields.push({ key: 'f' + Date.now().toString().slice(-5), label: '', type: 'text', unit: '', options: '', required: false }); },
-      removeCatField(i) { this.catEdit.fields.splice(i, 1); },
+      _kid() { return 'fk' + (++this.fieldSeq) + '_' + Date.now().toString(36); },
+      addCatField() { this.catEdit.fields.push({ _kid: this._kid(), key: 'f' + Math.random().toString(36).slice(2, 8), label: '', type: 'text', unit: '', options: '', required: false }); },
+      removeCatField(f) { const i = this.catEdit.fields.indexOf(f); if (i >= 0) this.catEdit.fields.splice(i, 1); },
+      startFieldDrag(e, f) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        this.dragFieldKid = f._kid; this.draggingField = true; this._lastFieldTarget = null;
+        this._fieldMove = (ev) => this.onFieldDragMove(ev);
+        this._fieldUp = (ev) => this.onFieldDragUp(ev);
+        window.addEventListener('pointermove', this._fieldMove, { passive: false });
+        window.addEventListener('pointerup', this._fieldUp);
+        window.addEventListener('pointercancel', this._fieldUp);
+      },
+      onFieldDragMove(e) {
+        if (!this.dragFieldKid) return;
+        if (e.cancelable) e.preventDefault();
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el) return;
+        const row = el.closest('.fin-field-row'); if (!row) return;
+        const targetKid = row.getAttribute('data-kid');
+        if (!targetKid || targetKid === this.dragFieldKid) return;
+        const arr = this.catEdit.fields;
+        const from = arr.findIndex(m => m._kid === this.dragFieldKid);
+        const to = arr.findIndex(m => m._kid === targetKid);
+        if (from < 0 || to < 0 || from === to) return;
+        const [moved] = arr.splice(from, 1);
+        arr.splice(to, 0, moved);
+      },
+      onFieldDragUp() {
+        window.removeEventListener('pointermove', this._fieldMove);
+        window.removeEventListener('pointerup', this._fieldUp);
+        window.removeEventListener('pointercancel', this._fieldUp);
+        this.dragFieldKid = null; this.draggingField = false;
+      },
       saveCat() {
         const c = this.catEdit; if (!c.name || !c.name.trim()) { alert('请填写分类名称'); return; }
         const fields = c.fields.map(f => ({ key: f.key || ('f' + Date.now().toString().slice(-5)), label: f.label || '字段', type: f.type || 'text', unit: f.unit || '', options: (f.options || '').split(/[，,]/).map(s => s.trim()).filter(Boolean), required: !!f.required }));
@@ -15608,10 +15620,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // —— 条目增改 ——
       primaryField(cat) { const f = (cat.fields || []).find(x => x.type === 'date'); return f ? f.key : null; },
       titleFieldKey(cat, e) {
-        const f = (cat.fields || []).find(x => x.key === 'name' || x.key === 'title' || x.key === 'company' || x.key === 'org');
-        if (f && e.values[f.key] != null && e.values[f.key] !== '') return f.key;
-        const any = (cat.fields || []).find(x => e.values[x.key] != null && e.values[x.key] !== '');
-        return any ? any.key : null;
+        // 主标题 = 字段顺序中第一个有值的字段（日期字段另行以「初日期」追加，不计入主标题避免重复）
+        const dk = this.primaryField(cat);
+        const f = (cat.fields || []).find(x => x.key !== dk && e.values[x.key] != null && e.values[x.key] !== '');
+        return f ? f.key : null;
       },
       entryTitle(cat, e) {
         const k = this.titleFieldKey(cat, e);
@@ -15747,7 +15759,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       exportEntries() {
         try {
           const opt = {};
-          if (this.filterKind) opt.kind = this.filterKind;
+          if (this.filterYear) opt.year = this.filterYear;
           if (this.filterTag) opt.tag = this.filterTag;
           const txt = this.$store.exportCareerText(opt);
           this.downloadTxt('mindpocket-career-' + this.$store.util.todayStr() + '.txt', txt);
@@ -15762,6 +15774,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         try { const txt = this.$store.exportCareerJDs([]); this.downloadTxt('mindpocket-career-jds-' + this.$store.util.todayStr() + '.txt', txt); this.setCarMsg('✓ JD 匹配记录已导出'); }
         catch (e) { this.setCarMsg('导出失败：' + (e && e.message ? e.message : e)); }
       },
+      // —— 全量导入 / 导出（JSON）——
+      exportCareerData() {
+        try {
+          const json = this.$store.exportCareer();
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          const ts = new Date().toISOString().slice(0, 10);
+          a.href = url; a.download = 'mindpocket-career-' + ts + '.json';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          this.setCarMsg('✓ 职业全部数据已导出');
+        } catch (e) { this.setCarMsg('导出失败：' + (e && e.message ? e.message : e)); }
+      },
+      importCareerData() { this.showData = false; this.$nextTick(() => { if (this.$refs.carFile) this.$refs.carFile.click(); }); },
+      importCareerFile(e) {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            if (!confirm('导入将覆盖当前「职业」Tab 的全部数据，确定继续？')) { try { e.target.value = ''; } catch (_) {} return; }
+            this.$store.importCareer(String(reader.result));
+            this.setCarMsg('✓ 职业全部数据已导入');
+          } catch (err) { this.setCarMsg('导入失败：' + (err && err.message ? err.message : err)); }
+          try { e.target.value = ''; } catch (_) {}
+        };
+        reader.onerror = () => { this.setCarMsg('导入失败：文件读取错误'); try { e.target.value = ''; } catch (_) {} };
+        reader.readAsText(file);
+      },
     },
     template: `
     <div class="fin-page">
@@ -15774,10 +15816,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="fin-act" @click="showData = !showData">🗂 数据</button>
               <div v-if="showData" class="fin-pop-backdrop" @click="showData = false"></div>
               <div v-if="showData" class="fin-pop">
+                <button class="fin-pop-item" @click="exportCareerData">📤 导出全部数据（JSON）</button>
+                <button class="fin-pop-item" @click="importCareerData">📥 导入全部数据（JSON）</button>
+                <div style="height:1px;background:var(--line);margin:5px 4px"></div>
                 <button class="fin-pop-item" @click="exportEntries">📤 导出履历（纯文本）</button>
                 <button class="fin-pop-item" @click="exportResumes">📤 导出简历草稿</button>
                 <button class="fin-pop-item" @click="exportJDs">📤 导出 JD 匹配</button>
               </div>
+              <input ref="carFile" type="file" accept="application/json,.json" style="display:none" @change="importCareerFile" />
             </div>
           </div>
         </div>
@@ -15786,7 +15832,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <button :class="{ on: tab === 'match' }" @click="tab = 'match'">🎯 JD 智能匹配</button>
         </div>
         <div class="fin-tools" v-if="tab === 'resume'">
-          <select v-model="filterKind" class="fin-sel"><option value="">全部分类</option><option v-for="k in kindOptions" :key="k.value" :value="k.value">{{ k.label }}</option></select>
+          <select v-model="filterYear" class="fin-sel"><option value="">全部年份</option><option v-for="y in entryYears" :key="y" :value="y">{{ y }} 年</option></select>
           <select v-model="filterTag" class="fin-sel"><option value="">全部标签</option><option v-for="t in allTags" :key="t" :value="t">{{ t }}</option></select>
         </div>
       </div>
@@ -15866,13 +15912,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="fld"><label>图标 Emoji</label><input v-model="catEdit.icon" placeholder="📦" /></div>
             <div class="fld"><label>类型</label><select v-model="catEdit.kind"><option v-for="k in kindOptions" :key="k.value" :value="k.value">{{ k.label }}</option></select></div>
             <div class="fin-subhead">录入字段</div>
-            <div v-for="(f, i) in catEdit.fields" :key="i" class="fin-field-row">
+            <div v-for="f in catEdit.fields" :key="f._kid" :data-kid="f._kid" class="fin-field-row" :class="{ 'is-field-drag': draggingField && dragFieldKid === f._kid }">
+              <span class="fin-field-drag" title="按住拖动调整字段顺序" @pointerdown.prevent="startFieldDrag($event, f)">⠿</span>
               <input class="ff-key" v-model="f.key" placeholder="字段key" />
               <input class="ff-label" v-model="f.label" placeholder="显示名" />
               <select v-model="f.type"><option value="text">文本</option><option value="number">数字</option><option value="date">日期</option><option value="textarea">多行</option><option value="select">下拉</option></select>
               <input class="ff-unit" v-model="f.unit" placeholder="单位" />
               <input v-if="f.type === 'select'" class="ff-opt" v-model="f.options" placeholder="选项逗号分隔" />
-              <button class="btn mini danger" @click="removeCatField(i)">✕</button>
+              <button class="btn mini danger" @click="removeCatField(f)">✕</button>
             </div>
             <button class="btn mini" @click="addCatField">＋ 字段</button>
             <div class="fld"><label>默认标签（逗号分隔）</label><input v-model="catEdit.defaultTags" placeholder="如 后端,高含金量" /></div>
