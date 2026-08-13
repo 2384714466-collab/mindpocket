@@ -1496,6 +1496,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-mod-ico { font-size: 18px; }
 .fin-mod-name { font-weight: 700; color: var(--text); }
 .fin-mod-sum { font-weight: 700; color: var(--sub); margin-right: 2px; }
+.fin-mod-drag { flex: none; color: var(--sub); cursor: grab; user-select: none; font-size: 16px; line-height: 1; padding: 0 4px; opacity: 0.5; touch-action: none; }
+.fin-mod-drag:active { opacity: 1; cursor: grabbing; }
+.fin-mod.is-drag { box-shadow: 0 6px 18px rgba(40,50,90,.18); transform: scale(1.01); position: relative; z-index: 5; }
 .fin-mod-btns { display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .fin-ibtn { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 17px; line-height: 1; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); cursor: pointer; transition: background .15s ease, transform .1s ease, box-shadow .15s ease; }
 .fin-ibtn.add { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -1545,6 +1548,40 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .tag.cat { background: #eef2ff; color: #6a7bff; border: 1px solid #e0e7ff; }
 .modal-x { border: none; background: transparent; font-size: 18px; color: var(--sub); }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+  /* ============ 职业 Tab ============ */
+  .car-tabs { display: flex; gap: 8px; padding: 10px 16px 4px; }
+  .car-tabs button { flex: 1; padding: 10px 8px; border: 1px solid var(--line); background: #fff; border-radius: 10px; font-size: 14px; font-weight: 600; color: var(--sub); cursor: pointer; }
+  .car-tabs button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .fin-tools { display: flex; gap: 8px; padding: 4px 16px 8px; }
+  .fin-tools .fin-sel { flex: 1; }
+  .car-match { margin-top: 8px; }
+  .car-jd-text { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; font-family: inherit; color: var(--text); line-height: 1.6; resize: vertical; margin-bottom: 8px; }
+  .car-parse { background: #f7f8fc; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 13px; line-height: 1.9; }
+  .car-parse .tag { margin: 0 3px; }
+  .car-concl { display: flex; gap: 10px; margin-top: 8px; }
+  .car-col { flex: 1; border-radius: 10px; padding: 10px; font-size: 13px; }
+  .car-col.ok { background: #eafaf0; border: 1px solid #b7e4c7; }
+  .car-col.gap { background: #fdeef0; border: 1px solid #f3c2c9; }
+  .car-col b { display: block; margin-bottom: 6px; font-size: 13px; }
+  .car-item { padding: 3px 0; line-height: 1.5; }
+  .car-jd { position: relative; }
+  .car-board { font-size: 13px; }
+  .car-board-head { font-weight: 600; margin-bottom: 8px; }
+  .car-board-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; margin-bottom: 6px; border: 1px solid var(--line); }
+  .car-board-row.ok { background: #eafaf0; border-color: #b7e4c7; }
+  .car-board-row.gap { background: #fdeef0; border-color: #f3c2c9; }
+  .car-b-dot { font-size: 14px; }
+  .car-b-tag { margin-left: auto; font-size: 12px; color: var(--sub); }
+  .car-board-jds { margin-top: 10px; }
+  .car-timeline { max-height: 60vh; overflow: auto; }
+  .car-year { margin-bottom: 12px; }
+  .car-year-h { font-weight: 700; font-size: 15px; color: var(--primary); margin: 6px 0; position: sticky; top: 0; background: #fff; padding: 4px 0; }
+  .car-ev { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+  .car-dot { font-size: 14px; }
+  .car-ev-date { color: var(--sub); font-size: 12px; min-width: 78px; }
+  .car-ev-title { font-weight: 600; }
+  .car-radar { display: flex; justify-content: center; }
+
 </style>
 </head>
 <body>
@@ -1743,7 +1780,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   const state = reactive({ revision: 0, habits: [], tasks: [], categories: [], settings: { quickToQuickView: true, autoExtend: false },
     projects: [], project_subs: [], project_records: [], project_ideas: [], project_folders: [], sub_custom_statuses: [],
     wish_items: [], wish_records: [],
-    finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] } });
+    finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] },
+    career: { categories: [], entries: [], jds: [], resumes: [], tags: [] } });
 
   /* ----------------------------- 持久化 ----------------------------- */
   function persist() {
@@ -1756,6 +1794,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         sub_custom_statuses: state.sub_custom_statuses,
         wish_items: state.wish_items, wish_records: state.wish_records,
         finance: state.finance,
+        career: state.career,
       }));
     } catch (e) { console.error('[MP] persist failed', e); }
     notifyChange(); // 数据落盘即广播全局刷新（revision++），所有监听页面自动重载
@@ -1820,6 +1859,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.wish_records = o.wish_records || [];
       state.finance = o.finance || { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] };
       ensureFinancePresets();
+      state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
+      if (!Array.isArray(state.career.categories)) state.career.categories = [];
+      if (!Array.isArray(state.career.entries)) state.career.entries = [];
+      if (!Array.isArray(state.career.jds)) state.career.jds = [];
+      if (!Array.isArray(state.career.resumes)) state.career.resumes = [];
+      if (!Array.isArray(state.career.tags)) state.career.tags = [];
+      ensureCareerPresets();
       autoExtendOverdue(); // 过期任务自动延期（仅在开关开启时生效）
       autoArchiveExpiredCycles(); // 周期任务到期自动归档（母本归档，停止副本同步）
       autoArchiveCompletedCycles(); // 周期母本副本全完成批量校验（打开页面兜底，跨天场景补触发）
@@ -1835,6 +1881,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     PRESET_CUSTOM_CATEGORIES.forEach(n => state.categories.push({ _id: uid('cat'), name: n, is_system: false }));
     state.settings = { quickToQuickView: true, autoExtend: false, notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' } };
     ensureFinancePresets();
+    // 职业 Tab 预设分类（首次运行种子数据，与 load 成功路径保持一致）
+    state.career = { categories: [], entries: [], jds: [], resumes: [], tags: [] };
+    ensureCareerPresets();
 
     // —— 习惯 ——
     const drink = { _id: uid('habit'), name: '每天喝水 8 杯', type: 'SOP_HABIT', enable_remind: false, remind_time: '09:00', plan_time: '08:00', holiday_ranges: [], records: [], create_at: Date.now(), unit: '次' };
@@ -4923,6 +4972,139 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       ], calcs: [] },
   ];
 
+    /* ============================ 职业 Tab（独立 Tab，数据隔离，不与任务/项目/财务互通） ============================ */
+    const CAREER_KIND_ICON = { skill: '💡', cert: '📜', comp: '🏆', intern: '💼', project: '📁', club: '🤝', speech: '💬', interview: '📝', custom: '📦' };
+    const CAREER_PRESETS = [
+      { kind: 'skill', name: '专业技能', icon: '💡', fields: [{ key: 'name', label: '技能名称', type: 'text' }, { key: 'level', label: '熟练度', type: 'select', options: ['了解', '熟悉', '精通'] }, { key: 'since', label: '掌握时间', type: 'date' }] },
+      { kind: 'cert', name: '证书', icon: '📜', fields: [{ key: 'name', label: '证书名称', type: 'text' }, { key: 'org', label: '颁发机构', type: 'text' }, { key: 'date', label: '获得日期', type: 'date' }, { key: 'expire', label: '有效期至', type: 'date' }] },
+      { kind: 'comp', name: '竞赛', icon: '🏆', fields: [{ key: 'name', label: '竞赛名称', type: 'text' }, { key: 'level', label: '级别', type: 'select', options: ['校级', '省级', '国家级', '国际级'] }, { key: 'date', label: '获奖日期', type: 'date' }, { key: 'role', label: '担任角色', type: 'text' }] },
+      { kind: 'intern', name: '实习', icon: '💼', fields: [{ key: 'company', label: '公司', type: 'text' }, { key: 'role', label: '岗位', type: 'text' }, { key: 'start', label: '开始', type: 'date' }, { key: 'end', label: '结束', type: 'date' }, { key: 'desc', label: '描述', type: 'textarea' }] },
+      { kind: 'project', name: '项目', icon: '📁', fields: [{ key: 'name', label: '项目名称', type: 'text' }, { key: 'role', label: '担任角色', type: 'text' }, { key: 'start', label: '开始', type: 'date' }, { key: 'end', label: '结束', type: 'date' }, { key: 'desc', label: '描述', type: 'textarea' }] },
+      { kind: 'club', name: '社团经历', icon: '🤝', fields: [{ key: 'org', label: '组织', type: 'text' }, { key: 'role', label: '职务', type: 'text' }, { key: 'start', label: '开始', type: 'date' }, { key: 'end', label: '结束', type: 'date' }, { key: 'desc', label: '描述', type: 'textarea' }] },
+      { kind: 'speech', name: '简历话术素材', icon: '💬', fields: [{ key: 'title', label: '话术标题', type: 'text' }, { key: 'scene', label: '场景', type: 'select', options: ['自我介绍', '项目阐述', '难点应对', '职业规划', '其他'] }, { key: 'content', label: '内容', type: 'textarea' }] },
+      { kind: 'interview', name: '面试笔记', icon: '📝', fields: [{ key: 'company', label: '公司', type: 'text' }, { key: 'position', label: '岗位', type: 'text' }, { key: 'date', label: '面试日期', type: 'date' }, { key: 'question', label: '被问到', type: 'textarea' }, { key: 'answer', label: '我的回答', type: 'textarea' }, { key: 'review', label: '复盘', type: 'textarea' }] },
+    ];
+
+    function ensureCareerPresets() {
+      const c = state.career;
+      if (!c.categories) c.categories = [];
+      CAREER_PRESETS.forEach(p => {
+        if (!c.categories.some(x => x.kind === p.kind && x.isPreset)) {
+          c.categories.push({ _id: uid('carcat'), name: p.name, icon: p.icon, kind: p.kind, isPreset: true, fields: p.fields.map(finNormField), defaultTags: [] });
+        }
+      });
+    }
+    function addCareerCategory(payload) {
+      const cat = { _id: uid('carcat'), name: (payload.name || '自定义分类').trim() || '自定义分类', icon: payload.icon || '📦', kind: payload.kind || 'custom', isPreset: false, fields: (payload.fields || []).map(finNormField), defaultTags: Array.isArray(payload.defaultTags) ? payload.defaultTags.slice() : [] };
+      state.career.categories.push(cat); persist(); return cat;
+    }
+    function updateCareerCategory(id, payload) {
+      const cat = state.career.categories.find(m => m._id === id); if (!cat) return;
+      if (payload.name != null) cat.name = payload.name.trim() || cat.name;
+      if (payload.icon != null) cat.icon = payload.icon;
+      if (payload.fields) cat.fields = payload.fields.map(finNormField);
+      if (payload.defaultTags) cat.defaultTags = payload.defaultTags.slice();
+      persist();
+    }
+    function removeCareerCategory(id) {
+      state.career.categories = state.career.categories.filter(m => m._id !== id);
+      state.career.entries = state.career.entries.filter(e => e.categoryId !== id);
+      persist();
+    }
+    function setCareerCategoriesOrder(orderedIds) {
+      state.career.categories.sort((a, b) => orderedIds.indexOf(a._id) - orderedIds.indexOf(b._id));
+      persist();
+    }
+    function addCareerEntry(categoryId, values) {
+      const cat = state.career.categories.find(m => m._id === categoryId); if (!cat) return null;
+      const v = Object.assign({}, values);
+      const e = { _id: uid('carent'), categoryId: categoryId, values: v, tags: Array.isArray(v.tags) ? v.tags.slice() : [], created_at: Date.now() };
+      state.career.entries.push(e); persist(); return e;
+    }
+    function updateCareerEntry(id, values) {
+      const e = state.career.entries.find(x => x._id === id); if (!e) return;
+      e.values = Object.assign({}, values); e.tags = Array.isArray(values.tags) ? values.tags.slice() : []; persist();
+    }
+    function removeCareerEntry(id) { state.career.entries = state.career.entries.filter(e => e._id !== id); persist(); }
+    function addCareerTags(tags) {
+      (tags || []).forEach(t => { if (t && !state.career.tags.includes(t)) state.career.tags.push(t); });
+      persist();
+    }
+    function addJD(rec) { const j = Object.assign({ _id: uid('carjd'), created_at: Date.now() }, rec); state.career.jds.push(j); persist(); return j; }
+    function updateJD(id, patch) { const j = state.career.jds.find(x => x._id === id); if (!j) return; Object.assign(j, patch); persist(); }
+    function removeJD(id) { state.career.jds = state.career.jds.filter(x => x._id !== id); persist(); }
+    function addResume(rec) { const r = Object.assign({ _id: uid('carres'), created_at: Date.now(), updated_at: Date.now() }, rec); state.career.resumes.push(r); persist(); return r; }
+    function updateResume(id, patch) { const r = state.career.resumes.find(x => x._id === id); if (!r) return; Object.assign(r, patch, { updated_at: Date.now() }); persist(); }
+    function removeResume(id) { state.career.resumes = state.career.resumes.filter(x => x._id !== id); persist(); }
+    function exportCareerText(opts) {
+      opts = opts || {};
+      const c = state.career;
+      const lines = [];
+      lines.push('===== MindPocket 职业 · 履历素材库导出 =====');
+      lines.push('导出时间：' + new Date().toISOString().slice(0, 10));
+      let cats = c.categories.slice();
+      if (opts.kind) cats = cats.filter(x => x.kind === opts.kind);
+      if (opts.categoryId) cats = cats.filter(x => x._id === opts.categoryId);
+      let entries = c.entries.slice();
+      if (opts.categoryId) entries = entries.filter(e => e.categoryId === opts.categoryId);
+      if (opts.tag) entries = entries.filter(e => (e.tags || []).includes(opts.tag));
+      cats.forEach(cat => {
+        lines.push('');
+        lines.push('【' + cat.icon + ' ' + cat.name + '】');
+        const es = entries.filter(e => e.categoryId === cat._id);
+        if (!es.length) { lines.push('（暂无条目）'); return; }
+        es.forEach(e => {
+          const main = (cat.fields || []).map(f => { const v = e.values[f.key]; return (v !== undefined && v !== '') ? (f.label + '：' + v) : null; }).filter(Boolean).join(' ｜ ');
+          lines.push('— ' + main);
+          if (e.tags && e.tags.length) lines.push('  标签：' + e.tags.join('、'));
+        });
+      });
+      return lines.join('\n');
+    }
+    function exportCareerResumes(ids) {
+      const c = state.career;
+      let list = c.resumes.slice();
+      if (ids && ids.length) list = list.filter(r => ids.includes(r._id));
+      const lines = ['===== MindPocket 职业 · 简历草稿导出 ====='];
+      list.forEach(r => { lines.push(''); lines.push('## ' + (r.title || '未命名简历') + (r.version ? ('（' + r.version + '）') : '')); lines.push(r.content || ''); });
+      return lines.join('\n');
+    }
+    function exportCareerJDs(ids) {
+      const c = state.career;
+      let list = c.jds.slice();
+      if (ids && ids.length) list = list.filter(j => ids.includes(j._id));
+      const lines = ['===== MindPocket 职业 · JD 匹配记录导出 ====='];
+      list.forEach(j => {
+        lines.push(''); lines.push('【' + (j.title || '未命名岗位') + (j.company ? (' @ ' + j.company) : '') + '】');
+        lines.push('— JD 原文 —'); lines.push(j.rawText || '');
+        lines.push('— 解析结果 —');
+        const p = j.parsed || {};
+        lines.push('学历要求：' + (p.education || '未识别'));
+        lines.push('经验年限：' + (p.experienceYears != null ? p.experienceYears + ' 年' : '未识别'));
+        lines.push('技能：' + (p.skills || []).join('、'));
+        lines.push('职责关键词：' + (p.responsibilities || []).join('、'));
+        lines.push('— 匹配结论 —');
+        const m = j.match || {};
+        lines.push('适配项：' + ((m.matched || []).join('、') || '无'));
+        lines.push('现有优势：' + ((m.advantages || []).join('、') || '无'));
+        lines.push('能力短板：' + ((m.gaps || []).join('、') || '无'));
+      });
+      return lines.join('\n');
+    }
+    function importCareer(raw) {
+      const o = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      if (!o || typeof o !== 'object') throw new Error('职业备份文件格式无效');
+      const car = (o.career && typeof o.career === 'object') ? o.career : null;
+      if (!car) throw new Error('职业备份文件格式无效（未找到 career 字段）');
+      const c = state.career;
+      c.categories = Array.isArray(car.categories) ? car.categories : [];
+      c.entries = Array.isArray(car.entries) ? car.entries : [];
+      c.jds = Array.isArray(car.jds) ? car.jds : [];
+      c.resumes = Array.isArray(car.resumes) ? car.resumes : [];
+      c.tags = Array.isArray(car.tags) ? car.tags : [];
+      ensureCareerPresets();
+      persist();
+    }
   if (!load()) { seed(); }
   migrate();
   ensureQuickView();
@@ -5213,29 +5395,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!a || !b) return null;
     const pa = parseDate(a), pb = parseDate(b);
     if (isNaN(pa) || isNaN(pb)) return null;
-    return Math.round((pb.getTime() - pa.getTime()) / 86400000);
+    // 含首尾当日：7.1−7.3 = 3 天，7.1−7.1 = 1 天
+    return Math.round((pb.getTime() - pa.getTime()) / 86400000) + 1;
   }
   function finNum(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
   function finComputeCalcs(module, values) {
     const out = {};
+    // ctx = 录入字段 + 已计算项；后续计算项可引用前面已创建的计算项字段（链式计算）
+    const ctx = Object.assign({}, values);
     (module.calcs || []).forEach(c => {
       try {
         if (c.kind === 'datediff') {
-          let a = values[c.from], b = values[c.to];
+          let a = ctx[c.from], b = ctx[c.to];
           if (c.toTodayIfEmpty && (!b || b === '')) b = todayStr();
           const d = finDateDiff(a, b);
           if (d === null) out[c.key] = c.allowEmpty ? null : 0;
           else out[c.key] = c.allowEmpty ? Math.max(0, d) : Math.max(1, d);
         } else if (c.kind === 'ratio') {
-          const den = Math.max(1, finNum(values[c.den]));
-          const dep = c.dependsOn ? values[c.dependsOn] : undefined;
+          const den = Math.max(1, finNum(ctx[c.den]));
+          const dep = c.dependsOn ? ctx[c.dependsOn] : undefined;
           if (c.dependsOn && c.allowEmpty && (dep === null || dep === undefined || dep === '')) out[c.key] = null;
-          else { const r = finNum(values[c.num]) / den; out[c.key] = c.round ? +r.toFixed(c.round) : r; }
+          else { const r = finNum(ctx[c.num]) / den; out[c.key] = c.round ? +r.toFixed(c.round) : r; }
         } else if (c.kind === 'subtract') {
-          out[c.key] = finNum(values[c.num]) - finNum(values[c.sub]);
+          out[c.key] = finNum(ctx[c.num]) - finNum(ctx[c.sub]);
         } else if (c.kind === 'sum') {
-          out[c.key] = finNum(values[c.num1]) + finNum(values[c.num2]);
+          out[c.key] = finNum(ctx[c.num1]) + finNum(ctx[c.num2]);
         }
+        if (out[c.key] !== undefined) ctx[c.key] = out[c.key]; // 供后续计算项引用
       } catch (e) { out[c.key] = null; }
     });
     return out;
@@ -5307,6 +5493,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     f.incomeModules = f.incomeModules.filter(m => m._id !== id);
     f.expenseEntries = f.expenseEntries.filter(e => e.moduleId !== id);
     f.incomeEntries = f.incomeEntries.filter(e => e.moduleId !== id);
+    persist();
+  }
+  function setFinanceModulesOrder(orderedIds, type) {
+    const arr = type === 'expense' ? state.finance.expenseModules : state.finance.incomeModules;
+    arr.sort((a, b) => orderedIds.indexOf(a._id) - orderedIds.indexOf(b._id));
     persist();
   }
   function finBuildEntry(type, moduleId, values) {
@@ -5404,10 +5595,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     swipeLock, swipeUnlock, swipeCleanup,
     SWIPE_ACTIVATE_PX, SWIPE_TRIGGER_PX,
     // 财务复盘（独立 Tab，数据隔离）
-    ensureFinancePresets, addFinanceModule, updateFinanceModule, removeFinanceModule,
+    ensureFinancePresets, addFinanceModule, updateFinanceModule, removeFinanceModule, setFinanceModulesOrder,
     addFinanceEntry, updateFinanceEntry, removeFinanceEntry,
     saveFieldTemplate, removeFieldTemplate, linkExpenseToWish, unlinkExpenseWish,
     finComputeCalcs, finAmountOf, finEntryYM, FINANCE_PRESET_EXPENSE, FINANCE_PRESET_INCOME,
+    // 职业 Tab（独立 Tab，数据隔离）
+    ensureCareerPresets, addCareerCategory, updateCareerCategory, removeCareerCategory, setCareerCategoriesOrder,
+    addCareerEntry, updateCareerEntry, removeCareerEntry, addCareerTags,
+    addJD, updateJD, removeJD, addResume, updateResume, removeResume,
+    exportCareerText, exportCareerResumes, exportCareerJDs, importCareer,
+    CAREER_PRESETS, CAREER_KIND_ICON,
     // —— 数据备份 / 恢复（P0：零依赖本地备份，配合多设备迁移 / 刷新数据）——
     exportAll() {
       // 与 persist() 写入结构完全一致，保证可原样还原
@@ -5419,6 +5616,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         sub_custom_statuses: state.sub_custom_statuses,
         wish_items: state.wish_items, wish_records: state.wish_records,
         finance: state.finance,
+        career: state.career,
       });
     },
     importAll(raw) {
@@ -5444,6 +5642,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.wish_items = Array.isArray(o.wish_items) ? o.wish_items : [];
       state.wish_records = Array.isArray(o.wish_records) ? o.wish_records : [];
       state.finance = (o.finance && typeof o.finance === 'object') ? o.finance : { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] };
+      state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
       try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
       persist(); // 落盘 + 广播全局刷新（revision++），各页面自动重载
     },
@@ -5477,6 +5676,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       fin.fieldTemplates = Array.isArray(f.fieldTemplates) ? f.fieldTemplates : [];
       persist(); // 落盘 + 广播刷新
     },
+
     persist,
   };
 })();
@@ -5505,6 +5705,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     await delay(450);
       if (type === 'parseTask') return mockParseTask(input);
       if (type === 'parseStrategy') return mockParseStrategy(input);
+      if (type === 'parseJD') return mockParseJD(input);
       if (type === 'healthAdvice') return input; // input 本身就是兜底文本
       return null;
   }
@@ -6075,7 +6276,40 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return __callAI('parseStrategy', content);
   }
 
-  window.MPAI = { parseTask, parseStrategy, parseBatch, analyzeHealth, isPlaceholder: false };
+  // ===== JD 解析（纯前端 mock，结构化输出；真实接入大模型只需替换 __callAI 内部实现） =====
+  function mockParseJD(text) {
+    const t = (text || '').replace(/\r/g, '');
+    let education = '';
+    if (/博士/.test(t)) education = '博士';
+    else if (/硕士/.test(t)) education = '硕士';
+    else if (/本科/.test(t)) education = '本科';
+    else if (/大专|专科/.test(t)) education = '大专';
+    if (/985/.test(t)) education += '（985）';
+    else if (/211/.test(t)) education += '（211）';
+    else if (/双一流/.test(t)) education += '（双一流）';
+    let experienceYears = null;
+    const expRe = /(\d+)\s*年(以上)?(以[内外])?(相关)?经验/g;
+    let expM; const expNums = [];
+    while ((expM = expRe.exec(t)) !== null) { expNums.push(parseInt(expM[1], 10)); }
+    if (expNums.length) experienceYears = Math.max.apply(null, expNums);
+    const SKILL_DICT = ['JavaScript', 'TypeScript', 'React', 'Vue', 'Node.js', 'Python', 'Java', 'Go', 'Golang', 'C++', 'C#', 'PHP', 'Ruby', 'Swift', 'Kotlin', 'Rust', 'HTML', 'CSS', 'SQL', 'MySQL', 'PostgreSQL', 'MongoDB', 'Redis', 'Docker', 'Kubernetes', 'K8s', 'AWS', 'Azure', 'GCP', 'Linux', 'Spring', 'Django', 'Flask', 'TensorFlow', 'PyTorch', 'Angular', 'Vuex', 'Pinia', 'Webpack', 'Vite', 'Git', '敏捷', 'Scrum', '数据分析', '机器学习', '深度学习', '算法', '前端', '后端', '全栈', '测试', '运维', '产品', '运营', 'UI', 'UX', 'Figma', 'Excel', 'PowerPoint', '剪辑', '摄影'];
+    const skills = new Set();
+    const tl = t.toLowerCase();
+    SKILL_DICT.forEach(s => { if (tl.indexOf(s.toLowerCase()) >= 0) skills.add(s); });
+    const capM = t.match(/[A-Z][A-Za-z0-9.+#]{1,}/g) || [];
+    capM.forEach(w => { if (w.length >= 2 && !/^(JD|HR|CEO|CTO|OKR|KPI|HTML)$/.test(w)) skills.add(w); });
+    const VERBS = ['负责', '主导', '参与', '搭建', '设计', '开发', '优化', '维护', '管理', '推动', '协调', '领导', '建设', '落地', '交付', '支持', '分析', '调研', '撰写', '制定'];
+    const sentences = t.split(/[；;。\n\r]/).map(s => s.trim()).filter(Boolean);
+    const responsibilities = sentences.filter(s => VERBS.some(v => s.indexOf(v) >= 0)).slice(0, 12);
+    const SOFT = ['沟通', '协作', '团队合作', '抗压', '学习', '主动', '责任心', '逻辑', '表达', '领导力', '自驱'];
+    const softSkills = SOFT.filter(s => t.indexOf(s) >= 0);
+    return { education: education || '未识别', experienceYears: experienceYears, skills: Array.from(skills), responsibilities: responsibilities, softSkills: softSkills };
+  }
+  async function parseJD(jdText) {
+    return __callAI('parseJD', jdText);
+  }
+
+  window.MPAI = { parseTask, parseStrategy, parseBatch, analyzeHealth, parseJD, isPlaceholder: false };
 })();
 
 
@@ -11989,7 +12223,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <section class="block">
         <h3 class="block-title">💾 数据备份与恢复</h3>
         <div class="backup-box">
-          <p class="backup-note">导出一份完整数据文件（含任务 / 习惯 / 项目 / 许愿池 / <b>财务复盘</b> 等全部 Tab）。换设备、重装前先备份；导入将<b>覆盖</b>当前全部数据。</p>
+          <p class="backup-note">导出一份完整数据文件（含任务 / 习惯 / 项目 / 许愿池 / <b>财务复盘</b> / <b>职业</b> 等全部 Tab）。换设备、重装前先备份；导入将<b>覆盖</b>当前全部数据。</p>
           <div class="backup-actions">
             <button class="btn primary" @click="exportBackup">⬇ 导出备份</button>
             <button class="btn ghost" @click="importBackup">⬆ 导入备份</button>
@@ -13042,11 +13276,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!this.filterTag) return list;
         return list.filter(s => (s.tags || []).indexOf(this.filterTag) >= 0);
       },
-      // 每个子任务的甘特数据：优先子任务自身时间跨度（开始/结束）；仅结束无开始时退化为单日
+      // 每个子任务的甘特数据：需同时具备开始 / 结束日期才形成时间区间（单日期不展示）
       rows() {
         const projArchived = this.project && this.project.status !== 'running';
         return this.rawSubs.map(s => {
-          const start = s.sub_start || s.sub_end || null;
+          const start = s.sub_start || null;
           const end = s.sub_end || null;
           const archived = !!projArchived || this.$store.isSubComplete(s);
           return { sid: s.sid, title: s.title, start, end, hasBar: !!(start && end), archived, emg: !!s.isEmergency && !archived, pct: s.enableTotal ? this.$store.subProgress(s) : null };
@@ -13106,7 +13340,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     <div class="gantt">
       <div v-if="!rawSubs.length && filterTag" class="empty-tip">「{{ filterTag }}」标签下暂无子任务</div>
       <div v-else-if="!rawSubs.length" class="empty-tip">还没有子任务，点「新增子任务」添加（全部平级，不支持多级嵌套）</div>
-      <div v-else-if="noData" class="empty-tip gantt-empty">暂无时间数据，请给子任务设置开始 / 结束日期</div>
+      <div v-else-if="noData" class="empty-tip gantt-empty">暂无时间区间，请给子任务同时设置开始 / 结束日期（仅单日期不展示）</div>
       <div v-else class="gantt-scroll">
         <div class="gantt-inner" :style="{width: (88 + trackWidth) + 'px'}">
           <div class="gantt-head">
@@ -14385,6 +14619,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         showFinMenu: false,
         finMsg: '', finMsgTimer: null,
         palette: ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'],
+        dragId: null, dragging: false,
       };
     },
     computed: {
@@ -14465,7 +14700,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       fmtMoney(n) { const v = Math.round((parseFloat(n) || 0) * 100) / 100; return '¥' + v.toLocaleString('zh-CN'); },
       fmtCalc(v, c) { if (v === null || v === undefined || v === '') return '—'; const n = Math.round((parseFloat(v) || 0) * 100) / 100; return n + (c.unit || ''); },
       todayStr() { return (this.$store.util && this.$store.util.todayStr) ? this.$store.util.todayStr() : (function(){ const t=new Date(); const p=n=>String(n).padStart(2,'0'); return t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate()); })(); },
-      diffDays(a, b) { if (!a || !b) return null; const pa = new Date(a), pb = new Date(b); if (isNaN(pa) || isNaN(pb)) return null; return Math.round((pb - pa) / 86400000); },
+      diffDays(a, b) { if (!a || !b) return null; const pd = this.$store && this.$store.util && this.$store.util.parseDate; const pa = pd ? pd(a) : new Date(a), pb = pd ? pd(b) : new Date(b); if (isNaN(pa) || isNaN(pb)) return null; return Math.round((pb.getTime() - pa.getTime()) / 86400000) + 1; }, // 含首尾当日
       // 数码设备：始终按当前值实时摊销。在用（或空退役时间）→ 以「今日」为末时间；已退役/出售且有退役时间 → 以退役日为末时间
       entryCalcs(e, mod) {
         if (!mod || mod._id !== 'preset_device' || !e.values) return e.calcs || {};
@@ -14556,6 +14791,50 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.closeModule();
       },
       delModule(mod) { if (confirm('删除模块将同时删除其下所有记录，确定？')) this.$store.removeFinanceModule(mod._id); },
+      startDrag(e, item, type) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        this.dragId = item._id; this.dragType = type || null; this.dragging = true; this._lastTarget = null;
+        this._dragMove = (ev) => this.onDragMove(ev);
+        this._dragUp = (ev) => this.onDragUp(ev);
+        window.addEventListener('pointermove', this._dragMove, { passive: false });
+        window.addEventListener('pointerup', this._dragUp);
+        window.addEventListener('pointercancel', this._dragUp);
+      },
+      onDragMove(e) {
+        if (!this.dragId) return;
+        if (e.cancelable) e.preventDefault();
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el) return;
+        const card = el.closest('.fin-mod'); if (!card) return;
+        const targetId = card.getAttribute('data-id');
+        if (!targetId || targetId === this.dragId) return;
+        this.liveReorder(targetId, this.dragType);
+      },
+      liveReorder(targetId, type) {
+        let arr;
+        if (type === 'expense') arr = this.fin.expenseModules;
+        else if (type === 'income') arr = this.fin.incomeModules;
+        else arr = this.$store.state.career.categories;
+        const from = arr.findIndex(m => m._id === this.dragId);
+        const to = arr.findIndex(m => m._id === targetId);
+        if (from < 0 || to < 0 || from === to) return;
+        const [moved] = arr.splice(from, 1);
+        arr.splice(to, 0, moved);
+      },
+      onDragUp() {
+        window.removeEventListener('pointermove', this._dragMove);
+        window.removeEventListener('pointerup', this._dragUp);
+        window.removeEventListener('pointercancel', this._dragUp);
+        if (this.dragId) {
+          if (this.dragType === 'expense' || this.dragType === 'income') {
+            const arr = this.dragType === 'expense' ? this.fin.expenseModules : this.fin.incomeModules;
+            this.$store.setFinanceModulesOrder(arr.map(m => m._id), this.dragType);
+          } else {
+            this.$store.setCareerCategoriesOrder(this.$store.state.career.categories.map(c => c._id));
+          }
+        }
+        this.dragId = null; this.dragType = null; this.dragging = false;
+      },
       // —— 字段模板 ——
       delTemplate(t) { if (confirm('删除模板？')) this.$store.removeFieldTemplate(t._id); },
       applyTemplate(t) {
@@ -14657,8 +14936,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const dates = (mod.fields || []).filter(f => f.type === 'date');
           if (!dates.length) return;
           const s = (e.values || {})[dates[0].key]; if (!s) return;
+          // 单日期（或第二个日期为空）不形成时间区间，与项目甘特图规则一致：仅两个日期才展示
           let en = dates[1] ? (e.values || {})[dates[1].key] : null;
-          if (!en) en = this.$store.util.todayStr();
+          if (!en) return;
           rows.push({ id: e._id, label: (mod.icon || '') + (e.values[dates[0].key.replace('Date', 'Name')] || e.values.note || mod.name), start: s, end: en, module: mod.name });
         });
         if (!rows.length) return { rows: [], min: null, max: null };
@@ -14720,8 +15000,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <div class="fin-section">
         <div class="fin-sec-head">📤 支出台账区</div>
-        <div v-for="mod in modulesExpense" :key="mod._id" class="block fin-mod">
+        <div v-for="mod in modulesExpense" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
           <div class="fin-mod-head">
+            <span class="fin-mod-drag" title="按住拖动调整顺序" @pointerdown.prevent="startDrag($event, mod, 'expense')">⠿</span>
             <span class="fin-mod-ico">{{ mod.icon }}</span>
             <span class="fin-mod-name">{{ mod.name }}</span>
             <span class="fin-mod-sum">{{ fmtMoney(moduleTotal(mod)) }}</span>
@@ -14755,8 +15036,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <div class="fin-section">
         <div class="fin-sec-head">📥 收入台账区</div>
-        <div v-for="mod in modulesIncome" :key="mod._id" class="block fin-mod">
+        <div v-for="mod in modulesIncome" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
           <div class="fin-mod-head">
+            <span class="fin-mod-drag" title="按住拖动调整顺序" @pointerdown.prevent="startDrag($event, mod, 'income')">⠿</span>
             <span class="fin-mod-ico">{{ mod.icon }}</span>
             <span class="fin-mod-name">{{ mod.name }}</span>
             <span class="fin-mod-sum">{{ fmtMoney(moduleTotal(mod)) }}</span>
@@ -14885,20 +15167,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <option value="sum">求和 A+B</option>
               </select>
               <template v-if="c.kind==='ratio'">
-                <select v-model="c.num"><option value="">分子</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
-                <select v-model="c.den"><option value="">分母</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+                <select v-model="c.num"><option value="">分子</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option><template v-for="(cc,ci) in moduleEdit.calcs" :key="'cn'+ci"><option :value="cc.key" v-if="ci!==i && cc.key">{{ cc.label }}（计算）</option></template></select>
+                <select v-model="c.den"><option value="">分母</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option><template v-for="(cc,ci) in moduleEdit.calcs" :key="'cd'+ci"><option :value="cc.key" v-if="ci!==i && cc.key">{{ cc.label }}（计算）</option></template></select>
               </template>
               <template v-else-if="c.kind==='datediff'">
-                <select v-model="c.from"><option value="">起</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
-                <select v-model="c.to"><option value="">止</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+                <select v-model="c.from"><option value="">起</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option><template v-for="(cc,ci) in moduleEdit.calcs" :key="'cf'+ci"><option :value="cc.key" v-if="ci!==i && cc.key">{{ cc.label }}（计算）</option></template></select>
+                <select v-model="c.to"><option value="">止</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option><template v-for="(cc,ci) in moduleEdit.calcs" :key="'ct'+ci"><option :value="cc.key" v-if="ci!==i && cc.key">{{ cc.label }}（计算）</option></template></select>
               </template>
               <template v-else-if="c.kind==='subtract'">
-                <select v-model="c.num"><option value="">A</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
-                <select v-model="c.sub"><option value="">B</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+                <select v-model="c.num"><option value="">A</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option><template v-for="(cc,ci) in moduleEdit.calcs" :key="'cs1'+ci"><option :value="cc.key" v-if="ci!==i && cc.key">{{ cc.label }}（计算）</option></template></select>
+                <select v-model="c.sub"><option value="">B</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option><template v-for="(cc,ci) in moduleEdit.calcs" :key="'cs2'+ci"><option :value="cc.key" v-if="ci!==i && cc.key">{{ cc.label }}（计算）</option></template></select>
               </template>
               <template v-else>
-                <select v-model="c.num1"><option value="">A</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
-                <select v-model="c.num2"><option value="">B</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option></select>
+                <select v-model="c.num1"><option value="">A</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option><template v-for="(cc,ci) in moduleEdit.calcs" :key="'csu1'+ci"><option :value="cc.key" v-if="ci!==i && cc.key">{{ cc.label }}（计算）</option></template></select>
+                <select v-model="c.num2"><option value="">B</option><option v-for="f in moduleEdit.fields" :key="f.key" :value="f.key">{{ f.label }}</option><template v-for="(cc,ci) in moduleEdit.calcs" :key="'csu2'+ci"><option :value="cc.key" v-if="ci!==i && cc.key">{{ cc.label }}（计算）</option></template></select>
               </template>
               <input class="fc-unit" v-model="c.unit" placeholder="单位" />
               <button class="btn mini danger" @click="removeModuleCalc(i)">✕</button>
@@ -14988,6 +15270,532 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     </div>`,
   };
 
+  /* ================== 职业 独立 Tab（数据隔离，不与任务/项目/财务互通） ================== */
+  C.CareerPage = {
+    data() {
+      return {
+        tab: 'resume',
+        showCat: false, catEdit: null,
+        showEntry: false, entryMode: 'add', entryCat: null, editId: null, draft: null, confirmDelEntry: false,
+        filterTag: '', filterKind: '',
+        showViz: false, vizType: 'timeline',
+        jdText: '', jdTitle: '', jdCompany: '', parsing: false, activeJD: null,
+        showResume: false, resumeMode: 'new', resumeTitle: '', resumeContent: '', editResumeId: null, genJDId: '',
+        showData: false,
+        carMsg: '', carMsgTimer: null,
+        dragId: null, dragging: false,
+        kindOptions: [
+          { value: 'skill', label: '专业技能' }, { value: 'cert', label: '证书' }, { value: 'comp', label: '竞赛' },
+          { value: 'intern', label: '实习' }, { value: 'project', label: '项目' }, { value: 'club', label: '社团经历' },
+          { value: 'speech', label: '话术素材' }, { value: 'interview', label: '面试笔记' }, { value: 'custom', label: '自定义' },
+        ],
+      };
+    },
+    computed: {
+      career() { return this.$store.state.career; },
+      categories() { return (this.career.categories || []); },
+      entries() { return (this.career.entries || []); },
+      allTags() { return (this.career.tags || []); },
+      catById() { return id => this.categories.find(c => c._id === id); },
+      filteredEntries() {
+        let es = this.entries.slice();
+        if (this.filterKind) es = es.filter(e => { const c = this.catById(e.categoryId); return c && c.kind === this.filterKind; });
+        if (this.filterTag) es = es.filter(e => (e.tags || []).includes(this.filterTag));
+        return es;
+      },
+      entriesOf() { return cat => this.filteredEntries.filter(e => e.categoryId === cat._id); },
+      jds() { return (this.career.jds || []); },
+      resumes() { return (this.career.resumes || []); },
+      vizTimeline() {
+        const rows = [];
+        this.categories.forEach(cat => {
+          (this.entriesOf(cat)).forEach(e => {
+            const dateField = (cat.fields || []).find(f => f.type === 'date');
+            const d = dateField ? e.values[dateField.key] : null;
+            if (d) rows.push({ cat: cat.name, icon: cat.icon, date: String(d), title: this.entryTitle(cat, e) });
+          });
+        });
+        rows.sort((a, b) => a.date < b.date ? -1 : 1);
+        const years = {};
+        rows.forEach(r => { const y = r.date.slice(0, 4); (years[y] = years[y] || []).push(r); });
+        return Object.keys(years).sort().map(y => ({ year: y, items: years[y] }));
+      },
+      vizRadar() {
+        const counts = this.categories.map(c => ({ name: c.name, icon: c.icon, value: this.entriesOf(c).length }));
+        return counts;
+      },
+      vizPie() {
+        const rows = this.categories.map(c => ({ label: c.name, value: this.entriesOf(c).length, color: this.catColor(c) })).filter(r => r.value > 0);
+        const total = rows.reduce((s, r) => s + r.value, 0);
+        return { rows, total };
+      },
+      vizBar() { return this.categories.map(c => ({ label: c.name, icon: c.icon, value: this.entriesOf(c).length })); },
+      vizBoard() {
+        const jd = this.activeJD;
+        if (!jd || !jd.parsed) return null;
+        const skills = jd.parsed.skills || [];
+        const lib = this.libraryText();
+        return {
+          title: jd.title || '未命名岗位',
+          education: jd.parsed.education,
+          experienceYears: jd.parsed.experienceYears,
+          cells: skills.map(s => ({ skill: s, has: lib.indexOf(s.toLowerCase()) >= 0 })),
+        };
+      },
+      radarAxes() {
+        const data = this.vizRadar; const n = data.length || 1;
+        return data.map((d, i) => {
+          const ang = (-90 + i * 360 / n) * Math.PI / 180; const R = 90;
+          return { name: d.icon + d.name, x: 120 + R * Math.cos(ang), y: 120 + R * Math.sin(ang), tx: 120 + (R + 14) * Math.cos(ang), ty: 120 + (R + 14) * Math.sin(ang) };
+        });
+      },
+      radarPoints() {
+        const data = this.vizRadar; const n = data.length || 1; const max = Math.max(1, ...data.map(d => d.value));
+        return data.map((d, i) => {
+          const ang = (-90 + i * 360 / n) * Math.PI / 180;
+          const r = 12 + (d.value / max) * 88;
+          return (120 + r * Math.cos(ang)).toFixed(1) + ',' + (120 + r * Math.sin(ang)).toFixed(1);
+        }).join(' ');
+      },
+    },
+    methods: {
+      setCarMsg(m) { this.carMsg = m; if (this.carMsgTimer) clearTimeout(this.carMsgTimer); this.carMsgTimer = setTimeout(() => { this.carMsg = ''; }, 2200); },
+      // —— 分类增改 ——
+      openAddCategory() { this.catEdit = { name: '', icon: '📦', kind: 'skill', fields: [], defaultTags: '' }; this.showCat = true; },
+      openEditCategory(cat) {
+        this.catEdit = { _id: cat._id, name: cat.name, icon: cat.icon, kind: cat.kind,
+          fields: (cat.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required })),
+          defaultTags: (cat.defaultTags || []).join('，') };
+        this.showCat = true;
+      },
+      closeCat() { this.showCat = false; this.catEdit = null; },
+      addCatField() { this.catEdit.fields.push({ key: 'f' + Date.now().toString().slice(-5), label: '', type: 'text', unit: '', options: '', required: false }); },
+      removeCatField(i) { this.catEdit.fields.splice(i, 1); },
+      saveCat() {
+        const c = this.catEdit; if (!c.name || !c.name.trim()) { alert('请填写分类名称'); return; }
+        const fields = c.fields.map(f => ({ key: f.key || ('f' + Date.now().toString().slice(-5)), label: f.label || '字段', type: f.type || 'text', unit: f.unit || '', options: (f.options || '').split(/[，,]/).map(s => s.trim()).filter(Boolean), required: !!f.required }));
+        const tags = (c.defaultTags || '').split(/[，,]/).map(s => s.trim()).filter(Boolean);
+        const payload = { name: c.name.trim(), icon: c.icon || '📦', kind: c.kind || 'custom', fields: fields, defaultTags: tags };
+        if (c._id) this.$store.updateCareerCategory(c._id, payload); else this.$store.addCareerCategory(payload);
+        this.closeCat();
+      },
+      delCat(cat) { if (confirm('删除分类将同时删除其下所有条目，确定？')) this.$store.removeCareerCategory(cat._id); },
+      startDrag(e, item) {
+        if (e.pointerType === 'mouse' && e.button !== 0) return;
+        this.dragId = item._id; this.dragging = true; this._lastTarget = null;
+        this._dragMove = (ev) => this.onDragMove(ev);
+        this._dragUp = (ev) => this.onDragUp(ev);
+        window.addEventListener('pointermove', this._dragMove, { passive: false });
+        window.addEventListener('pointerup', this._dragUp);
+        window.addEventListener('pointercancel', this._dragUp);
+      },
+      onDragMove(e) {
+        if (!this.dragId) return;
+        if (e.cancelable) e.preventDefault();
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el) return;
+        const card = el.closest('.fin-mod'); if (!card) return;
+        const targetId = card.getAttribute('data-id');
+        if (!targetId || targetId === this.dragId) return;
+        this.liveReorder(targetId);
+      },
+      liveReorder(targetId) {
+        const arr = this.$store.state.career.categories;
+        const from = arr.findIndex(m => m._id === this.dragId);
+        const to = arr.findIndex(m => m._id === targetId);
+        if (from < 0 || to < 0 || from === to) return;
+        const [moved] = arr.splice(from, 1);
+        arr.splice(to, 0, moved);
+      },
+      onDragUp() {
+        window.removeEventListener('pointermove', this._dragMove);
+        window.removeEventListener('pointerup', this._dragUp);
+        window.removeEventListener('pointercancel', this._dragUp);
+        if (this.dragId) this.$store.setCareerCategoriesOrder(this.$store.state.career.categories.map(c => c._id));
+        this.dragId = null; this.dragging = false;
+      },
+      // —— 条目增改 ——
+      primaryField(cat) { const f = (cat.fields || []).find(x => x.type === 'date'); return f ? f.key : null; },
+      titleFieldKey(cat, e) {
+        const f = (cat.fields || []).find(x => x.key === 'name' || x.key === 'title' || x.key === 'company' || x.key === 'org');
+        if (f && e.values[f.key] != null && e.values[f.key] !== '') return f.key;
+        const any = (cat.fields || []).find(x => e.values[x.key] != null && e.values[x.key] !== '');
+        return any ? any.key : null;
+      },
+      entryTitle(cat, e) {
+        const k = this.titleFieldKey(cat, e);
+        if (k) {
+          let t = String(e.values[k]);
+          const d = this.primaryField(cat);
+          if (d && e.values[d] != null && e.values[d] !== '') t += ' · ' + e.values[d];
+          return t;
+        }
+        return cat.name + '条目';
+      },
+      entryFields(cat, e) {
+        const tk = this.titleFieldKey(cat, e);
+        const dk = this.primaryField(cat);
+        return (cat.fields || []).filter(f => f.key !== tk && f.key !== dk).map(f => { const v = e.values[f.key]; return (v !== undefined && v !== '') ? (f.label + '：' + v) : null; }).filter(Boolean);
+      },
+      openAddEntry(cat) { this.entryCat = cat; this.entryMode = 'add'; this.editId = null; this.draft = { values: {}, tagText: '' }; this.showEntry = true; },
+      openEditEntry(e) {
+        const cat = this.catById(e.categoryId); if (!cat) return;
+        this.entryCat = cat; this.entryMode = 'edit'; this.editId = e._id;
+        this.draft = { values: Object.assign({}, e.values || {}), tagText: (e.tags || []).join('，') };
+        this.showEntry = true;
+      },
+      closeEntry() { this.showEntry = false; this.entryCat = null; this.draft = null; },
+      saveEntry() {
+        const cat = this.entryCat; if (!cat) return;
+        const tags = (this.draft.tagText || '').split(/[，,]/).map(s => s.trim()).filter(Boolean);
+        const values = Object.assign({}, this.draft.values);
+        values.tags = tags; // 让 addCareerEntry / updateCareerEntry 把标签写入条目本身
+        if (this.entryMode === 'add') this.$store.addCareerEntry(cat._id, values);
+        else this.$store.updateCareerEntry(this.editId, values);
+        if (tags.length) this.$store.addCareerTags(tags);
+        this.closeEntry();
+      },
+      askDeleteEntry() { this.confirmDelEntry = true; },
+      cancelDeleteEntry() { this.confirmDelEntry = false; },
+      delEntry() { if (!this.editId) return; this.$store.removeCareerEntry(this.editId); this.confirmDelEntry = false; this.closeEntry(); },
+      // —— 可视化辅助 ——
+      openViz() { this.showViz = true; },
+      closeViz() { this.showViz = false; },
+      catColor(c) { const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6']; const i = this.categories.indexOf(c); return palette[((i % palette.length) + palette.length) % palette.length]; },
+      catByIndex(i) { return this.categories[i]; },
+      piePath(cx, cy, r, a0, a1) {
+        if (a1 - a0 >= 359.999) return 'M ' + (cx - r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx + r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx - r) + ' ' + cy + ' Z';
+        const p0 = [cx + r * Math.cos(a0 * Math.PI / 180), cy + r * Math.sin(a0 * Math.PI / 180)];
+        const p1 = [cx + r * Math.cos(a1 * Math.PI / 180), cy + r * Math.sin(a1 * Math.PI / 180)];
+        const large = (a1 - a0) > 180 ? 1 : 0;
+        return 'M ' + cx + ' ' + cy + ' L ' + p0[0].toFixed(2) + ' ' + p0[1].toFixed(2) + ' A ' + r + ' ' + r + ' 0 ' + large + ' 1 ' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) + ' Z';
+      },
+      pieCum(rows, i) { if (i < 0) return 0; const total = rows.reduce((s, r) => s + r.value, 0) || 1; let s = 0; for (let k = 0; k <= i; k++) s += rows[k].value; return 360 * s / total; },
+      libraryText() {
+        let txt = '';
+        this.entries.forEach(e => {
+          const cat = this.catById(e.categoryId); if (cat) txt += ' ' + cat.name;
+          (e.tags || []).forEach(t => txt += ' ' + t);
+          (cat ? cat.fields || [] : []).forEach(f => { const v = e.values[f.key]; if (v != null && v !== '') txt += ' ' + v; });
+        });
+        return txt.toLowerCase();
+      },
+      // —— JD 解析 + 比对 ——
+      async doParse() {
+        if (!this.jdText || !this.jdText.trim()) { this.setCarMsg('请先粘贴 JD 文本'); return; }
+        this.parsing = true;
+        try {
+          const parsed = await window.MPAI.parseJD(this.jdText);
+          const match = this.matchJD(parsed);
+          this.activeJD = { title: this.jdTitle || '未命名岗位', company: this.jdCompany || '', rawText: this.jdText, parsed: parsed, match: match };
+          this.setCarMsg('JD 解析完成');
+        } catch (e) { this.setCarMsg('解析失败：' + (e && e.message ? e.message : e)); }
+        this.parsing = false;
+      },
+      matchJD(parsed) {
+        const lib = this.libraryText();
+        const skills = parsed.skills || [];
+        const matched = skills.filter(s => lib.indexOf(s.toLowerCase()) >= 0);
+        const gaps = skills.filter(s => lib.indexOf(s.toLowerCase()) < 0);
+        const advantages = [];
+        matched.forEach(s => {
+          const hit = this.entries.find(e => {
+            const cat = this.catById(e.categoryId); let t = (cat ? cat.name : '') + ' ' + (e.tags || []).join(' ');
+            (cat ? cat.fields || [] : []).forEach(f => { const v = e.values[f.key]; if (v != null && v !== '') t += ' ' + v; });
+            return t.toLowerCase().indexOf(s.toLowerCase()) >= 0;
+          });
+          if (hit) { const cat = this.catById(hit.categoryId); advantages.push(s + '（' + (cat ? cat.name : '') + '：' + this.entryTitle(cat, hit) + '）'); }
+        });
+        return { matched: matched, advantages: advantages, gaps: gaps };
+      },
+      saveJD() { if (!this.activeJD) { this.setCarMsg('请先解析 JD'); return; } this.$store.addJD(this.activeJD); this.setCarMsg('JD 匹配记录已保存'); },
+      loadJD(j) { this.activeJD = j; this.jdText = j.rawText; this.jdTitle = j.title; this.jdCompany = j.company || ''; this.tab = 'match'; },
+      removeJD(id) { if (confirm('删除该 JD 匹配记录？')) this.$store.removeJD(id); },
+      // —— 简历草稿 ——
+      openResume() { this.resumeMode = 'new'; this.resumeTitle = ''; this.resumeContent = ''; this.editResumeId = null; if (!this.genJDId && this.activeJD) this.genJDId = this.activeJD._id; this.showResume = true; },
+      openResumeFromJD() { this.genJDId = this.activeJD ? this.activeJD._id : ''; this.openResume(); },
+      loadResume(r) { this.resumeMode = 'edit'; this.editResumeId = r._id; this.resumeTitle = r.title; this.resumeContent = r.content; this.showResume = true; },
+      genResume() {
+        const lines = [];
+        lines.push('# 简历草稿' + (this.resumeTitle ? ' · ' + this.resumeTitle : ''));
+        lines.push('');
+        const jd = this.genJDId ? this.jds.find(j => j._id === this.genJDId) : null;
+        lines.push('## 基本信息');
+        lines.push('姓名：｜ 电话：｜ 邮箱：｜ 求职意向：' + (jd ? jd.title : ''));
+        lines.push('');
+        const skillCats = this.categories.filter(c => c.kind === 'skill');
+        const skills = [];
+        skillCats.forEach(c => this.entriesOf(c).forEach(e => { const f = (c.fields || []).find(x => x.key === 'name' || x.key === 'title'); if (f && e.values[f.key]) skills.push(e.values[f.key] + (e.tags && e.tags.length ? ('（' + e.tags.join('、') + '）') : '')); }));
+        if (skills.length) { lines.push('## 专业技能'); skills.forEach(s => lines.push('- ' + s)); lines.push(''); }
+        ['intern', 'project', 'comp', 'cert', 'club', 'speech', 'interview'].forEach(kind => {
+          this.categories.filter(c => c.kind === kind).forEach(cat => {
+            const es = this.entriesOf(cat); if (!es.length) return;
+            lines.push('## ' + cat.icon + ' ' + cat.name);
+            es.forEach(e => { lines.push('### ' + this.entryTitle(cat, e)); this.entryFields(cat, e).forEach(x => lines.push('- ' + x)); if (e.tags && e.tags.length) lines.push('- 标签：' + e.tags.join('、')); });
+            lines.push('');
+          });
+        });
+        if (jd && jd.match) { lines.push('## 与岗位匹配（' + jd.title + '）'); (jd.match.matched || []).forEach(s => lines.push('- 匹配：' + s)); (jd.match.gaps || []).forEach(s => lines.push('- 待补：' + s)); lines.push(''); }
+        this.resumeContent = lines.join('\n');
+      },
+      saveResume() {
+        if (!this.resumeContent || !this.resumeContent.trim()) { this.setCarMsg('简历内容为空'); return; }
+        const jdId = this.genJDId || (this.activeJD ? this.activeJD._id : null);
+        const payload = { title: this.resumeTitle || '未命名简历', content: this.resumeContent, jdId: jdId, version: this.resumeMode === 'edit' ? ('v' + (this.resumes.length + 1)) : ('基于' + (jdId ? '岗位' : '全量')) };
+        if (this.resumeMode === 'edit' && this.editResumeId) this.$store.updateResume(this.editResumeId, payload);
+        else this.$store.addResume(payload);
+        this.showResume = false; this.setCarMsg('简历已保存');
+      },
+      delResume(id) { if (confirm('删除该简历草稿？')) this.$store.removeResume(id); },
+      // —— 导出（纯文本）——
+      downloadTxt(name, content) {
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      exportEntries() {
+        try {
+          const opt = {};
+          if (this.filterKind) opt.kind = this.filterKind;
+          if (this.filterTag) opt.tag = this.filterTag;
+          const txt = this.$store.exportCareerText(opt);
+          this.downloadTxt('mindpocket-career-' + this.$store.util.todayStr() + '.txt', txt);
+          this.setCarMsg('✓ 履历已导出（纯文本）');
+        } catch (e) { this.setCarMsg('导出失败：' + (e && e.message ? e.message : e)); }
+      },
+      exportResumes() {
+        try { const txt = this.$store.exportCareerResumes([]); this.downloadTxt('mindpocket-career-resumes-' + this.$store.util.todayStr() + '.txt', txt); this.setCarMsg('✓ 简历草稿已导出'); }
+        catch (e) { this.setCarMsg('导出失败：' + (e && e.message ? e.message : e)); }
+      },
+      exportJDs() {
+        try { const txt = this.$store.exportCareerJDs([]); this.downloadTxt('mindpocket-career-jds-' + this.$store.util.todayStr() + '.txt', txt); this.setCarMsg('✓ JD 匹配记录已导出'); }
+        catch (e) { this.setCarMsg('导出失败：' + (e && e.message ? e.message : e)); }
+      },
+    },
+    template: `
+    <div class="fin-page">
+      <div class="fin-head">
+        <div class="fin-titlerow">
+          <div class="fin-title">💼 职业</div>
+          <div class="fin-actions">
+            <button class="fin-act" @click="openViz">📊 可视化</button>
+            <div class="fin-menu-wrap">
+              <button class="fin-act" @click="showData = !showData">🗂 数据</button>
+              <div v-if="showData" class="fin-pop-backdrop" @click="showData = false"></div>
+              <div v-if="showData" class="fin-pop">
+                <button class="fin-pop-item" @click="exportEntries">📤 导出履历（纯文本）</button>
+                <button class="fin-pop-item" @click="exportResumes">📤 导出简历草稿</button>
+                <button class="fin-pop-item" @click="exportJDs">📤 导出 JD 匹配</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="car-tabs">
+          <button :class="{ on: tab === 'resume' }" @click="tab = 'resume'">📚 履历素材库</button>
+          <button :class="{ on: tab === 'match' }" @click="tab = 'match'">🎯 JD 智能匹配</button>
+        </div>
+        <div class="fin-tools" v-if="tab === 'resume'">
+          <select v-model="filterKind" class="fin-sel"><option value="">全部分类</option><option v-for="k in kindOptions" :key="k.value" :value="k.value">{{ k.label }}</option></select>
+          <select v-model="filterTag" class="fin-sel"><option value="">全部标签</option><option v-for="t in allTags" :key="t" :value="t">{{ t }}</option></select>
+        </div>
+      </div>
+
+      <!-- 履历素材库 -->
+      <div class="fin-section" v-if="tab === 'resume'">
+        <div v-for="cat in categories" :key="cat._id" class="block fin-mod" :data-id="cat._id" :class="{ 'is-drag': dragging && dragId === cat._id }">
+          <div class="fin-mod-head">
+            <span class="fin-mod-drag" title="按住拖动调整顺序" @pointerdown.prevent="startDrag($event, cat)">⠿</span>
+            <span class="fin-mod-ico">{{ cat.icon }}</span>
+            <span class="fin-mod-name">{{ cat.name }}</span>
+            <span class="fin-mod-sum">{{ entriesOf(cat).length }} 条</span>
+            <div class="fin-mod-btns">
+              <button class="fin-ibtn add" @click="openAddEntry(cat)" title="新增">＋</button>
+              <button class="fin-ibtn edit" @click="openEditCategory(cat)" title="编辑分类">✎</button>
+              <button v-if="!cat.isPreset" class="fin-ibtn del" @click="delCat(cat)" title="删除">🗑</button>
+            </div>
+          </div>
+          <div v-if="entriesOf(cat).length === 0" class="empty-tip">暂无条目</div>
+          <div v-for="e in entriesOf(cat)" :key="e._id" class="fin-entry" @click="openEditEntry(e)">
+            <div class="fin-entry-top"><span class="fin-entry-amt">{{ entryTitle(cat, e) }}</span></div>
+            <div class="fin-entry-fields"><span v-for="(f, i) in entryFields(cat, e)" :key="i" class="fin-ef">{{ f }}</span></div>
+            <div class="fin-entry-tags" v-if="e.tags && e.tags.length"><span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span></div>
+          </div>
+        </div>
+        <button class="btn block-btn" @click="openAddCategory">＋ 新增分类</button>
+      </div>
+
+      <!-- JD 智能匹配 -->
+      <div class="fin-section" v-if="tab === 'match'">
+        <div class="fin-sec-head">📋 粘贴岗位 JD</div>
+        <textarea v-model="jdText" rows="6" class="car-jd-text" placeholder="粘贴招聘 JD 全文，自动解析学历 / 经验年限 / 技能 / 职责关键词..."></textarea>
+        <div class="fld"><label>岗位名称</label><input v-model="jdTitle" placeholder="如 前端开发工程师" /></div>
+        <div class="fld"><label>公司</label><input v-model="jdCompany" placeholder="如 某某科技" /></div>
+        <div class="modal-actions">
+          <button class="btn primary" :disabled="parsing" @click="doParse">{{ parsing ? '解析中…' : '🔍 解析 JD' }}</button>
+          <button class="btn" v-if="activeJD" @click="saveJD">💾 保存匹配记录</button>
+        </div>
+
+        <div v-if="activeJD" class="car-match">
+          <div class="fin-sec-head">📊 解析结果 · {{ activeJD.title }}</div>
+          <div class="car-parse">
+            <div><b>学历：</b>{{ activeJD.parsed.education }}</div>
+            <div><b>经验：</b>{{ activeJD.parsed.experienceYears != null ? (activeJD.parsed.experienceYears + ' 年') : '未识别' }}</div>
+            <div><b>技能：</b><span v-for="s in activeJD.parsed.skills" :key="s" class="tag">{{ s }}</span></div>
+            <div v-if="activeJD.parsed.responsibilities.length"><b>职责关键词：</b>{{ activeJD.parsed.responsibilities.join('；') }}</div>
+          </div>
+          <div class="fin-sec-head">✅ 匹配结论</div>
+          <div class="car-concl">
+            <div class="car-col ok"><b>适配项 / 现有优势</b><div v-for="a in activeJD.match.advantages" :key="a" class="car-item">+ {{ a }}</div><div v-if="!activeJD.match.advantages.length" class="empty-tip">暂无命中</div></div>
+            <div class="car-col gap"><b>能力短板（待补）</b><div v-for="g in activeJD.match.gaps" :key="g" class="car-item">- {{ g }}</div><div v-if="!activeJD.match.gaps.length" class="empty-tip">无明显短板</div></div>
+          </div>
+          <button class="btn primary block-btn" @click="openResumeFromJD">📝 一键生成简历草稿</button>
+        </div>
+
+        <div class="fin-sec-head" v-if="jds.length">🗂 已保存的 JD 匹配记录</div>
+        <div v-for="j in jds" :key="j._id" class="fin-entry car-jd" @click="loadJD(j)">
+          <div class="fin-entry-top"><span class="fin-entry-amt">{{ j.title }}<small v-if="j.company"> @ {{ j.company }}</small></span></div>
+          <div class="fin-entry-fields"><span class="fin-ef"><i>技能</i>{{ (j.parsed.skills || []).length }} 项</span><span class="fin-ef"><i>短板</i>{{ (j.match.gaps || []).length }} 项</span></div>
+          <button class="fin-ibtn del" @click.stop="removeJD(j._id)">🗑</button>
+        </div>
+
+        <div class="fin-sec-head">📝 简历草稿（多版本）</div>
+        <button class="btn block-btn" @click="openResume">＋ 新建简历草稿</button>
+        <div v-for="r in resumes" :key="r._id" class="fin-entry" @click="loadResume(r)">
+          <div class="fin-entry-top"><span class="fin-entry-amt">{{ r.title }}<small> {{ r.version }}</small></span></div>
+          <button class="fin-ibtn del" @click.stop="delResume(r._id)">🗑</button>
+        </div>
+      </div>
+
+      <!-- 分类编辑弹窗 -->
+      <div class="modal-mask" v-if="showCat" @click.self="closeCat">
+        <div class="modal fin-modal">
+          <div class="modal-head"><span>{{ catEdit._id ? '编辑分类' : '新增分类' }}</span><button class="modal-x" @click="closeCat">✕</button></div>
+          <div class="modal-body">
+            <div class="fld"><label>分类名称</label><input v-model="catEdit.name" placeholder="如 开源贡献" /></div>
+            <div class="fld"><label>图标 Emoji</label><input v-model="catEdit.icon" placeholder="📦" /></div>
+            <div class="fld"><label>类型</label><select v-model="catEdit.kind"><option v-for="k in kindOptions" :key="k.value" :value="k.value">{{ k.label }}</option></select></div>
+            <div class="fin-subhead">录入字段</div>
+            <div v-for="(f, i) in catEdit.fields" :key="i" class="fin-field-row">
+              <input class="ff-key" v-model="f.key" placeholder="字段key" />
+              <input class="ff-label" v-model="f.label" placeholder="显示名" />
+              <select v-model="f.type"><option value="text">文本</option><option value="number">数字</option><option value="date">日期</option><option value="textarea">多行</option><option value="select">下拉</option></select>
+              <input class="ff-unit" v-model="f.unit" placeholder="单位" />
+              <input v-if="f.type === 'select'" class="ff-opt" v-model="f.options" placeholder="选项逗号分隔" />
+              <button class="btn mini danger" @click="removeCatField(i)">✕</button>
+            </div>
+            <button class="btn mini" @click="addCatField">＋ 字段</button>
+            <div class="fld"><label>默认标签（逗号分隔）</label><input v-model="catEdit.defaultTags" placeholder="如 后端,高含金量" /></div>
+            <div class="modal-actions"><button class="btn" @click="closeCat">取消</button><button class="btn primary" @click="saveCat">保存</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 条目编辑弹窗 -->
+      <div class="modal-mask" v-if="showEntry" @click.self="closeEntry">
+        <div class="modal fin-modal">
+          <div class="modal-head"><span>{{ entryMode === 'add' ? '新增条目' : '编辑条目' }} · {{ entryCat.name }}</span><button class="modal-x" @click="closeEntry">✕</button></div>
+          <div class="modal-body">
+            <div v-for="f in entryCat.fields" :key="f.key" class="fld">
+              <label>{{ f.label }}{{ f.unit ? ('(' + f.unit + ')') : '' }}{{ f.required ? ' *' : '' }}</label>
+              <input v-if="f.type === 'text'" v-model="draft.values[f.key]" placeholder="请输入" />
+              <input v-else-if="f.type === 'number'" type="number" v-model.number="draft.values[f.key]" placeholder="0" />
+              <input v-else-if="f.type === 'date'" type="date" v-model="draft.values[f.key]" />
+              <textarea v-else-if="f.type === 'textarea'" v-model="draft.values[f.key]" rows="2"></textarea>
+              <select v-else-if="f.type === 'select'" v-model="draft.values[f.key]"><option value="">未选择</option><option v-for="o in f.options" :key="o" :value="o">{{ o }}</option></select>
+            </div>
+            <div class="fld"><label>标签（逗号分隔）</label><input v-model="draft.tagText" placeholder="如 后端,高含金量" /></div>
+            <div class="modal-actions">
+              <button v-if="entryMode === 'edit'" class="btn danger" @click="askDeleteEntry">删除</button>
+              <button class="btn" @click="closeEntry">取消</button>
+              <button class="btn primary" @click="saveEntry">保存</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 删除条目二次确认 -->
+      <div class="chart-confirm" v-if="confirmDelEntry" @click.self="cancelDeleteEntry">
+        <div class="idea-choice-box" @click.stop>
+          <div class="idea-choice-title">确定要删除这条条目？</div>
+          <p style="font-size:13px;color:var(--sub);margin:0 0 12px">删除后将无法恢复</p>
+          <div class="modal-actions"><button class="btn ghost" @click="cancelDeleteEntry">取消</button><button class="btn danger" @click="delEntry">确定删除</button></div>
+        </div>
+      </div>
+
+      <!-- 简历编辑弹窗 -->
+      <div class="modal-mask" v-if="showResume" @click.self="showResume = false">
+        <div class="modal fin-modal">
+          <div class="modal-head"><span>{{ resumeMode === 'edit' ? '编辑简历' : '新建简历草稿' }}</span><button class="modal-x" @click="showResume = false">✕</button></div>
+          <div class="modal-body">
+            <div class="fld"><label>简历标题</label><input v-model="resumeTitle" placeholder="如 字节前端-暑期实习" /></div>
+            <div class="fld"><label>关联 JD（可选，用于匹配前置）</label><select v-model="genJDId"><option value="">不关联</option><option v-for="j in jds" :key="j._id" :value="j._id">{{ j.title }}</option></select></div>
+            <button class="btn mini" @click="genResume">⚡ 一键生成草稿</button>
+            <div class="fld"><label>简历内容（可编辑）</label><textarea v-model="resumeContent" rows="14"></textarea></div>
+            <div class="modal-actions"><button class="btn" @click="showResume = false">取消</button><button class="btn primary" @click="saveResume">💾 保存版本</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 可视化弹窗 -->
+      <div class="modal-mask" v-if="showViz" @click.self="closeViz">
+        <div class="modal fin-viz-modal">
+          <div class="modal-head"><span>📊 可视化分析</span><button class="modal-x" @click="closeViz">✕</button></div>
+          <div class="modal-body">
+            <div class="fin-viz-tabs">
+              <button :class="{ on: vizType === 'timeline' }" @click="vizType = 'timeline'">时间轴</button>
+              <button :class="{ on: vizType === 'radar' }" @click="vizType = 'radar'">雷达图</button>
+              <button :class="{ on: vizType === 'pie' }" @click="vizType = 'pie'">饼图</button>
+              <button :class="{ on: vizType === 'bar' }" @click="vizType = 'bar'">柱状图</button>
+              <button :class="{ on: vizType === 'board' }" @click="vizType = 'board'">岗位对照</button>
+            </div>
+            <div v-if="vizType === 'timeline'" class="car-timeline">
+              <div v-for="y in vizTimeline" :key="y.year" class="car-year">
+                <div class="car-year-h">{{ y.year }} 年</div>
+                <div v-for="(it, i) in y.items" :key="i" class="car-ev"><span class="car-dot">{{ it.icon }}</span><span class="car-ev-date">{{ it.date }}</span><span class="car-ev-title">{{ it.title }}</span></div>
+              </div>
+              <div v-if="!vizTimeline.length" class="empty-tip">暂无带日期的条目</div>
+            </div>
+            <div v-else-if="vizType === 'radar'" class="car-radar">
+              <svg viewBox="0 0 240 240" class="fin-svg">
+                <polygon :points="radarPoints" fill="rgba(106,123,255,.25)" stroke="#6a7bff" stroke-width="2" />
+                <g v-for="(a, i) in radarAxes" :key="i"><line :x1="120" :y1="120" :x2="a.x" :y2="a.y" stroke="#e3e6ef" /><text :x="a.tx" :y="a.ty" font-size="9" fill="#666">{{ a.name }}</text></g>
+              </svg>
+            </div>
+            <div v-else-if="vizType === 'pie'" class="fin-chart">
+              <svg viewBox="0 0 320 180" class="fin-svg" v-if="vizPie.rows.length">
+                <g v-for="(r, i) in vizPie.rows" :key="i" :transform="'translate(160,90)'"><path :d="piePath(0, 0, 78, pieCum(vizPie.rows, i - 1), pieCum(vizPie.rows, i - 1) + 360 * r.value / vizPie.total)" :fill="r.color" /></g>
+              </svg>
+              <div v-else class="empty-tip">暂无数据</div>
+              <div class="fin-legend" v-if="vizPie.rows.length"><span v-for="r in vizPie.rows" :key="r.label" class="fin-lg"><i :style="{ background: r.color }"></i>{{ r.label }} {{ r.value }}</span></div>
+            </div>
+            <div v-else-if="vizType === 'bar'" class="fin-chart">
+              <svg viewBox="0 0 320 200" class="fin-svg">
+                <g v-for="(b, i) in vizBar" :key="i" :transform="'translate(' + (20 + i * 32) + ',0)'">
+                  <rect x="4" :y="180 - b.value * 16" width="20" :height="b.value * 16" rx="3" :fill="catColor(catByIndex(i))" />
+                  <text x="14" :y="194" font-size="9" text-anchor="middle">{{ b.icon }}</text>
+                  <text x="14" :y="180 - b.value * 16 - 4" font-size="9" text-anchor="middle" fill="#444">{{ b.value }}</text>
+                </g>
+              </svg>
+            </div>
+            <div v-else-if="vizType === 'board'" class="car-board">
+              <div v-if="!vizBoard" class="empty-tip">请先在「JD 智能匹配」解析并选中一个 JD</div>
+              <template v-else>
+                <div class="car-board-head">{{ vizBoard.title }} ｜ 学历 {{ vizBoard.education }} ｜ 经验 {{ vizBoard.experienceYears != null ? (vizBoard.experienceYears + ' 年') : '—' }}</div>
+                <div v-for="c in vizBoard.cells" :key="c.skill" class="car-board-row" :class="c.has ? 'ok' : 'gap'">
+                  <span class="car-b-dot">{{ c.has ? '✅' : '❌' }}</span><span>{{ c.skill }}</span><span class="car-b-tag">{{ c.has ? '已具备' : '待补齐' }}</span>
+                </div>
+              </template>
+              <div class="car-board-jds" v-if="!vizBoard">
+                <div class="fin-subhead">已保存的 JD</div>
+                <div v-for="j in jds" :key="j._id" class="fin-entry" @click="loadJD(j)"><span class="fin-entry-amt">{{ j.title }}</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`,
+  };
+
   const App = {
     data() {
       return { route: '/today', prevRoute: '/inbox', overlayStack: [] };
@@ -15001,6 +15809,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (r.startsWith('/project/')) return 'ProjectDetailPage';
         if (r.startsWith('/subtask/')) return 'InboxSubPage';
         if (r === '/finance') return 'FinancePage';
+        if (r === '/career') return 'CareerPage';
         return 'TodayPage';
       },
       routePid() {
@@ -15028,6 +15837,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           { path: '/projects', label: '项目', icon: '📁' },
           { path: '/stats', label: '统计', icon: '📊' },
           { path: '/finance', label: '财务', icon: '💰' },
+          { path: '/career', label: '职业', icon: '💼' },
         ];
       },
     },
@@ -15248,6 +16058,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   app.component('QuickEntry', C.QuickEntry);
   app.component('WishPool', C.WishPool);
   app.component('FinancePage', C.FinancePage);
+  app.component('CareerPage', C.CareerPage);
   app.mount('#app');
 
   // 动态视口高度兜底：把当前可视高度写入 --vh（= innerHeight/100），
