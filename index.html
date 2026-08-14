@@ -1499,7 +1499,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-search-clear:hover { background: #e7eaf3; }
 /* —— 搜索结果：总计看板 + 条目 —— */
 .fin-search-result { margin-top: 10px; }
-.fin-search-dash { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: linear-gradient(135deg, #6a7bff, #8b5cf6); border-radius: 14px; padding: 12px; color: #fff; box-shadow: 0 8px 22px rgba(106,123,255,.22); }
+.fin-search-dash { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: linear-gradient(135deg, #6a7bff, #8b5cf6); border-radius: 14px; padding: 12px; color: #fff; box-shadow: 0 8px 22px rgba(106,123,255,.22); }
+.fin-dash-val.dep { color: #bff3df; }
 .fin-dash-cell { display: flex; flex-direction: column; gap: 3px; }
 .fin-dash-label { font-size: 11px; opacity: 0.82; }
 .fin-dash-val { font-size: 16px; font-weight: 800; }
@@ -1513,7 +1514,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-si-mod { font-size: 12px; font-weight: 700; color: var(--text); background: #f0f1f6; border-radius: 8px; padding: 2px 8px; }
 .fin-si-title { font-size: 13px; color: var(--text); margin-top: 2px; }
 .fin-section { margin-top: 8px; }
-.fin-sec-head { font-size: 15px; font-weight: 700; color: var(--text); margin: 0 2px 8px; }
+.fin-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; font-weight: 700; color: var(--text); margin: 0 2px 8px; }
+.fin-sec-act { flex: none; }
+.fin-sec-title-grp { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.fin-sec-sum { font-size: 13px; font-weight: 700; color: #6a7bff; white-space: nowrap; }
+.fin-sec-sum.neg { color: #ef4444; }
 .fin-mod { padding: 10px; }
 .fin-mod-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
 .fin-mod-ico { font-size: 18px; }
@@ -1530,7 +1535,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-ibtn.edit:hover { background: #e7eaf3; }
 .fin-ibtn.del { background: #f0f1f6; color: #ef4444; }
 .fin-ibtn.del:hover { background: #ffeaea; }
+.fin-ibtn.xls { background: #e8f8f0; color: #10b981; border-color: #c8efe0; }
+.fin-ibtn.xls:hover { background: #d2f3e6; }
 .fin-ibtn:active { transform: translateY(1px); box-shadow: 0 1px 2px rgba(20,24,40,.12); }
+.fin-entry-amt.dep { color: #10b981; }
 .fin-entry { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; margin-bottom: 8px; background: #fff; }
 .fin-entry-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .fin-entry-amt { font-size: 16px; font-weight: 800; }
@@ -1806,7 +1814,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   const state = reactive({ revision: 0, habits: [], tasks: [], categories: [], settings: { quickToQuickView: true, autoExtend: false },
     projects: [], project_subs: [], project_records: [], project_ideas: [], project_folders: [], sub_custom_statuses: [],
     wish_items: [], wish_records: [],
-    finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] },
+    finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] },
     career: { categories: [], entries: [], jds: [], resumes: [], tags: [] } });
 
   /* ----------------------------- 持久化 ----------------------------- */
@@ -5000,6 +5008,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         { key: 'note', label: '用途备注', type: 'textarea' },
       ], calcs: [] },
   ];
+  const FINANCE_PRESET_DEPOSIT = [
+    { key: 'hard', name: '硬性存款', icon: '🏦', amountKey: 'amount',
+      fields: [
+        { key: 'amount', label: '存款金额', type: 'number', unit: '元', required: true },
+        { key: 'currency', label: '币种', type: 'select', options: ['人民币', '美元', '港币', '其他'] },
+        { key: 'institution', label: '开户机构', type: 'text' },
+        { key: 'depositDate', label: '存入日期', type: 'date' },
+        { key: 'dueDate', label: '到期日', type: 'date' },
+        { key: 'note', label: '备注', type: 'textarea' },
+      ], calcs: [] },
+    { key: 'invest', name: '投资理财', icon: '📈', amountKey: 'amount',
+      fields: [
+        { key: 'amount', label: '投入金额', type: 'number', unit: '元', required: true },
+        { key: 'variety', label: '投资品种', type: 'text' },
+        { key: 'platform', label: '交易平台', type: 'text' },
+        { key: 'buyDate', label: '买入日期', type: 'date' },
+        { key: 'note', label: '备注', type: 'textarea' },
+      ], calcs: [] },
+  ];
 
     /* ============================ 职业 Tab（独立 Tab，数据隔离，不与任务/项目/财务互通） ============================ */
     const CAREER_KIND_ICON = { skill: '💡', cert: '📜', comp: '🏆', intern: '💼', project: '📁', club: '🤝', speech: '💬', interview: '📝', custom: '📦' };
@@ -5496,10 +5523,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   function ensureFinancePresets() {
     const f = state.finance;
-    if (!f) { state.finance = { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] }; return; }
-    ['expenseModules', 'incomeModules', 'expenseEntries', 'incomeEntries', 'fieldTemplates'].forEach(k => { if (!Array.isArray(f[k])) f[k] = []; });
+    if (!f) { state.finance = { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] }; return; }
+    ['expenseModules', 'incomeModules', 'expenseEntries', 'incomeEntries', 'depositModules', 'depositEntries', 'fieldTemplates'].forEach(k => { if (!Array.isArray(f[k])) f[k] = []; });
     const exp = FINANCE_PRESET_EXPENSE.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'expense', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
     const inc = FINANCE_PRESET_INCOME.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'income', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
+    const dep = FINANCE_PRESET_DEPOSIT.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'deposit', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
     // 预设模块与代码定义保持同步：仅当用户数据中尚不存在该预设时才新增；
     // 已存在的预设模块完全保留用户自定义（字段 / 公式 / 名称 / 图标 / 金额字段），刷新后不再被代码预设覆盖
     const syncPreset = (arr, presets) => {
@@ -5507,6 +5535,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     };
     syncPreset(f.expenseModules, exp);
     syncPreset(f.incomeModules, inc);
+    syncPreset(f.depositModules, dep);
   }
   function finNormField(f) {
     return { key: f.key || ('f' + Math.random().toString(36).slice(2, 8)), label: f.label || '字段', type: f.type || 'text', unit: f.unit || '', options: Array.isArray(f.options) ? f.options.slice() : [], required: !!f.required };
@@ -5518,18 +5547,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const f = state.finance;
     const mod = {
       _id: uid('finmod'), name: (payload.name || '自定义模块').trim() || '自定义模块',
-      icon: payload.icon || (type === 'expense' ? '📦' : '💰'), type: type, isPreset: false,
+      icon: payload.icon || (type === 'expense' ? '📦' : (type === 'deposit' ? '🏦' : '💰')), type: type, isPreset: false,
       amountKey: payload.amountKey || null,
       fields: (payload.fields || []).map(finNormField),
       calcs: (payload.calcs || []).map(finNormCalc),
     };
     if (!mod.amountKey && mod.fields.length) { const nf = mod.fields.find(x => x.type === 'number'); if (nf) mod.amountKey = nf.key; }
-    if (type === 'expense') f.expenseModules.push(mod); else f.incomeModules.push(mod);
+    if (type === 'expense') f.expenseModules.push(mod);
+    else if (type === 'deposit') f.depositModules.push(mod);
+    else f.incomeModules.push(mod);
     persist(); return mod;
   }
   function updateFinanceModule(id, payload) {
     const f = state.finance;
-    const mod = f.expenseModules.concat(f.incomeModules).find(m => m._id === id);
+    const mod = f.expenseModules.concat(f.incomeModules).concat(f.depositModules).find(m => m._id === id);
     if (!mod) return;
     if (payload.name != null) mod.name = payload.name.trim() || mod.name;
     if (payload.icon != null) mod.icon = payload.icon;
@@ -5542,18 +5573,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const f = state.finance;
     f.expenseModules = f.expenseModules.filter(m => m._id !== id);
     f.incomeModules = f.incomeModules.filter(m => m._id !== id);
+    f.depositModules = f.depositModules.filter(m => m._id !== id);
     f.expenseEntries = f.expenseEntries.filter(e => e.moduleId !== id);
     f.incomeEntries = f.incomeEntries.filter(e => e.moduleId !== id);
+    f.depositEntries = f.depositEntries.filter(e => e.moduleId !== id);
     persist();
   }
   function setFinanceModulesOrder(orderedIds, type) {
-    const arr = type === 'expense' ? state.finance.expenseModules : state.finance.incomeModules;
+    const arr = type === 'expense' ? state.finance.expenseModules : (type === 'deposit' ? state.finance.depositModules : state.finance.incomeModules);
     arr.sort((a, b) => orderedIds.indexOf(a._id) - orderedIds.indexOf(b._id));
     persist();
   }
   function finBuildEntry(type, moduleId, values) {
     const f = state.finance;
-    const arr = type === 'expense' ? f.expenseModules : f.incomeModules;
+    const arr = type === 'expense' ? f.expenseModules : (type === 'deposit' ? f.depositModules : f.incomeModules);
     const mod = arr.find(m => m._id === moduleId);
     if (!mod) return null;
     const v = Object.assign({}, values);
@@ -5568,13 +5601,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   function addFinanceEntry(type, moduleId, values) {
     const e = finBuildEntry(type, moduleId, values); if (!e) return null;
-    if (type === 'expense') state.finance.expenseEntries.push(e); else state.finance.incomeEntries.push(e);
+    if (type === 'expense') state.finance.expenseEntries.push(e);
+    else if (type === 'deposit') state.finance.depositEntries.push(e);
+    else state.finance.incomeEntries.push(e);
     persist(); return e;
   }
   function updateFinanceEntry(id, type, values) {
-    const f = state.finance; const arr = type === 'expense' ? f.expenseEntries : f.incomeEntries;
+    const f = state.finance;
+    const arr = type === 'expense' ? f.expenseEntries : (type === 'deposit' ? f.depositEntries : f.incomeEntries);
     const e = arr.find(x => x._id === id); if (!e) return;
-    const mod = (type === 'expense' ? f.expenseModules : f.incomeModules).find(m => m._id === e.moduleId); if (!mod) return;
+    const mod = (type === 'expense' ? f.expenseModules : (type === 'deposit' ? f.depositModules : f.incomeModules)).find(m => m._id === e.moduleId); if (!mod) return;
     e.values = Object.assign({}, values); e.calcs = finComputeCalcs(mod, e.values);
     const ym = finEntryYM(mod, e.values); e.year = ym.year; e.month = ym.month; e.hasDate = !!(ym.year && ym.month);
     e.tags = Array.isArray(values.tags) ? values.tags.slice() : []; e.wishId = values.wishId || null; e.isBig = !!values.isBig;
@@ -5583,6 +5619,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function removeFinanceEntry(id, type) {
     const f = state.finance;
     if (type === 'expense') f.expenseEntries = f.expenseEntries.filter(e => e._id !== id);
+    else if (type === 'deposit') f.depositEntries = f.depositEntries.filter(e => e._id !== id);
     else f.incomeEntries = f.incomeEntries.filter(e => e._id !== id);
     persist();
   }
@@ -5692,7 +5729,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.sub_custom_statuses = Array.isArray(o.sub_custom_statuses) ? o.sub_custom_statuses : [];
       state.wish_items = Array.isArray(o.wish_items) ? o.wish_items : [];
       state.wish_records = Array.isArray(o.wish_records) ? o.wish_records : [];
-      state.finance = (o.finance && typeof o.finance === 'object') ? o.finance : { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] };
+      state.finance = (o.finance && typeof o.finance === 'object') ? o.finance : { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] };
       state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
       try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
       persist(); // 落盘 + 广播全局刷新（revision++），各页面自动重载
@@ -5703,6 +5740,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const finance = {
         expenseModules: f.expenseModules || [],
         incomeModules: f.incomeModules || [],
+        depositModules: f.depositModules || [],
+        depositEntries: f.depositEntries || [],
         expenseEntries: f.expenseEntries || [],
         incomeEntries: f.incomeEntries || [],
         fieldTemplates: f.fieldTemplates || [],
@@ -5722,6 +5761,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const fin = (state.finance && typeof state.finance === 'object') ? state.finance : (state.finance = {});
       fin.expenseModules = Array.isArray(f.expenseModules) ? f.expenseModules : [];
       fin.incomeModules = Array.isArray(f.incomeModules) ? f.incomeModules : [];
+      fin.depositModules = Array.isArray(f.depositModules) ? f.depositModules : [];
+      fin.depositEntries = Array.isArray(f.depositEntries) ? f.depositEntries : [];
       fin.expenseEntries = Array.isArray(f.expenseEntries) ? f.expenseEntries : [];
       fin.incomeEntries = Array.isArray(f.incomeEntries) ? f.incomeEntries : [];
       fin.fieldTemplates = Array.isArray(f.fieldTemplates) ? f.fieldTemplates : [];
@@ -14656,6 +14697,60 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   const { createApp } = Vue;
   const C = window.MPComponents;
 
+  /* ----------------- 无依赖 .xlsx 生成（内联 ZIP + CRC32，inlineStr / 数字单元格） ----------------- */
+  function xlsxEscape(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+  }
+  function xlsxCol(c) { let s = ''; c = c - 1; while (c >= 0) { s = String.fromCharCode(65 + (c % 26)) + s; c = Math.floor(c / 26) - 1; } return s; }
+  function xlsxCell(r, c, val) {
+    const ref = xlsxCol(c) + r;
+    if (typeof val === 'number' && isFinite(val)) return '<c r="' + ref + '"><v>' + val + '</v></c>';
+    const t = (val == null ? '' : String(val));
+    return '<c r="' + ref + '" t="inlineStr"><is><t xml:space="preserve">' + xlsxEscape(t) + '</t></is></c>';
+  }
+  function xlsxSheetXML(headers, rows) {
+    let out = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>';
+    let r = 1;
+    out += '<row r="1">' + headers.map((h, i) => xlsxCell(1, i + 1, h)).join('') + '</row>';
+    (rows || []).forEach(row => { r++; out += '<row r="' + r + '">' + row.map((v, i) => xlsxCell(r, i + 1, v)).join('') + '</row>'; });
+    out += '</sheetData></worksheet>';
+    return out;
+  }
+  const _xlsxCrcTable = (function () { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
+  function xlsxCrc32(bytes) { let crc = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) crc = (crc >>> 8) ^ _xlsxCrcTable[(crc ^ bytes[i]) & 0xFF]; return (crc ^ 0xFFFFFFFF) >>> 0; }
+  function xlsxZip(files) {
+    const enc = new TextEncoder();
+    const u16 = n => new Uint8Array([n & 255, (n >>> 8) & 255]);
+    const u32 = n => new Uint8Array([n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]);
+    const localOf = f => { const nb = enc.encode(f.name); const head = new Uint8Array([...u32(0x04034b50), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(xlsxCrc32(f.data)), ...u32(f.data.length), ...u32(f.data.length), ...u16(nb.length), ...u16(0)]); const m = new Uint8Array(head.length + nb.length + f.data.length); m.set(head, 0); m.set(nb, head.length); m.set(f.data, head.length + nb.length); return m; };
+    const offsets = []; let off = 0;
+    const locals = files.map(f => { const l = localOf(f); offsets.push(off); off += l.length; return l; });
+    const cenOf = (f, localOffset) => { const nb = enc.encode(f.name); const head = new Uint8Array([...u32(0x02014b50), ...u16(20), ...u16(20), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(xlsxCrc32(f.data)), ...u32(f.data.length), ...u32(f.data.length), ...u16(nb.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(localOffset)]); const m = new Uint8Array(head.length + nb.length); m.set(head, 0); m.set(nb, head.length); return m; };
+    const cens = files.map((f, i) => cenOf(f, offsets[i]));
+    const centralSize = cens.reduce((s, c) => s + c.length, 0);
+    const end = new Uint8Array([...u32(0x06054b50), ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(centralSize), ...u32(off), ...u16(0)]);
+    const all = new Uint8Array(off + centralSize + end.length);
+    let p = 0; locals.forEach(l => { all.set(l, p); p += l.length; }); cens.forEach(c => { all.set(c, p); p += c.length; }); all.set(end, p);
+    return new Blob([all], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  }
+  function buildXlsxBlob(sheets) {
+    const enc = new TextEncoder();
+    const contentTypes = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>';
+    const rootRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+    const workbook = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>' + sheets.map((s, i) => '<sheet name="' + xlsxEscape((s.name || ('Sheet' + (i + 1))).slice(0, 31)) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>').join('') + '</sheets></workbook>';
+    const workbookRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + sheets.map((s, i) => '<Relationship Id="rId' + (i + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + (i + 1) + '.xml"/>').join('') + '</Relationships>';
+    const files = [
+      { name: '[Content_Types].xml', data: enc.encode(contentTypes) },
+      { name: '_rels/.rels', data: enc.encode(rootRels) },
+      { name: 'xl/workbook.xml', data: enc.encode(workbook) },
+      { name: 'xl/_rels/workbook.xml.rels', data: enc.encode(workbookRels) },
+    ];
+    sheets.forEach((s, i) => { files.push({ name: 'xl/worksheets/sheet' + (i + 1) + '.xml', data: enc.encode(xlsxSheetXML(s.headers, s.rows)) }); });
+    return xlsxZip(files);
+  }
+
   /* ================== 财务复盘 独立 Tab（数据隔离，不与任务/项目互通） ================== */
   C.FinancePage = {
     data() {
@@ -14680,7 +14775,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       wishItems() { return this.$store.state.wish_items || []; },
       modulesExpense() { return (this.fin.expenseModules || []); },
       modulesIncome() { return (this.fin.incomeModules || []); },
-      allModules() { return this.modulesExpense.concat(this.modulesIncome); },
+      modulesDeposit() { return (this.fin.depositModules || []); },
+      allModules() { return this.modulesExpense.concat(this.modulesIncome, this.modulesDeposit); },
       filteredExpenseEntries() {
         return (this.fin.expenseEntries || []).filter(e => {
           if (!e.hasDate) return true; // 无日期记录始终展示，不受年份筛选影响
@@ -14693,23 +14789,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return (this.allYears || e.year === this.year) && (this.month === 0 || e.month === this.month);
         });
       },
+      filteredDepositEntries() {
+        return (this.fin.depositEntries || []).filter(e => {
+          if (!e.hasDate) return true;
+          return (this.allYears || e.year === this.year) && (this.month === 0 || e.month === this.month);
+        });
+      },
       // —— 记录搜索：在「当前周期筛选」基础上，按关键字模糊匹配备注/标签/大额标记/模块名/字段值 ——
-      searchActive() { return (this.searchText || '').trim().length > 0; },
-      searchKw() { return (this.searchText || '').trim().toLowerCase(); },
+      // 支持「#」多维度搜索：以 # 分隔的多个关键词需全部命中（AND），如「大一#兼职」
+      searchActive() { return this.searchKws.length > 0; },
+      searchKws() { return (this.searchText || '').split('#').map(s => s.trim().toLowerCase()).filter(Boolean); },
       searchExpense() {
         if (!this.searchActive) return [];
-        const kw = this.searchKw;
-        return this.filteredExpenseEntries.filter(e => this.entryMatch(e, this.moduleById(e.moduleId), kw));
+        const kws = this.searchKws;
+        return this.filteredExpenseEntries.filter(e => this.entryMatch(e, this.moduleById(e.moduleId), kws));
       },
       searchIncome() {
         if (!this.searchActive) return [];
-        const kw = this.searchKw;
-        return this.filteredIncomeEntries.filter(e => this.entryMatch(e, this.moduleById(e.moduleId), kw));
+        const kws = this.searchKws;
+        return this.filteredIncomeEntries.filter(e => this.entryMatch(e, this.moduleById(e.moduleId), kws));
+      },
+      searchDeposit() {
+        if (!this.searchActive) return [];
+        const kws = this.searchKws;
+        return this.filteredDepositEntries.filter(e => this.entryMatch(e, this.moduleById(e.moduleId), kws));
       },
       searchExpenseTotal() { return this.searchExpense.reduce((s, e) => s + this.amountOf(e), 0); },
       searchIncomeTotal() { return this.searchIncome.reduce((s, e) => s + this.amountOf(e), 0); },
-      searchNet() { return this.searchIncomeTotal - this.searchExpenseTotal; },
-      searchCount() { return this.searchExpense.length + this.searchIncome.length; },
+      searchDepositTotal() { return this.searchDeposit.reduce((s, e) => s + this.amountOf(e), 0); },
+      searchNet() { return this.searchIncomeTotal + this.searchDepositTotal - this.searchExpenseTotal; },
+      searchCount() { return this.searchExpense.length + this.searchIncome.length + this.searchDeposit.length; },
       // —— 筛选仅保留「全部年份 / 该年」：periodKey 联动 allYears（月份维度已移除）——
       periodKey: {
         get() {
@@ -14764,7 +14873,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const nf = (mod.fields || []).find(f => f.type === 'number'); return nf ? nf.key : null;
       },
       entriesOf(mod) {
-        const arr = (mod.type === 'expense' ? this.filteredExpenseEntries : this.filteredIncomeEntries).filter(e => e.moduleId === mod._id);
+        const arr = this.entriesArrOf(mod.type).filter(e => e.moduleId === mod._id);
         // 若模块含日期字段，则带日期的记录自动按该日期升序排列（无日期的排在末尾）
         const dk = this.primaryDateKey(mod);
         if (dk) {
@@ -14780,6 +14889,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return arr;
       },
       moduleById(id) { return this.allModules.find(m => m._id === id); },
+      entriesArrOf(type) {
+        if (type === 'expense') return this.filteredExpenseEntries;
+        if (type === 'deposit') return this.filteredDepositEntries;
+        return this.filteredIncomeEntries;
+      },
       // 拼接条目可搜索文本：备注/字段值 + 标签 + 大额标记 + 模块名 + 关联心愿，统一小写便于模糊匹配
       entrySearchText(e, mod) {
         const parts = [];
@@ -14791,9 +14905,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         for (const k in vals) { if (vals[k] != null && vals[k] !== '') parts.push(String(vals[k])); }
         return parts.join(' ').toLowerCase();
       },
-      entryMatch(e, mod, kw) {
+      entryMatch(e, mod, kws) {
         if (!e) return false;
-        return this.entrySearchText(e, mod).indexOf(kw) >= 0;
+        const text = this.entrySearchText(e, mod);
+        const list = Array.isArray(kws) ? kws : [kws];
+        return list.length > 0 && list.every(k => text.indexOf(k) >= 0);
       },
       // 搜索结果条目的主标题：优先 名称/标题/备注 类字段，否则首个非空字段，否则模块名
       entrySearchTitle(e) {
@@ -14806,6 +14922,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return mod.name;
       },
       moduleTotal(mod) { return this.entriesOf(mod).reduce((s, e) => s + this.amountOf(e), 0); },
+      // 账区汇总：该区所有模块记录的合计（与模块内口径一致，遵循当前年份/月份筛选）
+      areaExpenseTotal() { return (this.modulesExpense || []).reduce((s, m) => s + this.moduleTotal(m), 0); },
+      areaIncomeTotal() { return (this.modulesIncome || []).reduce((s, m) => s + this.moduleTotal(m), 0); },
+      areaDepositTotal() { return (this.modulesDeposit || []).reduce((s, m) => s + this.moduleTotal(m), 0); },
       fmtMoney(n) { const v = Math.round((parseFloat(n) || 0) * 100) / 100; return '¥' + v.toLocaleString('zh-CN'); },
       fmtShort(n) { const v = Math.round(parseFloat(n) || 0); if (v >= 10000) { const w = v / 10000; return (w % 1 === 0 ? w.toFixed(0) : w.toFixed(1)) + '万'; } return String(v); },
       fmtCalc(v, c) { if (v === null || v === undefined || v === '') return '—'; const n = Math.round((parseFloat(v) || 0) * 100) / 100; return n + (c.unit || ''); },
@@ -14963,6 +15083,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         let arr;
         if (type === 'expense') arr = this.fin.expenseModules;
         else if (type === 'income') arr = this.fin.incomeModules;
+        else if (type === 'deposit') arr = this.fin.depositModules;
         else arr = this.$store.state.career.categories;
         const from = arr.findIndex(m => m._id === this.dragId);
         const to = arr.findIndex(m => m._id === targetId);
@@ -14975,8 +15096,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         window.removeEventListener('pointerup', this._dragUp);
         window.removeEventListener('pointercancel', this._dragUp);
         if (this.dragId) {
-          if (this.dragType === 'expense' || this.dragType === 'income') {
-            const arr = this.dragType === 'expense' ? this.fin.expenseModules : this.fin.incomeModules;
+          if (this.dragType === 'expense' || this.dragType === 'income' || this.dragType === 'deposit') {
+            const arr = this.dragType === 'expense' ? this.fin.expenseModules : (this.dragType === 'deposit' ? this.fin.depositModules : this.fin.incomeModules);
             this.$store.setFinanceModulesOrder(arr.map(m => m._id), this.dragType);
           } else {
             this.$store.setCareerCategoriesOrder(this.$store.state.career.categories.map(c => c._id));
@@ -15037,6 +15158,49 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.finMsg = t;
         if (this.finMsgTimer) clearTimeout(this.finMsgTimer);
         this.finMsgTimer = setTimeout(() => { this.finMsg = ''; }, 3000);
+      },
+      // —— 按字段单独导出 Excel（无依赖 .xlsx）——
+      downloadXlsx(filename, sheets) {
+        try {
+          const blob = buildXlsxBlob(sheets);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = filename;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          this.setFinMsg('✓ 已导出 Excel');
+        } catch (e) { this.setFinMsg('导出失败：' + (e && e.message ? e.message : e)); }
+      },
+      // 把单个模块导出为一张工作表：列 = 字段 + 计算项 + 金额 +（大额）+ 标签 + 归属周期
+      moduleXlsxSheets(mod) {
+        const entries = this.entriesOf(mod);
+        const headers = []; const keys = [];
+        (mod.fields || []).forEach(f => { headers.push(f.label || f.key); keys.push({ t: 'field', f: f }); });
+        (mod.calcs || []).forEach(c => { headers.push(c.label || c.key); keys.push({ t: 'calc', c: c }); });
+        headers.push('金额(元)'); keys.push({ t: 'amount' });
+        if (mod.type === 'expense') { headers.push('大额'); keys.push({ t: 'big' }); }
+        headers.push('标签'); keys.push({ t: 'tags' });
+        headers.push('归属周期'); keys.push({ t: 'ym' });
+        const rows = entries.map(e => keys.map(k => {
+          if (k.t === 'field') { const v = (e.values || {})[k.f.key]; return (v == null || v === '') ? '' : v; }
+          if (k.t === 'calc') { const cv = (this.entryCalcs(e, mod) || {})[k.c.key]; return (cv == null || cv === '') ? '' : cv; }
+          if (k.t === 'amount') { const n = this.amountOf(e); return (typeof n === 'number' && isFinite(n)) ? n : ''; }
+          if (k.t === 'big') return e.isBig ? '是' : '否';
+          if (k.t === 'tags') return (e.tags || []).join('，');
+          if (k.t === 'ym') return e.hasDate ? (e.year + '年' + e.month + '月') : '';
+          return '';
+        }));
+        return { name: (mod.name || '模块').slice(0, 31), headers: headers, rows: rows };
+      },
+      exportModuleXlsx(mod) {
+        this.downloadXlsx('mindpocket-' + (mod.name || '模块') + '-' + this.todayStr() + '.xlsx', [this.moduleXlsxSheets(mod)]);
+      },
+      exportAreaXlsx(type) {
+        const mods = type === 'expense' ? this.modulesExpense : (type === 'deposit' ? this.modulesDeposit : this.modulesIncome);
+        const sheets = mods.map(m => this.moduleXlsxSheets(m));
+        if (!sheets.length) { this.setFinMsg('该账区暂无模块'); return; }
+        const areaName = type === 'expense' ? '支出' : (type === 'deposit' ? '存款' : '收入');
+        this.downloadXlsx('mindpocket-账区-' + areaName + '-' + this.todayStr() + '.xlsx', sheets);
       },
       // —— 财务数据悬浮菜单 ——
       toggleFinMenu() { this.showFinMenu = !this.showFinMenu; },
@@ -15114,7 +15278,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
         <div class="fin-search">
           <span class="fin-search-ico">🔍</span>
-          <input v-model="searchText" placeholder="搜索备注 / 标签 / 大额 / 模块名 / 任意字段…" />
+          <input v-model="searchText" placeholder="搜索备注 / 标签 / 大额 / 模块名 / 任意字段（用 # 分隔多关键词，需同时满足）…" />
           <button v-if="searchText" class="fin-search-clear" @click="searchText=''" title="清空搜索">✕</button>
         </div>
       </div>
@@ -15124,6 +15288,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="fin-dash-cell"><span class="fin-dash-label">匹配</span><span class="fin-dash-val">{{ searchCount }} 条</span></div>
           <div class="fin-dash-cell"><span class="fin-dash-label">支出合计</span><span class="fin-dash-val neg">{{ fmtMoney(searchExpenseTotal) }}</span></div>
           <div class="fin-dash-cell"><span class="fin-dash-label">收入合计</span><span class="fin-dash-val pos">{{ fmtMoney(searchIncomeTotal) }}</span></div>
+          <div class="fin-dash-cell"><span class="fin-dash-label">存款合计</span><span class="fin-dash-val dep">{{ fmtMoney(searchDepositTotal) }}</span></div>
         </div>
         <div class="fin-search-list">
           <div v-for="e in searchExpense" :key="'se' + e._id" class="fin-search-item" @click="openEditEntry(e)">
@@ -15145,12 +15310,100 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="fin-si-title" v-if="entrySearchTitle(e)">{{ entrySearchTitle(e) }}</div>
             <div class="fin-entry-tags" v-if="e.tags && e.tags.length"><span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span></div>
           </div>
+          <div v-for="e in searchDeposit" :key="'sd' + e._id" class="fin-search-item" @click="openEditEntry(e)">
+            <div class="fin-si-top">
+              <span class="fin-entry-amt pos dep">{{ fmtMoney(amountOf(e)) }}</span>
+              <span class="fin-si-mod">{{ moduleById(e.moduleId).icon }} {{ moduleById(e.moduleId).name }}</span>
+              <span class="fin-entry-date" v-if="e.hasDate">{{ e.year }}年{{ e.month }}月</span>
+            </div>
+            <div class="fin-si-title" v-if="entrySearchTitle(e)">{{ entrySearchTitle(e) }}</div>
+            <div class="fin-entry-tags" v-if="e.tags && e.tags.length"><span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span></div>
+          </div>
           <p v-if="searchCount === 0" class="empty-tip">未找到匹配「{{ searchText }}」的记录</p>
         </div>
       </div>
 
       <div class="fin-section">
-        <div class="fin-sec-head">📤 支出台账区</div>
+        <div class="fin-sec-head">
+          <span class="fin-sec-title-grp">🏦 存款台账区 <span class="fin-sec-sum">合计 {{ fmtMoney(areaDepositTotal()) }}</span></span>
+          <span class="fin-sec-act"><button class="btn mini" @click="exportAreaXlsx('deposit')">📤 导出本区</button></span>
+        </div>
+        <div v-for="mod in modulesDeposit" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
+          <div class="fin-mod-head">
+            <span class="fin-mod-drag" title="按住拖动调整顺序" @pointerdown.prevent="startDrag($event, mod, 'deposit')">⠿</span>
+            <span class="fin-mod-ico">{{ mod.icon }}</span>
+            <span class="fin-mod-name">{{ mod.name }}</span>
+            <span class="fin-mod-sum">{{ fmtMoney(moduleTotal(mod)) }}</span>
+            <div class="fin-mod-btns">
+              <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
+              <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
+              <button class="fin-ibtn xls" @click="exportModuleXlsx(mod)" title="按字段导出本模块 Excel">📤</button>
+              <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
+            </div>
+          </div>
+          <div v-if="entriesOf(mod).length === 0" class="empty-tip">本周期暂无记录</div>
+          <div v-for="e in entriesOf(mod)" :key="e._id" class="fin-entry" @click="openEditEntry(e)">
+            <div class="fin-entry-top">
+              <span class="fin-entry-amt pos dep">{{ fmtMoney(amountOf(e)) }}</span>
+              <span class="fin-entry-date" v-if="e.hasDate">{{ e.year }}年{{ e.month }}月</span>
+            </div>
+            <div class="fin-entry-fields">
+              <template v-for="f in mod.fields" :key="f.key"><span v-if="fieldShown(e,f,mod)" class="fin-ef"><i>{{ f.label }}</i>{{ fieldVal(e,f) }}{{ f.unit||'' }}</span></template>
+            </div>
+            <div class="fin-entry-calcs" v-if="e.calcs && Object.keys(e.calcs).length">
+              <template v-for="c in mod.calcs" :key="c.key"><span v-if="entryCalcs(e, mod)[c.key] !== null && entryCalcs(e, mod)[c.key] !== undefined && entryCalcs(e, mod)[c.key] !== ''" class="fin-ec">{{ c.label }}：{{ fmtCalc(entryCalcs(e, mod)[c.key], c) }}</span></template>
+            </div>
+            <div class="fin-entry-tags" v-if="e.tags && e.tags.length">
+              <span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn block-btn" @click="openAddModule('deposit')">＋ 新增存款模块</button>
+      </div>
+
+      <div class="fin-section">
+        <div class="fin-sec-head">
+          <span class="fin-sec-title-grp">📥 收入台账区 <span class="fin-sec-sum">合计 {{ fmtMoney(areaIncomeTotal()) }}</span></span>
+          <span class="fin-sec-act"><button class="btn mini" @click="exportAreaXlsx('income')">📤 导出本区</button></span>
+        </div>
+        <div v-for="mod in modulesIncome" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
+          <div class="fin-mod-head">
+            <span class="fin-mod-drag" title="按住拖动调整顺序" @pointerdown.prevent="startDrag($event, mod, 'income')">⠿</span>
+            <span class="fin-mod-ico">{{ mod.icon }}</span>
+            <span class="fin-mod-name">{{ mod.name }}</span>
+            <span class="fin-mod-sum">{{ fmtMoney(moduleTotal(mod)) }}</span>
+            <div class="fin-mod-btns">
+              <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
+              <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
+              <button class="fin-ibtn xls" @click="exportModuleXlsx(mod)" title="按字段导出本模块 Excel">📤</button>
+              <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
+            </div>
+          </div>
+          <div v-if="entriesOf(mod).length === 0" class="empty-tip">本周期暂无记录</div>
+          <div v-for="e in entriesOf(mod)" :key="e._id" class="fin-entry" @click="openEditEntry(e)">
+            <div class="fin-entry-top">
+              <span class="fin-entry-amt pos">{{ fmtMoney(amountOf(e)) }}</span>
+              <span class="fin-entry-date" v-if="e.hasDate">{{ e.year }}年{{ e.month }}月</span>
+            </div>
+            <div class="fin-entry-fields">
+              <template v-for="f in mod.fields" :key="f.key"><span v-if="fieldShown(e,f,mod)" class="fin-ef"><i>{{ f.label }}</i>{{ fieldVal(e,f) }}{{ f.unit||'' }}</span></template>
+            </div>
+            <div class="fin-entry-calcs" v-if="e.calcs && Object.keys(e.calcs).length">
+              <template v-for="c in mod.calcs" :key="c.key"><span v-if="entryCalcs(e, mod)[c.key] !== null && entryCalcs(e, mod)[c.key] !== undefined && entryCalcs(e, mod)[c.key] !== ''" class="fin-ec">{{ c.label }}：{{ fmtCalc(entryCalcs(e, mod)[c.key], c) }}</span></template>
+            </div>
+            <div class="fin-entry-tags" v-if="e.tags && e.tags.length">
+              <span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span>
+            </div>
+          </div>
+        </div>
+        <button class="btn block-btn" @click="openAddModule('income')">＋ 新增收入模块</button>
+      </div>
+
+      <div class="fin-section">
+        <div class="fin-sec-head">
+          <span class="fin-sec-title-grp">📤 支出台账区 <span class="fin-sec-sum neg">合计 {{ fmtMoney(areaExpenseTotal()) }}</span></span>
+          <span class="fin-sec-act"><button class="btn mini" @click="exportAreaXlsx('expense')">📤 导出本区</button></span>
+        </div>
         <div v-for="mod in modulesExpense" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
           <div class="fin-mod-head">
             <span class="fin-mod-drag" title="按住拖动调整顺序" @pointerdown.prevent="startDrag($event, mod, 'expense')">⠿</span>
@@ -15160,6 +15413,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="fin-mod-btns">
               <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
               <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
+              <button class="fin-ibtn xls" @click="exportModuleXlsx(mod)" title="按字段导出本模块 Excel">📤</button>
               <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
             </div>
           </div>
@@ -15183,40 +15437,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           </div>
         </div>
         <button class="btn block-btn" @click="openAddModule('expense')">＋ 新增支出模块</button>
-      </div>
-
-      <div class="fin-section">
-        <div class="fin-sec-head">📥 收入台账区</div>
-        <div v-for="mod in modulesIncome" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
-          <div class="fin-mod-head">
-            <span class="fin-mod-drag" title="按住拖动调整顺序" @pointerdown.prevent="startDrag($event, mod, 'income')">⠿</span>
-            <span class="fin-mod-ico">{{ mod.icon }}</span>
-            <span class="fin-mod-name">{{ mod.name }}</span>
-            <span class="fin-mod-sum">{{ fmtMoney(moduleTotal(mod)) }}</span>
-            <div class="fin-mod-btns">
-              <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
-              <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
-              <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
-            </div>
-          </div>
-          <div v-if="entriesOf(mod).length === 0" class="empty-tip">本周期暂无记录</div>
-          <div v-for="e in entriesOf(mod)" :key="e._id" class="fin-entry" @click="openEditEntry(e)">
-            <div class="fin-entry-top">
-              <span class="fin-entry-amt pos">{{ fmtMoney(amountOf(e)) }}</span>
-              <span class="fin-entry-date" v-if="e.hasDate">{{ e.year }}年{{ e.month }}月</span>
-            </div>
-            <div class="fin-entry-fields">
-              <template v-for="f in mod.fields" :key="f.key"><span v-if="fieldShown(e,f,mod)" class="fin-ef"><i>{{ f.label }}</i>{{ fieldVal(e,f) }}{{ f.unit||'' }}</span></template>
-            </div>
-            <div class="fin-entry-calcs" v-if="e.calcs && Object.keys(e.calcs).length">
-              <template v-for="c in mod.calcs" :key="c.key"><span v-if="entryCalcs(e, mod)[c.key] !== null && entryCalcs(e, mod)[c.key] !== undefined && entryCalcs(e, mod)[c.key] !== ''" class="fin-ec">{{ c.label }}：{{ fmtCalc(entryCalcs(e, mod)[c.key], c) }}</span></template>
-            </div>
-            <div class="fin-entry-tags" v-if="e.tags && e.tags.length">
-              <span v-for="t in e.tags" :key="t" class="tag muted">{{ t }}</span>
-            </div>
-          </div>
-        </div>
-        <button class="btn block-btn" @click="openAddModule('income')">＋ 新增收入模块</button>
       </div>
 
       <div class="fin-section">
@@ -15365,7 +15585,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <label>范围</label>
               <select v-model="vizScope"><option value="expense">仅支出</option><option value="income">仅收入</option><option value="both">收支合并</option></select>
               <label>分类</label>
-              <select v-model="vizCat"><option value="">全部</option><option v-for="m in allModules" :key="m._id" :value="m._id">{{ m.name }}</option></select>
+              <select v-model="vizCat"><option value="">全部</option><option v-for="m in modulesExpense.concat(modulesIncome)" :key="m._id" :value="m._id">{{ m.name }}</option></select>
             </div>
 
             <div v-if="vizType==='pie'" class="fin-chart">
@@ -15436,7 +15656,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       career() { return this.$store.state.career; },
       categories() { return (this.career.categories || []); },
       entries() { return (this.career.entries || []); },
-      allTags() { return (this.career.tags || []); },
+      // 标签筛选栏实时派生：直接归集所有条目当前实际携带的标签，
+      // 新增条目带新标签即自动出现、删除条目/移除标签即自动消失，无需手动维护 career.tags
+      allTags() {
+        const set = new Set();
+        (this.entries || []).forEach(e => (e.tags || []).forEach(t => { if (t) set.add(t); }));
+        return Array.from(set);
+      },
       catById() { return id => this.categories.find(c => c._id === id); },
       entryYears() {
         const set = new Set();
@@ -16097,6 +16323,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             window.scrollTo(0, 0);                 // 主滚动容器为 window/body 时的复位
           }
         });
+      },
+      // 若当前选中的标签已不再存在（被全部删除/移除），自动取消筛选，避免停在空列表
+      allTags(nv) {
+        if (this.filterTag && nv.indexOf(this.filterTag) < 0) this.filterTag = '';
       },
     },
     methods: {
