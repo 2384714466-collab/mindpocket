@@ -18,11 +18,16 @@
  *   push：本地为主，只补充「云端独有」项。本地删过的（墓碑）不补 → 云端真正删除。
  *   pull：云端为主，只补充「本地独有」项（未推送的新建）。云端删除的不复活。
  *   云端整体为空（首次）→ 不拉取，反而把本地推上去初始化，避免清空本地数据。
+ *   墓碑仅对「曾成功同步、现被移除」的项生效，避免导入/瞬时重赋值误删云端数据。
+ *
+ * 同步模式：【完全手动】。拉取（云端→本地）与上传（本地→云端）均不自动进行：
+ *   - 上传：仅当你点设置面板「立即上传」时触发；监听只负责记录墓碑，不再自动推送。
+ *   - 拉取：仅当你点「立即拉取」时触发；不轮询、不切前台 / 联网自动拉。
+ *   状态区会提示「有本地改动待上传」，提醒你别忘了手动上传。
  *
  * 健壮性：
  *   - 写冲突（多设备同时改）自动重取 sha 重试，最多 3 次。
- *   - 推送失败进入退避重试（3s→10s→30s→60s），不会卡死同步。
- *   - dirty 锁最多阻塞拉取 60s，超时强制放行（墓碑保证删除不会被拉回）。
+ *   - 上传失败进入退避重试（3s→10s→30s→60s），不会卡死；重试只针对已发起的那次上传。
  *   - 所有失败都翻译成人话，显示在设置面板的「状态」区，不再只打控制台。
  *   - 面板内置「检测连接」：一键判断 PAT 是否有效/过期、仓库是否可写。
  *
@@ -33,9 +38,6 @@
   'use strict';
   var CFG_KEY = 'mp_cloud_cfg';
   var DELETED_KEY = 'mp_cloud_deleted';
-  var PUSH_DEBOUNCE = 1500;
-  var PULL_DEFAULT = 15;
-  var DIRTY_MAX_BLOCK = 60000;   // dirty 最多阻塞拉取 60s
   var TOMBSTONE_MAX = 500;       // 墓碑上限，防无限增长
 
   /* ===== 固定配置（已写死，用户无需填写）===================================
@@ -216,19 +218,23 @@
     return ids;
   }
   var deletedIds = loadDeleted();
-  var prevIds = null;
+  // knownIds = 最近一次成功同步时的集合 _id 快照。墓碑只对「曾同步、现被移除」的项生效，
+  // 避免导入/瞬时重赋值（importAll / importFinance 会整体替换 finance/career）误把云端数据删掉。
+  var knownIds = null;
+  function knownHas(fk, id) { return !!(knownIds && knownIds[fk] && knownIds[fk][id]); }
   function onChange() {
-    var cur = snapshotIds();
-    if (prevIds) {
+    if (knownIds) {
+      var cur = snapshotIds();
       SYNCS.forEach(function (s) {
-        var fk = flatKey(s), pk = prevIds[fk] || {}, ck = cur[fk] || {};
-        Object.keys(pk).forEach(function (id) { if (!ck[id]) deletedIds[id] = 1; });   // 消失 = 被删除
+        var fk = flatKey(s), pk = knownIds[fk] || {}, ck = cur[fk] || {};
+        Object.keys(pk).forEach(function (id) { if (!ck[id]) deletedIds[id] = 1; });   // 曾经同步、现已消失 = 被删除
       });
       persistDeleted();
     }
-    prevIds = cur;
+    // 纯手动模式：上传只在点「立即上传」时触发，这里不自动推送。
+    // 仅保留 dirty 提示（renderStatus 会显示「有本地改动待上传」），墓碑已在上面记录，
+    // 下次手动上传时删除能正确同步到云端。
     markDirty();
-    schedulePush();
   }
 
   // 云端所有数组集合都为空 → 视为未初始化（不要据此清空本地）
@@ -240,14 +246,12 @@
   }
 
   /* ----------------------------- 推送 / 拉取 ----------------------------- */
-  var pushTimer = null, retryTimer = null, retryStep = 0;
+  var retryTimer = null, retryStep = 0;
   var pushing = false, dirty = false, dirtyAt = 0;
   var RETRY_MS = [3000, 10000, 30000, 60000];
 
   function markDirty() { dirty = true; if (!dirtyAt) dirtyAt = Date.now(); }
   function clearDirty() { dirty = false; dirtyAt = 0; retryStep = 0; if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; } }
-  // 本地有未推送变更时暂停拉取；但最多阻塞 60s，超时放行（墓碑保证删除不会被拉回）
-  function pullBlocked() { return dirty && (Date.now() - dirtyAt) < DIRTY_MAX_BLOCK; }
 
   function scheduleRetry() {
     if (retryTimer) return;
@@ -267,7 +271,7 @@
       ((remote.data && remote.data[fk]) ? remote.data[fk] : []).forEach(function (t) {
         if (!t || !t._id) { out.push(t); return; }   // 云端无 _id 项（极少见）→ 保留
         if (ids[t._id]) return;                        // 本地已有 → 以本地为准
-        if (deletedIds[t._id]) return;                // 本地删过的 → 云端也删除
+        if (deletedIds[t._id] && knownHas(fk, t._id)) return;   // 本地删过的（且曾同步）→ 云端也删除
         out.push(t);                                  // 云端独有（别的设备新增）→ 保留
       });
       snap[fk] = out;
@@ -297,6 +301,7 @@
     pushing = true; st.busy = true; renderStatus();
     return attemptPush(0).then(function () {
       clearDirty();
+      knownIds = snapshotIds();                  // 同步成功后以新状态为「已知」基准
       st.lastSyncAt = Date.now(); st.lastError = '';
       setBadge('ok');
     }).catch(function (e) {
@@ -321,7 +326,7 @@
   }
 
   function pullRemote() {
-    if (!ready() || pushing || pullBlocked()) return Promise.resolve();
+    if (!ready() || pushing) return Promise.resolve();
     st.busy = true; renderStatus();
     return getSnapshot().then(function (remote) {
       // 云端全空/文件不存在 → 把本地推上去做初始化，绝不反向清空本地
@@ -333,20 +338,20 @@
         var ids = {}; (remoteArr || []).forEach(function (t) { if (t && t._id) ids[t._id] = 1; });
         var out = [];
         (remoteArr || []).forEach(function (t) {
-          if (t && t._id && deletedIds[t._id]) return;   // 本地曾删 → 不拉回（防复活）
+          if (t && t._id && deletedIds[t._id] && knownHas(fk, t._id)) return;   // 本地曾删（且曾同步）→ 不拉回（防复活）
           out.push(t);
         });
         (local || []).forEach(function (t) {
           if (!t || !t._id) { out.push(t); return; }
           if (ids[t._id]) return;                 // 云端已有 → 以云端为准
-          if (deletedIds[t._id]) return;          // 本地删过的 → 不拉回（防复活）
+          if (deletedIds[t._id] && knownHas(fk, t._id)) return;   // 本地删过的（且曾同步）→ 不拉回（防复活）
           out.push(t);                            // 本地独有（未推送新建）→ 保留
         });
         applyToState(s, out);
       });
       ((remote.data && remote.data.__deleted) || []).forEach(function (id) { deletedIds[id] = 1; });
       persistDeleted();
-      prevIds = snapshotIds();                    // 拉取造成的变化不算「删除」
+      knownIds = snapshotIds();                    // 拉取造成的变化不算「删除」
       if (window.MPStore.persist) window.MPStore.persist();
       st.lastSyncAt = Date.now(); st.lastError = '';
       setBadge('ok');
@@ -355,12 +360,6 @@
       setBadge('err');
       console.warn('[MP云同步] 拉取失败:', e.status || '', e.message);
     }).then(function () { st.busy = false; renderStatus(); });
-  }
-
-  function schedulePush() {
-    if (!ready()) return;
-    if (pushTimer) clearTimeout(pushTimer);
-    pushTimer = setTimeout(pushLocal, PUSH_DEBOUNCE);
   }
 
   /* ----------------------------- 连接自检 ----------------------------- */
@@ -391,12 +390,12 @@
   }
 
   /* ----------------------------- 启动 ----------------------------- */
-  var started = false, pollTimer = null;
+  var started = false;
   function start() {
     if (started || !window.MPStore) return;
     started = true;
     var c = loadCfg();
-    prevIds = snapshotIds();   // 以当前数据为基准，避免把初始/预置项误判为删除
+    knownIds = snapshotIds();   // 以当前已同步状态为基准，仅对「曾同步、现被移除」项打墓碑
     try {
       if (window.Vue && Vue.watch) {
         Vue.watch(function () { return SYNCS.map(function (s) { return collGet(s); }); },
@@ -411,21 +410,9 @@
     ensureButton();
     setInterval(ensureButton, 1000);
 
-    if (c.enabled && c.token) {
-      pullRemote();
-      restartPoll(c.pollSec || PULL_DEFAULT);
-      // 回到前台 / 重新联网时补一次同步（移动端切后台会冻结定时器）
-      try {
-        document.addEventListener('visibilitychange', function () { if (!document.hidden) pullRemote(); });
-        window.addEventListener('online', function () { pullRemote(); if (dirty) pushLocal(); });
-      } catch (e2) {}
-    } else {
-      setBadge('idle');
-    }
-  }
-  function restartPoll(sec) {
-    if (pollTimer) clearInterval(pollTimer);
-    if (sec > 0) pollTimer = setInterval(pullRemote, Math.max(5, sec) * 1000);
+    // 完全手动模式：上传与拉取都只在用户点按钮时触发（见「立即上传」/「立即拉取」）。
+    // 上面的监听仅用于记录墓碑，不再自动推送；也不轮询 / 切前台 / 联网自动拉取。
+    setBadge(c.enabled && c.token ? 'ok' : 'idle');
   }
 
   /* ----------------------------- UI ----------------------------- */
@@ -489,7 +476,6 @@
       '<input id="mp-c-pathfull" class="fixed" readonly value="' + FIXED.branch + ' : ' + FIXED.path + '">' +
       '<label><b>GitHub PAT</b>（唯一要你填的；细粒度、仅本仓库 Contents 读写）</label>' +
       '<input id="mp-c-token" placeholder="github_pat_..." autocomplete="off">' +
-      '<label>自动检查间隔（秒）</label><input id="mp-c-poll" type="number" value="15">' +
       '<div id="mp-c-status"></div>' +
       '<div id="mp-c-test-out"></div>' +
       '<div class="row"><button class="sec" id="mp-c-test">检测连接</button><button class="sec" id="mp-c-pull">立即拉取</button><button class="sec" id="mp-c-push">立即上传</button></div>' +
@@ -505,7 +491,6 @@
       var c = loadCfg();
       $('#mp-c-en').checked = (c.enabled === undefined) ? true : !!c.enabled;   // 默认勾选
       $('#mp-c-token').value = c.token || '';
-      $('#mp-c-poll').value = c.pollSec || PULL_DEFAULT;
       out.style.display = 'none';
       renderStatus();
       modal.style.display = 'flex';
@@ -523,12 +508,12 @@
       var c = loadCfg();
       c.enabled = $('#mp-c-en').checked;
       c.token = $('#mp-c-token').value.trim();
-      c.pollSec = parseInt($('#mp-c-poll').value, 10) || PULL_DEFAULT;
       saveCfg(c);
       modal.style.display = 'none';
       st.lastError = '';
-      if (c.enabled && c.token) { setBadge('ok'); restartPoll(c.pollSec); pullRemote(); }
-      else { setBadge('idle'); restartPoll(0); }
+      // 保存仅落盘配置；拉取由「立即拉取」手动触发，不在保存时自动进行
+      if (c.enabled && c.token) { setBadge('ok'); }
+      else { setBadge('idle'); }
     };
 
     var c0 = loadCfg();
