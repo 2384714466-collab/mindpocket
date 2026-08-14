@@ -6,7 +6,13 @@
  * 用户只需填一样东西：GitHub PAT（细粒度、仅本仓库 Contents 读写）。
  * 仓库坐标已写死在下方 FIXED，无需填写。
  *
- * 同步范围：state 下全部用户数据集合（habits/tasks/categories/settings/projects/...）
+ * 同步范围：state 下全部用户数据集合
+ *   - 顶层集合：habits/tasks/categories/settings/projects/...
+ *   - 财务 Tab：state.finance.*（expenseModules / incomeModules / expenseEntries /
+ *               incomeEntries / depositModules / depositEntries / fieldTemplates）
+ *   - 职业 Tab：state.career.*（categories / entries / jds / resumes）
+ *   说明：career.tags 是字符串数组（无 _id），且 UI 已改为从 entries 实时派生，
+ *         故不同步，避免重复/无 _id 合并异常。
  *
  * 合并规则（解决「删除后又出现」）：
  *   push：本地为主，只补充「云端独有」项。本地删过的（墓碑）不补 → 云端真正删除。
@@ -42,12 +48,53 @@
     path:   'data/mindpocket.json'
   };
 
-  /* ===== 需要同步的 state 集合（排除运行时计数器 revision）=============== */
-  var SYNC_KEYS = [
-    'habits', 'tasks', 'categories', 'settings',
-    'projects', 'project_subs', 'project_records', 'project_ideas',
-    'project_folders', 'sub_custom_statuses', 'wish_items', 'wish_records'
+  /* ===== 需要同步的集合（排除运行时计数器 revision）=====================
+   * 每个集合用路径描述（p 为 state 下的访问路径），以支持嵌套的
+   * finance.* / career.* 等子集合——它们与顶层集合一样走「按 _id 逐项合并」
+   * 逻辑，避免整对象覆盖导致的并发编辑互相覆盖。
+   * ====================================================================== */
+  var SYNCS = [
+    // —— 顶层集合 ——
+    { p: ['habits'] },
+    { p: ['tasks'] },
+    { p: ['categories'] },
+    { p: ['settings'] },                 // 对象，整值写入
+    { p: ['projects'] },
+    { p: ['project_subs'] },
+    { p: ['project_records'] },
+    { p: ['project_ideas'] },
+    { p: ['project_folders'] },
+    { p: ['sub_custom_statuses'] },
+    { p: ['wish_items'] },
+    { p: ['wish_records'] },
+    // —— 财务 Tab（state.finance.*，均为带 _id 的集合）——
+    { p: ['finance', 'expenseModules'] },
+    { p: ['finance', 'incomeModules'] },
+    { p: ['finance', 'expenseEntries'] },
+    { p: ['finance', 'incomeEntries'] },
+    { p: ['finance', 'depositModules'] },
+    { p: ['finance', 'depositEntries'] },
+    { p: ['finance', 'fieldTemplates'] },
+    // —— 职业 Tab（state.career.*，均为带 _id 的集合）——
+    { p: ['career', 'categories'] },
+    { p: ['career', 'entries'] },
+    { p: ['career', 'jds'] },
+    { p: ['career', 'resumes'] }
+    // 注：career.tags 为字符串数组（无 _id），且 UI 已改为从 entries 实时派生，故不同步
   ];
+
+  /* 集合访问器：按路径读 / 写（兼容顶层与嵌套） */
+  function collGet(s) {
+    var o = window.MPStore && window.MPStore.state;
+    for (var i = 0; o != null && i < s.p.length; i++) o = o[s.p[i]];
+    return o;
+  }
+  function collSet(s, val) {
+    var o = window.MPStore && window.MPStore.state;
+    for (var i = 0; o != null && i < s.p.length - 1; i++) o = o[s.p[i]];
+    if (o != null) o[s.p[s.p.length - 1]] = val;
+  }
+  function flatKey(s) { return s.p.join('.'); }
 
   /* ----------------------------- 配置读写 ----------------------------- */
   function loadCfg() {
@@ -159,11 +206,12 @@
       localStorage.setItem(DELETED_KEY, JSON.stringify(deletedIds));
     } catch (e) {}
   }
+  // 所有同步集合当前 _id 快照（按 flatKey 分组），用于检测「项被删除」
   function snapshotIds() {
     var ids = {};
-    SYNC_KEYS.forEach(function (k) {
-      var arr = window.MPStore.state[k];
-      if (Array.isArray(arr)) arr.forEach(function (t) { if (t && t._id) { (ids[k] = ids[k] || {})[t._id] = 1; } });
+    SYNCS.forEach(function (s) {
+      var fk = flatKey(s), arr = collGet(s);
+      if (Array.isArray(arr)) arr.forEach(function (t) { if (t && t._id) { (ids[fk] = ids[fk] || {})[t._id] = 1; } });
     });
     return ids;
   }
@@ -172,8 +220,8 @@
   function onChange() {
     var cur = snapshotIds();
     if (prevIds) {
-      SYNC_KEYS.forEach(function (k) {
-        var pk = prevIds[k] || {}, ck = cur[k] || {};
+      SYNCS.forEach(function (s) {
+        var fk = flatKey(s), pk = prevIds[fk] || {}, ck = cur[fk] || {};
         Object.keys(pk).forEach(function (id) { if (!ck[id]) deletedIds[id] = 1; });   // 消失 = 被删除
       });
       persistDeleted();
@@ -186,9 +234,9 @@
   // 云端所有数组集合都为空 → 视为未初始化（不要据此清空本地）
   function isSnapshotEmpty(snap) {
     if (!snap) return true;
-    var arrKeys = SYNC_KEYS.filter(function (k) { return Array.isArray(snap[k]); });
-    if (!arrKeys.length) return true;
-    return arrKeys.every(function (k) { return !snap[k] || snap[k].length === 0; });
+    var arrCols = SYNCS.filter(function (s) { return Array.isArray(snap[flatKey(s)]); });
+    if (!arrCols.length) return true;
+    return arrCols.every(function (s) { var a = snap[flatKey(s)]; return !a || a.length === 0; });
   }
 
   /* ----------------------------- 推送 / 拉取 ----------------------------- */
@@ -211,18 +259,18 @@
   // 用「本地为主 + 补充云端独有（排除墓碑）」构造要写入的快照
   function buildSnapshot(remote) {
     var snap = {};
-    SYNC_KEYS.forEach(function (k) {
-      var local = window.MPStore.state[k];
-      if (!Array.isArray(local)) { snap[k] = local; return; }   // settings 等对象整值写入
+    SYNCS.forEach(function (s) {
+      var fk = flatKey(s), local = collGet(s);
+      if (!Array.isArray(local)) { snap[fk] = local; return; }   // settings 等对象整值写入
       var ids = {}; local.forEach(function (t) { if (t && t._id) ids[t._id] = 1; });
       var out = local.slice();
-      (remote.data && remote.data[k] ? remote.data[k] : []).forEach(function (t) {
-        if (!t || !t._id) { out.push(t); return; }
-        if (ids[t._id]) return;                 // 本地已有 → 以本地为准
-        if (deletedIds[t._id]) return;          // 本地删过的 → 云端也删除
-        out.push(t);                            // 云端独有（别的设备新增）→ 保留
+      ((remote.data && remote.data[fk]) ? remote.data[fk] : []).forEach(function (t) {
+        if (!t || !t._id) { out.push(t); return; }   // 云端无 _id 项（极少见）→ 保留
+        if (ids[t._id]) return;                        // 本地已有 → 以本地为准
+        if (deletedIds[t._id]) return;                // 本地删过的 → 云端也删除
+        out.push(t);                                  // 云端独有（别的设备新增）→ 保留
       });
-      snap[k] = out;
+      snap[fk] = out;
     });
     var ded = {};
     ((remote.data && remote.data.__deleted) || []).forEach(function (id) { ded[id] = 1; });
@@ -262,13 +310,13 @@
   }
 
   // 把合并结果写回 state（数组原地修改以保留 Vue 响应式引用；对象直接赋值）
-  function applyToState(key, merged) {
-    var cur = window.MPStore.state[key];
+  function applyToState(s, merged) {
+    var cur = collGet(s);
     if (Array.isArray(cur)) {
       cur.length = 0;
       Array.prototype.push.apply(cur, [].concat(merged || []));
     } else {
-      window.MPStore.state[key] = merged;
+      collSet(s, merged);
     }
   }
 
@@ -278,18 +326,23 @@
     return getSnapshot().then(function (remote) {
       // 云端全空/文件不存在 → 把本地推上去做初始化，绝不反向清空本地
       if (isSnapshotEmpty(remote.data)) { st.busy = false; return pushLocal(); }
-      SYNC_KEYS.forEach(function (k) {
-        var remoteArr = remote.data[k], local = window.MPStore.state[k];
-        if (!Array.isArray(local)) { if (remoteArr !== undefined) applyToState(k, remoteArr); return; }
+      SYNCS.forEach(function (s) {
+        var fk = flatKey(s);
+        var remoteArr = remote.data[fk], local = collGet(s);
+        if (!Array.isArray(local)) { if (remoteArr !== undefined) applyToState(s, remoteArr); return; }
         var ids = {}; (remoteArr || []).forEach(function (t) { if (t && t._id) ids[t._id] = 1; });
-        var out = (remoteArr ? remoteArr.slice() : []);
+        var out = [];
+        (remoteArr || []).forEach(function (t) {
+          if (t && t._id && deletedIds[t._id]) return;   // 本地曾删 → 不拉回（防复活）
+          out.push(t);
+        });
         (local || []).forEach(function (t) {
           if (!t || !t._id) { out.push(t); return; }
           if (ids[t._id]) return;                 // 云端已有 → 以云端为准
           if (deletedIds[t._id]) return;          // 本地删过的 → 不拉回（防复活）
           out.push(t);                            // 本地独有（未推送新建）→ 保留
         });
-        applyToState(k, out);
+        applyToState(s, out);
       });
       ((remote.data && remote.data.__deleted) || []).forEach(function (id) { deletedIds[id] = 1; });
       persistDeleted();
@@ -346,7 +399,7 @@
     prevIds = snapshotIds();   // 以当前数据为基准，避免把初始/预置项误判为删除
     try {
       if (window.Vue && Vue.watch) {
-        Vue.watch(function () { return SYNC_KEYS.map(function (k) { return window.MPStore.state[k]; }); },
+        Vue.watch(function () { return SYNCS.map(function (s) { return collGet(s); }); },
           function () { onChange(); }, { deep: true });
       } else {
         var o = window.MPStore.persist;
