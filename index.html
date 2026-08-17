@@ -352,8 +352,8 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 10p
 .modal-actions .btn { flex: 1; }
 /* 任务灵感库（待归档子任务页进入）：全屏化，与子任务页面一致，避免底部小弹窗 */
 .modal-mask.idea-full-mask { align-items: stretch; justify-content: stretch; padding: 0; }
-.modal-mask.idea-full-mask .modal { max-width: none; max-height: none; width: 100%; height: 100%; border-radius: 0; animation: none; display: flex; flex-direction: column; overflow: hidden; }
-.modal-mask.idea-full-mask .modal-body { flex: 1; overflow-y: auto; }
+.modal-mask.idea-full-mask > .modal { max-width: none; max-height: none; width: 100%; height: 100%; border-radius: 0; animation: none; display: flex; flex-direction: column; overflow: hidden; }
+.modal-mask.idea-full-mask > .modal > .modal-body { flex: 1; overflow-y: auto; }
 /* 灵感库全屏：标题右侧分组（切换子任务页 + 关闭），保证两端对齐且按钮平铺 */
 .idea-full-modal .head-acts { display: flex; align-items: center; gap: 8px; }
 .idea-full-modal .head-btn { font-size: 13px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--text); white-space: nowrap; }
@@ -1614,7 +1614,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   .car-col.gap { background: #fdeef0; border: 1px solid #f3c2c9; }
   .car-col b { display: block; margin-bottom: 6px; font-size: 13px; }
   .car-item { padding: 3px 0; line-height: 1.5; }
-  .car-jd { position: relative; }
+  .car-jd { position: relative; display: flex; align-items: center; gap: 8px; }
+  .car-jd-body { flex: 1; min-width: 0; }
   .car-board { font-size: 13px; }
   .car-board-head { font-weight: 600; margin-bottom: 8px; }
   .car-board-row { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; margin-bottom: 6px; border: 1px solid var(--line); }
@@ -15842,7 +15843,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         filterTag: '', filterYear: '',
         showViz: false, vizType: 'timeline',
         jdText: '', jdTitle: '', jdCompany: '', parsing: false, activeJD: null, editJDId: null,
-        parsedDraft: {},
+        parsedDraft: {}, showAllJDFields: false,
         JD_FIELDS: [
           { key: 'workContent', label: '工作内容' }, { key: 'requirements', label: '工作要求' },
           { key: 'experience', label: '经验要求' }, { key: 'ability', label: '能力要求' },
@@ -15874,6 +15875,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return Array.from(set);
       },
       catById() { return id => this.categories.find(c => c._id === id); },
+      // 解析结果：仅展示已智能识别出的字段（空则隐藏）；开启「补充字段」后展示全部以便手动补录
+      visibleJDFields() {
+        if (this.showAllJDFields) return this.JD_FIELDS;
+        return this.JD_FIELDS.filter(f => this.parsedDraft[f.key] && String(this.parsedDraft[f.key]).trim());
+      },
       entryYears() {
         const set = new Set();
         this.entries.forEach(e => {
@@ -16358,10 +16364,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="fld"><label>学历</label><input v-model="parsedDraft.education" placeholder="如 本科" /></div>
               <div class="fld"><label>经验年限(年)</label><input v-model="parsedDraft.experienceYears" placeholder="如 3" /></div>
               <div class="fld"><label>技能(；分隔)</label><textarea v-model="parsedDraft.skills" rows="2" placeholder="如 JavaScript；React"></textarea></div>
-              <div class="fld" v-for="f in JD_FIELDS" :key="f.key">
+              <div class="fld" v-for="f in visibleJDFields" :key="f.key">
                 <label>{{ f.label }}(；分隔)</label>
                 <textarea v-model="parsedDraft[f.key]" rows="2" :placeholder="'如 ' + f.label + '…'"></textarea>
               </div>
+              <button class="btn mini" v-if="!showAllJDFields" @click="showAllJDFields = true">＋ 补充其他字段</button>
+              <button class="btn mini" v-else @click="showAllJDFields = false">收起空字段</button>
             </div>
             <div class="car-parse-tip">以上字段解析后均可直接编辑 / 删除，保存后生效</div>
           </div>
@@ -16375,8 +16383,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
         <div class="fin-sec-head" v-if="jds.length">🗂 已保存的 JD 匹配记录</div>
         <div v-for="j in jds" :key="j._id" class="fin-entry car-jd" @click="loadJD(j)">
-          <div class="fin-entry-top"><span class="fin-entry-amt">{{ j.title }}<small v-if="j.company"> @ {{ j.company }}</small></span></div>
-          <div class="fin-entry-fields"><span class="fin-ef"><i>技能</i>{{ (j.parsed.skills || []).length }} 项</span><span class="fin-ef"><i>短板</i>{{ (j.match.gaps || []).length }} 项</span></div>
+          <div class="car-jd-body">
+            <div class="fin-entry-top"><span class="fin-entry-amt">{{ j.title }}<small v-if="j.company"> @ {{ j.company }}</small></span></div>
+            <div class="fin-entry-fields"><span class="fin-ef"><i>技能</i>{{ (j.parsed.skills || []).length }} 项</span><span class="fin-ef"><i>短板</i>{{ (j.match.gaps || []).length }} 项</span></div>
+          </div>
           <button class="fin-ibtn del" @click.stop="removeJD(j._id)">🗑</button>
         </div>
 
