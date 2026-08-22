@@ -303,6 +303,16 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 10p
 /* —— 统一任务表单 TaskFormCore —— */
 .task-form-core { display: block; }
 .block-note { width: 100%; display: flex; align-items: center; gap: 6px; background: #f7f8fc; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 14px; color: var(--text); font-weight: 600; margin-bottom: 8px; cursor: pointer; }
+/* 编辑子任务：是否显示复选框开关 */
+.edit-toggle { display: flex; align-items: center; gap: 10px; padding: 10px 12px; margin: 4px 0 8px; background: #f7f8fc; border: 1px solid var(--line); border-radius: 10px; }
+.edit-toggle .switch { position: relative; width: 42px; height: 24px; flex: none; }
+.edit-toggle .switch input { position: absolute; opacity: 0; width: 100%; height: 100%; margin: 0; cursor: pointer; }
+.edit-toggle .switch-track { position: absolute; inset: 0; background: #cfd3e0; border-radius: 999px; transition: background .18s ease; }
+.edit-toggle .switch-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: #fff; border-radius: 50%; transition: transform .18s ease; box-shadow: 0 1px 2px rgba(20,24,40,.2); }
+.edit-toggle .switch input:checked + .switch-track { background: var(--primary); }
+.edit-toggle .switch input:checked + .switch-track::after { transform: translateX(18px); }
+.edit-toggle .switch-text { font-size: 14px; color: var(--text); font-weight: 600; }
+.edit-toggle .switch-text small { display: block; font-weight: 400; font-size: 12px; color: var(--sub); margin-top: 2px; }
 .block-note .note-flag { color: var(--ok); font-weight: 400; font-size: 12px; }
 .block-note .caret { margin-left: auto; color: var(--sub); font-size: 13px; }
 .adv-body { padding: 6px 4px 2px 8px; border-left: 2px solid var(--line); margin: 2px 0 4px; }
@@ -904,10 +914,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .proj-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .proj-actions-legacy { display: none; }
 
-.detail-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.detail-head .back { background: #f0f1f6; color: var(--sub); padding: 6px 12px; border-radius: 10px; font-size: 14px; }
-.detail-title { flex: 1; font-size: 18px; font-weight: 700; }
-.detail-acts { display: flex; gap: 6px; }
+.detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.detail-head .back { background: #f0f1f6; color: var(--sub); padding: 6px 12px; border-radius: 10px; font-size: 14px; flex: none; }
+.detail-title-group { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.detail-title { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
+.detail-acts { display: flex; gap: 6px; flex: none; margin-left: auto; }
 .tpl-reset-btn { background: #fff; color: #2d6cff; border: 1px solid #c9d8ff; border-radius: 999px; padding: 5px 11px; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tpl-reset-btn:active { background: #eaf1ff; }
 .proj-meta { background: var(--card); border-radius: var(--radius); padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 14px; }
@@ -1706,6 +1717,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   // 失焦自动补零：2026-8-4 → 2026-08-04
   function autoFormatDate(v) {
+    v = (v == null) ? '' : String(v);
     if (!v || v.trim() === '') return '';
     const s = v.trim();
     const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(s);
@@ -1714,6 +1726,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   // 年月输入校验：YYYY-MM
   function validateMonthInput(v) {
+    v = (v == null) ? '' : String(v);
     if (!v || v.trim() === '') return { ok: true, msg: '' };
     const m = /^(\d{4})-(\d{2})$/.exec(v.trim());
     if (!m) return { ok: false, msg: '格式应为 YYYY-MM' };
@@ -1723,6 +1736,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return { ok: true, msg: '' };
   }
   function autoFormatMonth(v) {
+    v = (v == null) ? '' : String(v);
     if (!v || v.trim() === '') return '';
     const s = v.trim();
     const m = /^(\d{4})-(\d{1,2})$/.exec(s);
@@ -2834,6 +2848,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       cycle_end_mode: '', cycle_end_count: 0,
       // 紧急标记：子任务同样支持强制置顶（今日子任务列表）
       isEmergency: false,
+      // 是否显示左侧复选框（默认 true；设为 false 则该子任务仅作条目展示、不标记完成）
+      hasCheckbox: true,
     }, extra || {});
     if (s.cycle && !s.cycle._base) s.cycle._base = todayStr(); // 周期锚定创建日（与主任务 addTask 一致），保证「每 N 天」投射正确
     t.sub_tasks.push(s);
@@ -2875,6 +2891,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (patch && 'cycle' in patch) s.cycle = patch.cycle || null;
     if (s.cycle && !s.cycle._base) s.cycle._base = todayStr(); // 周期锚点缺失时补建（与主任务 updateTask 一致），保证「每 N 天」投射正确
     if (patch && 'isEmergency' in patch) s.isEmergency = !!patch.isEmergency; // 紧急标记：与 addSubTask / 主任务 updateTask 口径一致，编辑子任务紧急标签可正常持久化
+    if (patch && 'hasCheckbox' in patch) s.hasCheckbox = !!patch.hasCheckbox; // 是否显示复选框：编辑子任务可设置「无复选框」条目
     if (patch && 'progress_info' in patch) s.progress_info = patch.progress_info || { enable: false, media_type: 'book', progress_value: '' };
     if (patch && 'sub_deadline' in patch) s.sub_deadline = patch.sub_deadline || null;
     // 主任务时间体系字段（与任务一致）
@@ -3822,13 +3839,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return null;
   }
 
+  // 归档条目的「归属日期集合」：
+  // - 周期 / 自定义区间任务：逐日打卡，每个「已打卡日」都是一次独立归档同步，
+  //   返回全部已打卡日期（去重升序），使全局归档仓库在每一天才打卡的日子都显示该任务条目；
+  // - 其余任务：仅返回单一归属日期（归档日 / 计划日 / 创建日），与原 archiveDateOf 一致。
+  function archiveDatesOf(t) {
+    if ((t.cycle || (t.date_mode === 'range' && t.date_start)) && t.cycle_history && t.cycle_history.length) {
+      const ds = t.cycle_history.filter(h => h.is_archived && h.execute_date).map(h => h.execute_date);
+      if (ds.length) return Array.from(new Set(ds)).sort();
+    }
+    return [archiveDateOf(t)];
+  }
+
   // 归档仓库日历点阵：某日归档条目总数（任务 + 习惯 + 项目），统一展示所有类型
   function archivedCountOnDate(date) {
     let n = 0;
     state.tasks.forEach(t => {
-      if (t.is_archived && archiveDateOf(t) === date) n++;
+      // 周期 / 区间任务：每个「已打卡日」都计入日历点阵，而非仅末日
+      if (t.is_archived && archiveDatesOf(t).indexOf(date) >= 0) n++;
       // 已归档子任务（沿用父任务归档日）一并计入日历点阵
-      (t.sub_tasks || []).forEach(s => { if (s.is_archived && archiveDateOf(s) === date) n++; });
+      (t.sub_tasks || []).forEach(s => { if (s.is_archived && archiveDatesOf(s).indexOf(date) >= 0) n++; });
     });
     state.habits.forEach(h => { if (h.is_archived && archiveDateOf(h) === date) n++; });
     state.projects.forEach(p => { if (p.status === 'archive' && !p.deleted_at && (p.archived_at || '') === date) n++; });
@@ -5751,7 +5781,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
     isCopyArchived, copyShouldRender, archiveMasterCopies, trimCycleCopiesAfterEnd,
     // 时间模式看板
@@ -6026,8 +6056,40 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return s;
   }
 
+  // 复合词拆分：识别「动词/类目词 + 内容词」结构（动宾 / 偏正），
+  // 将其拆分为「标题 = 内容词，标签 = 类目词」，让打标签语言更多元。
+  // 例：学习SQL    → 标题 SQL   / 标签 学习
+  //     可视化作业 → 标题 可视化 / 标签 作业
+  const COMPOUND_TAGS = [
+    // 动作 / 方法类（多作前缀：动宾结构 动作 + 内容）
+    '学习','复习','预习','练习','整理','准备','阅读','写作','设计','开发','研究','记录','收集',
+    '优化','修改','审核','处理','完成','分享','复盘','总结','调研','规划','制作','编写','撰写',
+    '背诵','默写','梳理','安排','翻译','校对','批改','订正','观看','聆听',
+    // 类目 / 成果类（多作后缀：偏正结构 内容 + 类目）
+    '作业','任务','工作','报告','论文','笔记','计划','课','课业','项目','考试','习题','周报','月报',
+    '日报','PPT','ppt','资料','素材','方案','文档','清单','草稿','稿','表','表格','视频','文章',
+    '心得','体会','总结','复盘',
+  ];
+  function splitCompound(text) {
+    const t = (text || '').trim();
+    if (!t || t.length > 12) return null;                                  // 过长不拆（避免误伤长句）
+    if (/[\s，。；！？、,.;:！\n\r]/.test(t)) return null;                  // 含分隔符 → 视为多要素，不拆
+    if (/[#@]/.test(t)) return null;                                       // 已有显式 #标签链，不覆盖
+    if (/(?:每天|每日|每周|每星期|每月|明天|后天|大后天|今天|今日|下周|本周|下下周|连续|每隔?|提醒|通知|闹钟|在|去|到|从|过\s*\d)/.test(t)) return null;
+    // 后缀优先（偏正：内容 + 类目名词），如 可视化作业 / 英语课 / 数据表
+    for (const w of COMPOUND_TAGS) {
+      if (t.endsWith(w) && t.length > w.length) return { title: t.slice(0, -w.length), tag: w };
+    }
+    // 前缀兜底（动宾：动作 + 内容），如 学习SQL / 复习数学
+    for (const w of COMPOUND_TAGS) {
+      if (t.startsWith(w) && t.length > w.length) return { title: t.slice(w.length), tag: w };
+    }
+    return null;
+  }
+
   function mockParseTask(text) {
     const t = normalizeText(text.trim());
+    const cmp = splitCompound(t); // 复合词拆分（标题取内容词、标签取类目词），无则不生效
     const U = window.MPStore.util;
     const ymd = (d) => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
     // 下周某星期几（wd: 1=周一 … 7=周日）→ YYYY-MM-DD（不含本周，跨周进位移 7）
@@ -6230,12 +6292,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       .replace(/提醒我?去?|通知我?|闹钟/g, '');
     if (placeToken) title = title.split(placeToken).join('');
     result.title = title.replace(/\s+/g, ' ').trim() || t;
+    if (cmp) result.title = cmp.title; // 复合词拆分：标题取内容词（如 SQL / 可视化）
 
-    // 9) 标签：未显式 #标签链时，按语义关键词兜底（琐事→#生活 / 复盘规划→#个人 / 课业→#作业），默认 #生活
+    // 9) 标签：未显式 #标签链时，优先「复合词拆分」的标签词（如 学习 / 作业 / 课），
+    //    否则按语义关键词兜底（琐事→#生活 / 复盘规划→#个人 / 课业→#作业），默认 #生活
     if (!result.category_id) {
-      let tagName = '生活'; // 默认琐事
-      if (/复盘|规划|总结|周报|月报|计划|回顾|反思|复盘会|年度|季度/.test(t)) tagName = '个人';
+      let tagName = null;
+      if (cmp) tagName = cmp.tag; // 复合词拆分得到的类目词
+      else if (/复盘|规划|总结|周报|月报|计划|回顾|反思|复盘会|年度|季度/.test(t)) tagName = '个人';
       else if (/作业|课业|试卷|考试|学习|上课|复习|预习|功课|听课|备考|论文|习题|练习|PPT|报告|答辩/.test(t)) tagName = '作业';
+      else tagName = '生活'; // 默认琐事
       const tagStr = '#' + tagName;
       const pr = window.MPStore.parseTagString(tagStr, false);
       result.tags = tagStr;
@@ -7731,7 +7797,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     created() {
       const s = this.sub;
-      const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: 'book', progress_value: '' }, isEmergency: false, week_offset: null, time_mode: null, cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0 };
+      const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: 'book', progress_value: '' }, isEmergency: false, hasCheckbox: true, week_offset: null, time_mode: null, cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0 };
       if (s) {
         this.form = Object.assign({}, base, {
           title: s.title || '',
@@ -7750,6 +7816,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle: s.cycle ? JSON.parse(JSON.stringify(s.cycle)) : null,
           progress_info: s.progress_info ? JSON.parse(JSON.stringify(s.progress_info)) : { enable: false, media_type: 'book', progress_value: '' },
           isEmergency: !!s.isEmergency,
+          hasCheckbox: s.hasCheckbox !== false,
           week_offset: (s.week_offset != null) ? s.week_offset : null,
           time_mode: s.time_mode || null,
           cycle_end_date: s.cycle_end_date || '',
@@ -7799,6 +7866,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle_end_count: Number(this.form.cycle_end_count) || 0,
           sub_deadline: df.execute_date || null,
           isEmergency: !!this.form.isEmergency,
+          hasCheckbox: !!this.form.hasCheckbox,
           // 子任务提醒字段（独立于父任务，双向同步 enable_remind/sub_remind 与 remind_time/sub_remind_time）
           enable_remind: !!this.form.enable_remind,
           remind_time: this.form.remind_time || '',
@@ -7842,6 +7910,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="modal-head"><h3>{{ isNew ? '新增子任务' : '编辑子任务' }}</h3><button class="x" @click="$emit('close')">✕</button></div>
         <div class="modal-body" v-if="form">
           <TaskFormCore ref="tfc" :draft="form" :hide-tag="true" />
+          <div class="edit-toggle">
+            <label class="switch">
+              <input type="checkbox" v-model="form.hasCheckbox" />
+              <span class="switch-track"></span>
+            </label>
+            <span class="switch-text">显示左侧复选框<small>取消勾选则该子任务仅作条目展示、不可勾选完成</small></span>
+          </div>
           <!-- 执行历史：可折叠面板（样式 / 交互与主任务执行历史完全统一） -->
           <!-- 仅周期 / 区间子任务渲染；默认折叠，手动展开仅本次临时生效 -->
           <div class="hist-head" v-if="hasExecHist">
@@ -8301,8 +8376,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     <div class="page inbox-sub-page">
       <div class="detail-head">
         <button class="back" @click="back">‹ 返回</button>
-        <div class="detail-title">{{ task ? task.title : '子任务' }}</div>
-        <span v-if="taskCap" class="cap" :class="'cap-'+taskCap.kind"><span class="cap-ico">{{ taskCap.icon }}</span><span class="cap-txt">{{ taskCap.text }}</span></span>
+        <div class="detail-title-group">
+          <div class="detail-title">{{ task ? task.title : '子任务' }}</div>
+          <span v-if="taskCap" class="cap" :class="'cap-'+taskCap.kind"><span class="cap-ico">{{ taskCap.icon }}</span><span class="cap-txt">{{ taskCap.text }}</span></span>
+        </div>
         <div class="detail-acts">
           <button class="icon-btn" title="灵感库" @click="openIdeaManual">💡</button>
           <button class="tpl-reset-btn" v-if="task && task.is_template" @click="resetTemplate">🔄 一键清空/恢复打卡</button>
@@ -8331,7 +8408,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
              @pointerdown="onSubDown(s,$event)" @pointermove="onSubMove($event)"
              @pointerup="onSubUp(s)" @pointercancel="onSubUp(s)">
           <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onHandleDown(s,$event)" @pointermove.stop="onHandleMove($event)" @pointerup.stop="onHandleUp($event)" @pointercancel.stop="onHandleUp($event)">⠿</span>
-          <input type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
+          <input v-if="s.hasCheckbox !== false" type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
           <span class="st-title" :class="{done:s.is_done}" @click="onSubMainClick(s)">{{ s.title }}</span><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
           <button class="st-del" @click.stop="askDel(s)">✕</button>
         </div>
@@ -8348,7 +8425,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                @pointerdown="onSubDown(s,$event)" @pointermove="onSubMove($event)"
                @pointerup="onSubUp(s)" @pointercancel="onSubUp(s)">
             <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onHandleDown(s,$event)" @pointermove.stop="onHandleMove($event)" @pointerup.stop="onHandleUp($event)" @pointercancel.stop="onHandleUp($event)">⠿</span>
-            <input type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
+            <input v-if="s.hasCheckbox !== false" type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
             <span class="st-title done" @click="onSubMainClick(s)">{{ s.title }}</span><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
             <button class="st-del" @click.stop="askDel(s)">✕</button>
           </div>
@@ -8726,7 +8803,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         folderType: ft,
         tagInput, parsedTags,
         date_mode: dateModeOfTask(t),
-        plan_month: t.plan_month || '', execute_date: t.execute_date || '', date_start: t.date_start || '', date_end: t.date_end || '',
+        plan_month: (t.plan_year && t.plan_month) ? (t.plan_year + '-' + String(t.plan_month).padStart(2, '0')) : (t.plan_month || ''), execute_date: t.execute_date || '', date_start: t.date_start || '', date_end: t.date_end || '',
         enable_remind: !!t.enable_remind,
         remind_time: t.remind_time || '',
         cycle: t.cycle ? JSON.parse(JSON.stringify(t.cycle)) : null,
@@ -10875,6 +10952,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             // 一级/二级标签展开树：随路由栈进入子任务页再返回时还原，避免展开态丢失
             catOpen: this.catOpen, uncatOpen: this.uncatOpen,
             catExpand: this.catExpand, subExpand: this.subExpand,
+            // 看板时间分组展开态：与标签树一致，进入子任务页再返回时原路还原（避免手动展开的下月/下下周等折叠回去）
+            boardOpen: this.boardOpen,
           }));
         } catch (e) {}
       },
@@ -10893,9 +10972,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (typeof s.uncatOpen === 'boolean') this.uncatOpen = s.uncatOpen;
           if (s.catExpand && typeof s.catExpand === 'object') this.catExpand = s.catExpand;
           if (s.subExpand && typeof s.subExpand === 'object') this.subExpand = s.subExpand;
-          // boardOpen（看板本周/本月锚点）仍不持久化：进入看板强制恢复默认展开（见 ensureBoardDefaults）
+          // 看板时间分组展开态：与标签树一致，进入子任务页再返回时原路还原；
+          // ensureBoardDefaults 仍会强制补开「本周/本月」锚点，故仅补开、不清除其余已展开分组
+          if (s.boardOpen && typeof s.boardOpen === 'object') this.boardOpen = s.boardOpen;
         } catch (e) {}
-        // 看板「本周 / 本月」分组：进入看板页面强制恢复默认展开（覆盖持久化的折叠态）
+        // 看板「本周 / 本月」分组：进入看板页面强制恢复默认展开（仅补开锚点，不清除其余已展开分组）
         this.ensureBoardDefaults();
       },
       // 看板「本周 / 本月」锚点分组：强制恢复默认展开。
@@ -11660,10 +11741,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const sel = this.archSelDate, today = this.today, out = [];
         this.$store.state.tasks.forEach(t => {
           if (!t || !t.is_archived) return;
-          if (this.$store.archiveDateOf(t) === sel && this.hasRemind(t)) out.push(this.tlItemOf(t, 'task', null, today));
+          if (this.$store.archiveDatesOf(t).indexOf(sel) >= 0 && this.hasRemind(t)) out.push(this.tlItemOf(t, 'task', null, today));
           (t.sub_tasks || []).forEach(s => {
             if (!s || !s.is_archived) return;
-            if (this.$store.archiveDateOf(s) === sel && this.hasRemind(s)) out.push(this.tlItemOf(s, 'subtask', t, today));
+            if (this.$store.archiveDatesOf(s).indexOf(sel) >= 0 && this.hasRemind(s)) out.push(this.tlItemOf(s, 'subtask', t, today));
           });
         });
         out.sort((a, b) =>
@@ -11735,7 +11816,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
       const map = {};
       // 饼图统计不受搜索关键词影响：以空关键词构建归档列表（仅分类/月份筛选），搜索只过滤下方列表 UI
-      this.buildArchBase('').filter(t => t._date && t._date.startsWith(this.archSelMonth) && (t._type === 'task' || t._type === 'subtask'))
+      // 周期 / 区间任务按「每个打卡日」展开会产生重复条目：按真实任务去重，避免时长被重复累加
+      const seenReal = new Set();
+      this.buildArchBase('').filter(t => {
+        if (!(t._date && t._date.startsWith(this.archSelMonth) && (t._type === 'task' || t._type === 'subtask'))) return false;
+        const rid = (t._realId != null) ? t._realId : t._id;
+        if (seenReal.has(rid)) return false;
+        seenReal.add(rid);
+        return true;
+      })
         .forEach(t => {
           const dur = this.tlDurMin(t);
           if (dur <= 0) return; // ① 无完成时长：不计入饼图，归入"无时长"分类，不混入"无分类"
@@ -11908,20 +11997,34 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const showTask = this.archType === 'all' || this.archType === 'task';
         const showHabit = this.archType === 'all' || this.archType === 'habit';
         const showProj = this.archType === 'all' || this.archType === 'project';
-        const norm = (obj, type) => Object.assign({}, obj, {
+        const self = this;
+        const norm = (obj, type, date, realId) => Object.assign({}, obj, {
           _type: type,
-          _id: type === 'project' ? (obj.pid || obj._id) : (obj._id || obj.pid),
+          _id: type === 'project' ? (obj.pid || obj._id) : (realId != null ? realId : (obj._id || obj.pid)),
+          _realId: type === 'project' ? (obj.pid || obj._id) : (obj._id || obj.pid),
           _title: type === 'project' ? (obj.name || '') : (obj.title || ''),
           _typeLabel: type === 'task' ? '任务' : (type === 'habit' ? '习惯' : (type === 'project' ? '项目' : '子任务')),
-          _date: type === 'project' ? (obj.archived_at || '') : this.$store.archiveDateOf(obj),
+          _date: type === 'project' ? (obj.archived_at || '') : date,
         });
+        // 周期 / 自定义区间任务：按「每个已打卡日」展开为独立归档条目（当日打卡 → 当日同步到归档仓库）
+        // 仅当存在多个打卡日才展开；单日 / 单点任务保持原单条，避免无谓重复
+        const expandCycle = (obj, type) => {
+          const dates = self.$store.archiveDatesOf(obj);
+          if (dates.length > 1) {
+            dates.forEach(d => out.push(norm(obj, type, d, obj._id + '◇' + d)));
+            return true;
+          }
+          return false;
+        };
         // 任务 & 子任务（子任务与任务同属「任务」维度）
         if (showTask) {
-          this.$store.getArchivedTasks(this.archCat, k)
-            .forEach(t => out.push(norm(t, 'task')));
+          this.$store.getArchivedTasks(this.archCat, k).forEach(t => {
+            if (!expandCycle(t, 'task')) out.push(norm(t, 'task', this.$store.archiveDateOf(t)));
+          });
           // 已归档子任务：扁平化并入（沿用父任务分类/标题参与筛选）
-          this.$store.getArchivedSubTasks(this.archCat, k)
-            .forEach(s => out.push(norm(s, 'subtask')));
+          this.$store.getArchivedSubTasks(this.archCat, k).forEach(s => {
+            if (!expandCycle(s, 'subtask')) out.push(norm(s, 'subtask', this.$store.archiveDateOf(s)));
+          });
         }
         // 习惯：独立筛选，仅在「全部分类」下并入（习惯无分类归属）
         if (showHabit && (!this.archCat || this.archCat === '__all__')) {
@@ -12028,20 +12131,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       execArchUndo(id) {
         const item = this.findArchItem(id);
         if (!item) return;
-        if (item._type === 'task') this.$store.setArchived(item._id, null, false);
-        else if (item._type === 'habit') this.$store.unarchiveHabit(item._id);
-        else if (item._type === 'subtask') this.$store.setArchived(item._parentId, item._id, false);
-        else if (item._type === 'project') this.$store.reopenProject(item._id);
+        const rid = (item._realId != null) ? item._realId : item._id;
+        if (item._type === 'task') this.$store.setArchived(rid, null, false);
+        else if (item._type === 'habit') this.$store.unarchiveHabit(rid);
+        else if (item._type === 'subtask') this.$store.setArchived(item._parentId, rid, false);
+        else if (item._type === 'project') this.$store.reopenProject(rid);
         this.showToast('已撤销归档');
         this.vibrate();
       },
       findArchItem(id) { return this.archList.find(x => x._id === id); },
       openArchDetail(item) {
         if (!item) return;
-        if (item._type === 'task') this.detailId = item._id;
-        else if (item._type === 'habit') { this.editHabitId = item._id; this.showHabitEdit = true; }
+        const rid = (item._realId != null) ? item._realId : item._id;
+        if (item._type === 'task') this.detailId = rid;
+        else if (item._type === 'habit') { this.editHabitId = rid; this.showHabitEdit = true; }
         else if (item._type === 'subtask') this.detailId = item._parentId; // 子任务无独立详情页：长按打开所属父任务详情
-        else if (item._type === 'project') location.hash = '#/project/' + item._id;
+        else if (item._type === 'project') location.hash = '#/project/' + rid;
       },
       // —— 归档仓库：项目条目长按 → 直接进编辑页（与项目页一致；不再唤起浮窗）——
       openArchProjMenu(item) {
@@ -15929,10 +16034,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             if (d) rows.push({ cat: cat.name, icon: cat.icon, date: String(d), title: this.entryTitle(cat, e) });
           });
         });
-        rows.sort((a, b) => a.date < b.date ? -1 : 1);
+        // 时间轴：按日期「从近到远」降序（2026 在最上，2024 往下排），同年内也由近及远
+        rows.sort((a, b) => a.date < b.date ? 1 : (a.date > b.date ? -1 : 0));
         const years = {};
         rows.forEach(r => { const y = r.date.slice(0, 4); (years[y] = years[y] || []).push(r); });
-        return Object.keys(years).sort().map(y => ({ year: y, items: years[y] }));
+        return Object.keys(years).sort((a, b) => b - a).map(y => ({ year: y, items: years[y] }));
       },
       vizRadar() {
         const counts = this.categories.map(c => ({ name: c.name, icon: c.icon, value: this.entriesOf(c).length }));
