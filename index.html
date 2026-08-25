@@ -541,6 +541,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .unit-row select { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; background: #fff; }
 .unit-row input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; }
 .prog-value { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; margin-bottom: 2px; }
+/* 进度记录单位：可删除的内置/自定义单位列表 */
+.unit-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.unit-item { display: flex; gap: 6px; align-items: center; }
+.unit-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: 14px; color: var(--text); font-family: inherit; background: #fff; cursor: pointer; }
+.unit-pick.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, #fff); color: var(--primary); font-weight: 600; }
+.unit-pick .u-ico { font-size: 15px; }
+.unit-del { flex: 0 0 auto; width: 30px; height: 34px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--sub); font-size: 16px; line-height: 1; cursor: pointer; }
+.unit-del:hover { border-color: #e74c3c; color: #e74c3c; }
+.unit-custom { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; }
+.unit-add-input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; }
+.unit-add-btn { flex: 0 0 auto; border: 1px solid var(--primary); border-radius: 10px; padding: 7px 12px; font-size: 14px; color: var(--primary); background: #fff; cursor: pointer; }
+.unit-add-btn:hover { background: color-mix(in srgb, var(--primary) 10%, #fff); }
 .material pre { white-space: pre-wrap; background: #f7f8fc; border-radius: 8px; padding: 10px; font-size: 12px; color: var(--sub); max-height: 120px; overflow-y: auto; }
 /* 素材备注（主描述）：可编辑多行文本 */
 .material-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -1689,6 +1701,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   const { reactive } = Vue;
   const STORAGE_KEY = 'mindpocket:v1';
 
+  // 进度记录可选单位（书籍默认「章」而非「页」；内置单位均可被用户删除/新增，不固定）
+  const DEFAULT_PROGRESS_UNITS = [
+    { id: 'book', icon: '📚', label: '书籍（章）' },
+    { id: 'drama', icon: '🎬', label: '剧集（集）' },
+    { id: 'course', icon: '📖', label: '课程（节）' },
+    { id: 'video', icon: '🎞', label: '视频（集）' },
+    { id: 'pages', icon: '📄', label: '页数（页）' },
+    { id: 'hour', icon: '⏱', label: '小时' },
+  ];
+
   /* ----------------------------- 工具函数 ----------------------------- */
   function uid(prefix) { return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
@@ -1857,6 +1879,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   const state = reactive({ revision: 0, habits: [], tasks: [], categories: [], settings: { quickToQuickView: true, autoExtend: false },
     projects: [], project_subs: [], project_records: [], project_ideas: [], project_folders: [], sub_custom_statuses: [],
     wish_items: [], wish_records: [],
+    progressUnits: DEFAULT_PROGRESS_UNITS.map(u => ({ ...u })),
     finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] },
     career: { categories: [], entries: [], jds: [], resumes: [], tags: [] } });
 
@@ -1870,6 +1893,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         project_folders: state.project_folders,
         sub_custom_statuses: state.sub_custom_statuses,
         wish_items: state.wish_items, wish_records: state.wish_records,
+        progressUnits: state.progressUnits,
         finance: state.finance,
         career: state.career,
       }));
@@ -1934,6 +1958,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.sub_custom_statuses = o.sub_custom_statuses || [];
       state.wish_items = o.wish_items || [];
       state.wish_records = o.wish_records || [];
+      state.progressUnits = (o.progressUnits && Array.isArray(o.progressUnits) && o.progressUnits.length)
+        ? o.progressUnits
+        : DEFAULT_PROGRESS_UNITS.map(u => ({ ...u }));
       state.finance = o.finance || { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] };
       ensureFinancePresets();
       // 迁移：补全 hasDate 标记（旧数据未存该字段；按已保存的 year/month 推断）
@@ -2010,7 +2037,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const tArchived = {
       _id: uid('task'), title: '已读完《活着》', desc: '余华', category_id: cid('书籍'),
       is_archived: true, execute_date: addDays(todayStr(), -5), cycle: null, enable_remind: false,
-      sub_tasks: [], progress_info: { enable: true, media_type: 'book', progress_value: '已读至 p.320', done: 320, total: 320 },
+      sub_tasks: [], progress_info: { enable: true, media_type: 'book', progress_value: '已读至 320 章', done: 320, total: 320 },
       material_notes: '', cycle_history: [], expect_hint_date: null, create_at: Date.now(),
       plan_year: null, plan_month: null, plan_week: null, time_mode: null,
     };
@@ -2018,7 +2045,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const tBook = {
       _id: uid('task'), title: '读《认知觉醒》', desc: '自我成长', category_id: cid('书籍'),
       is_archived: false, execute_date: todayStr(), cycle: null, enable_remind: false,
-      sub_tasks: [], progress_info: { enable: true, media_type: 'book', progress_value: '已读至 0/300 页', done: 0, total: 300 },
+      sub_tasks: [], progress_info: { enable: true, media_type: 'book', progress_value: '已读至 0/300 章', done: 0, total: 300 },
       material_notes: '', cycle_history: [], expect_hint_date: null, create_at: Date.now(),
       plan_year: null, plan_month: null, plan_week: null, time_mode: null,
     };
@@ -3436,7 +3463,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         list.push({
           kind: 'task', id: t._id, title: t.title, done, total,
           reached: total > 0 && done >= total,
-          label: (total > 0 ? done + '/' + total : done) + ' 页',
+          label: (total > 0 ? done + '/' + total : done) + ' 章',
         });
       }
     });
@@ -3464,7 +3491,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       let done = (Number(info.done) || 0) + n;
       if (total > 0 && done > total) done = total; // 封顶
       info.done = done;
-      info.progress_value = total > 0 ? ('已读至 ' + done + '/' + total + ' 页') : ('已读 ' + done + ' 页');
+      info.progress_value = total > 0 ? ('已读至 ' + done + '/' + total + ' 章') : ('已读 ' + done + ' 章');
       t.progress_info = info;
     } else {
       const s = state.project_subs.find(x => x.sid === book.id);
@@ -4248,7 +4275,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   // 奇想自动归入临时任务 开关
   function setQuickToQuickView(v) { state.settings.quickToQuickView = !!v; persist(); }
-  // 临时任务专属筛选（今日页底部模块5）
+  // —— 进度记录可选单位（内置单位可删除/新增，不固定）——
+  function getProgressUnits() { return state.progressUnits || []; }
+  function addProgressUnit(label) {
+    const L = (label || '').trim();
+    if (!L) return null;
+    const u = { id: uid('unit'), icon: '🏷', label: L };
+    if (!state.progressUnits) state.progressUnits = [];
+    state.progressUnits.push(u);
+    persist();
+    return u;
+  }
+  function removeProgressUnit(id) {
+    if (!state.progressUnits) return;
+    state.progressUnits = state.progressUnits.filter(u => u.id !== id);
+    persist();
+  }
   function getQuickViewTasks() {
     return state.tasks.filter(t => t.category_id === QUICK_VIEW_ID && !t.execute_date && !t.is_archived);
   }
@@ -5053,6 +5095,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         t.time_mode = 'month'; changed = true;
       }
       if (t.plan_year === undefined) { t.plan_year = null; t.plan_month = null; t.plan_week = null; changed = true; }
+      // 指定周：冻结绝对目标 ISO 周（plan_year/plan_week），实现随时间迁移（到那一周自动落入「本周」分组）
+      // 仅对「有 week_offset 但缺目标周」的旧数据在加载时一次性补全（锚定到当前周 + offset）；新任务由 dateFieldsFromDraft 冻结
+      if (t.time_mode === 'week' && t.week_offset != null && (t.plan_year == null || t.plan_week == null)) {
+        const tw = isoWeek(addDays(todayStr(), (t.week_offset || 0) * 7));
+        t.plan_year = tw.year; t.plan_week = tw.week; changed = true;
+      }
       // 今日子任务：旧数据补齐紧急标记，保证今日列表排序逻辑一致
       (t.sub_tasks || []).forEach(s => {
         // 指定月子任务同样补全 time_mode='month'（与今日Tab「本月」折叠口径一致）
@@ -5060,6 +5108,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           s.time_mode = 'month'; changed = true;
         }
         if (s.isEmergency === undefined) { s.isEmergency = false; changed = true; }
+        // 指定周子任务：同主任务，加载时一次性冻结绝对目标周（锚定当前周 + offset）
+        if (s.time_mode === 'week' && s.week_offset != null && (s.plan_year == null || s.plan_week == null)) {
+          const sw = isoWeek(addDays(todayStr(), (s.week_offset || 0) * 7));
+          s.plan_year = sw.year; s.plan_week = sw.week; changed = true;
+        }
         // 周期 / 区间打卡记录字段补齐（与主任务一致，避免 subCopyDone push 崩溃）
         if (s.cycle_history === undefined) { s.cycle_history = []; changed = true; }
         if (s.doneDates === undefined) { s.doneDates = []; changed = true; }
@@ -5461,12 +5514,27 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (dm === 'day' && t.execute_date) return fmtDateDash(t.execute_date); // 单日日期
     return '';
   }
-  // 指定周标签：仅 time_mode==='week' 且显式设置 week_offset（0=本周/1=下周/2=下下周）的任务展示文字；
-  // 旧版按 ISO 周（plan_week）的任务 week_offset 为 null → 不展示该文字（按其具体日期在看板分组）
+  // 计算指定周任务「冻结的绝对目标周」相对当前周的偏移周数（0=本周 / 1=下周 / 2=下下周；负=已过周；>2=远超），
+  // 用于「指定周」动态标签与时间迁移：目标周 = 当前周时自动显示「本周」。
+  function weekOffsetFromTarget(py, pw) {
+    const a = weekRange(py, pw).start;
+    const cur = isoWeek(parseDate(todayStr()));
+    const b = weekRange(cur.year, cur.week).start;
+    return Math.round((a - b) / 86400000 / 7);
+  }
+  // 指定周标签：time_mode==='week' 的任务；优先按冻结的绝对目标周相对当前周动态展示
+  // （本周/下周/下下周），随时间自然迁移（到那一周自动显示「本周」）；旧数据无目标周则按 week_offset 兜底。
   function weekLabel(t) {
     if (!t) return '';
-    if (t.time_mode !== 'week' || t.week_offset == null) return '';
-    return (['本周', '下周', '下下周'])[t.week_offset] || '';
+    if (t.time_mode !== 'week') return '';
+    if (t.plan_year != null && t.plan_week != null) {
+      const off = weekOffsetFromTarget(t.plan_year, t.plan_week);
+      if (off <= 0) return '本周';
+      if (off === 1) return '下周';
+      return '下下周';
+    }
+    if (t.week_offset != null) return (['本周', '下周', '下下周'])[t.week_offset] || '';
+    return '';
   }
   // 胶囊时间标签（日浅红 / 周浅绿 / 月浅蓝，左图标 + 文字）：母本与副本文案不同
   const CAP_ICO = { day: '📅', week: '🗓️', month: '📆' };
@@ -5497,9 +5565,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 兼容子任务数据结构：旧字段 sub_deadline / sub_remind / sub_remind_time 与主任务
     // execute_date / enable_remind / remind_time 同义（新增子任务会双写，历史子任务可能仅存旧字段）
     const ex = t.execute_date || t.sub_deadline;
-    // 指定周（本周/下周/下下周）：母本带文字；副本只展示粒度图标（带提醒显示 ⏰）
-    if (t.time_mode === 'week' && t.week_offset != null) {
-      const txt = (['本周', '下周', '下下周'])[t.week_offset] || '';
+    // 指定周（本周/下周/下下周）：母本带文字（按冻结目标周动态）；副本只展示粒度图标（带提醒显示 ⏰）
+    if (t.time_mode === 'week') {
+      let txt = '';
+      if (t.plan_year != null && t.plan_week != null) {
+        const off = weekOffsetFromTarget(t.plan_year, t.plan_week);
+        if (off <= 0) txt = '本周'; else if (off === 1) txt = '下周'; else txt = '下下周';
+      } else if (t.week_offset != null) {
+        txt = (['本周', '下周', '下下周'])[t.week_offset] || '';
+      }
       if (!txt) return null;
       return isCopy ? { kind: 'week', icon: CAP_ICO.week, text: remind ? '⏰' : '' }
                     : { kind: 'week', icon: CAP_ICO.week, text: bell(txt) };
@@ -5790,6 +5864,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     getLeisurePool, categoryChainNames,
     // 分类
     findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, descendantCategoryIds, matchCategory, parseTagString,
+    // 进度记录单位（内置可删除/新增）
+    getProgressUnits, addProgressUnit, removeProgressUnit,
     // 奇想 / 临时任务
     quickAddTask, setQuickToQuickView, getQuickViewTasks,
     // 项目模块
@@ -5831,6 +5907,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         project_folders: state.project_folders,
         sub_custom_statuses: state.sub_custom_statuses,
         wish_items: state.wish_items, wish_records: state.wish_records,
+        progressUnits: state.progressUnits,
         finance: state.finance,
         career: state.career,
       });
@@ -5857,6 +5934,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.sub_custom_statuses = Array.isArray(o.sub_custom_statuses) ? o.sub_custom_statuses : [];
       state.wish_items = Array.isArray(o.wish_items) ? o.wish_items : [];
       state.wish_records = Array.isArray(o.wish_records) ? o.wish_records : [];
+      state.progressUnits = (o.progressUnits && Array.isArray(o.progressUnits) && o.progressUnits.length) ? o.progressUnits : DEFAULT_PROGRESS_UNITS.map(u => ({ ...u }));
       state.finance = (o.finance && typeof o.finance === 'object') ? o.finance : { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] };
       state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
       try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
@@ -5999,10 +6077,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     let date = null;
     const m1 = t.match(/(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/);
     if (m1) date = m1[1] + '-' + String(m1[2]).padStart(2, '0') + '-' + String(m1[3]).padStart(2, '0');
-    const m2 = t.match(/(\d{1,2})月(\d{1,2})[日号]/);
+    const m2 = t.match(/(\d{1,2}|[一二三四五六七八九十]+)\s*月\s*(\d{1,2}|[一二两三四五六七八九十]+)\s*[日号]?/);
     if (m2) {
       const now = new Date();
-      let y = now.getFullYear(); const mo = +m2[1]; const d = +m2[2];
+      let y = now.getFullYear(); const mo = cnNum(m2[1]); const d = cnNum(m2[2]);
       if (mo < now.getMonth() + 1) y += 1;
       date = y + '-' + String(mo).padStart(2, '0') + '-' + String(d).padStart(2, '0');
     }
@@ -6116,7 +6194,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       date_mode: '', plan_year: null, plan_month: null,
       execute_date: null, date_start: '', date_end: '',
       cycle: null, isHabit: false,
-      remind: false, remind_time: '07:00', remind_option: 'none',
+      remind: false, remind_time: '08:00', remind_option: 'none',
       progress_info: { enable: false, media_type: 'book', progress_value: '' },
       expect_hint_date: null,
     };
@@ -6195,9 +6273,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       let date = null;
       const m1 = t.match(/(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/);
       if (m1) date = m1[1] + '-' + pad2(m1[2]) + '-' + pad2(m1[3]);
-      const m2 = t.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]/);
+      const m2 = t.match(/(\d{1,2}|[一二三四五六七八九十]+)\s*月\s*(\d{1,2}|[一二两三四五六七八九十]+)\s*[日号]?/);
       if (m2) {
-        const now = new Date(); let y = now.getFullYear(); const mo = +m2[1], d = +m2[2];
+        const now = new Date(); let y = now.getFullYear(); const mo = cnNum(m2[1]), d = cnNum(m2[2]);
         if (mo < now.getMonth() + 1) y += 1;
         date = y + '-' + pad2(mo) + '-' + pad2(d);
       }
@@ -6248,19 +6326,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 6) 仅指定周（这周 / 下下周）
     if (cycleType === 'weekonly') { result.date_mode = 'week'; result.week_offset = weekOffset; }
 
-    // 7) 提醒：单次固定日期任务默认 07:00 提醒；周期 / 仅周 / 区间任务默认不提醒（显式提醒词 / 时刻仍生效）
+    // 提醒：仅当显式给出「时刻 / 提醒词」才自动勾选提醒；否则不勾选，但时间字段默认 08:00（用户手动勾选即生效）
     const tm = parseCnTime(t);
     const explicitRemind = /提醒|通知|闹钟/.test(t);
-    if (cycleType === null && result.execute_date) {
+    const DEFAULT_REMIND = '08:00';
+    if (explicitRemind || tm) {
       result.remind = true;
-      result.remind_time = tm ? pad2(tm.hour) + ':' + pad2(tm.min) : '07:00';
-      if (result.remind_option === 'none') result.remind_option = 'ontime';
-    } else if (explicitRemind || tm) {
-      result.remind = true;
-      result.remind_time = tm ? pad2(tm.hour) + ':' + pad2(tm.min) : '07:00';
+      result.remind_time = tm ? pad2(tm.hour) + ':' + pad2(tm.min) : DEFAULT_REMIND;
       if (result.remind_option === 'none') result.remind_option = 'ontime';
     } else {
-      result.remind_time = '';
+      // 未给提醒时间：不勾选提醒；时间字段保留默认 08:00（不强制清空，便于用户手动开启）
+      result.remind = false;
+      result.remind_time = DEFAULT_REMIND;
     }
 
     // 8) 标题提炼：剥离标签 / 时间 / 周期 / 提醒 / 地点词，取核心动作
@@ -6279,9 +6356,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       .replace(/(?:这周|本周|下周|下下周)\s*[一二三四五六日天]?/g, '')                     // 仅周 / 周几（含这周四、下周二、下下周一）
       .replace(/今天|今日|明天|明日|后天|大后天|起/g, '')                              // 相对日
       .replace(/下\s*个?\s*月/g, '')                                                   // 下月
-      .replace(/[一二三四五六七八九十]+\s*月(?!\s*\d)/g, '')                            // 中文月（无日）
+      .replace(/[一二三四五六七八九十]+\s*月(?!\s*[\d一二两三四五六七八九十])/g, '')       // 中文月（无日；避免误剥「X月Y日」中的月）
       .replace(/(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})[日号]?/g, '')
-      .replace(/(\d{1,2})\s*月\s*(\d{1,2})\s*[日号]/g, '')
+      .replace(/(\d{1,2}|[一二三四五六七八九十]+)\s*月\s*(\d{1,2}|[一二两三四五六七八九十]+)\s*[日号]?/g, '')   // 中文月日（含中文数字 / 无日后缀）
       .replace(/(\d{1,2})\s*月/g, '')
       .replace(/(\d{1,2})\s*[日号]/g, '')
       .replace(/(凌晨|清晨|拂晓|早上|早晨|上午|清早|中午|下午|晚上|傍晚|夜晚|夜里|晚间|睡前|起床后|起床|饭后|饭前|睡前后|熬夜后|一大早|大清早)/g, '') // 时刻描述
@@ -7228,8 +7305,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       return { date_mode: 'range', plan_year: null, plan_month: null, plan_week: null, execute_date: s || null, date_start: s, date_end: e, week_offset: null, time_mode: null };
     }
     if (mode === 'week') {
-      // 指定周：仅绑定归属周（本周/下周/下下周），不绑定具体日期；time_mode='week' 进入周看板
-      return { date_mode: 'week', time_mode: 'week', week_offset: (d.week_offset == null ? 0 : d.week_offset), plan_year: null, plan_month: null, plan_week: null, execute_date: null, date_start: '', date_end: '', cycle: null };
+      // 指定周：冻结「绝对目标 ISO 周」(plan_year/plan_week)，不绑定具体日期；time_mode='week' 进入周看板。
+      // 存绝对周 → 随时间自然迁移：到那一周时自动落入「本周」分组（不再永远停在「下周」）；week_offset 仍保留作标识。
+      const off = (d.week_offset == null ? 0 : d.week_offset);
+      const U = window.MPStore.util;
+      const base = U.parseDate(U.todayStr());
+      const d2 = new Date(base); d2.setDate(d2.getDate() + off * 7);
+      const w = U.isoWeek(d2);
+      return { date_mode: 'week', time_mode: 'week', week_offset: off, plan_year: w.year, plan_month: null, plan_week: w.week, execute_date: null, date_start: '', date_end: '', cycle: null };
     }
     // 未设置日期：保持已有 execute_date（若有），不清空用户已设的日期数据
     return { date_mode: 'single', plan_year: null, plan_month: null, plan_week: null, execute_date: d.execute_date || null, date_start: d.date_start || '', date_end: d.date_end || '' };
@@ -7261,6 +7344,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 周期规则输入框：校验错误提示 + 是否已交互（失焦 / 保存）后才展示红字，避免初始空白即报错
         cycleRuleError: '',
         cycleRuleTouched: false,
+        // 新增进度单位输入框（临时草稿）
+        newUnitLabel: '',
       };
     },
     created() {
@@ -7284,7 +7369,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         get() { return this.draft.cycle ? (this.draft.cycle.rule || '') : ''; },
         set(v) { this.draft.cycle = Object.assign({}, this.draft.cycle || { type: this.cycleType }, { rule: v }); },
       },
-      isKnownUnit() { return ['book', 'drama', 'course', 'video', 'pages', 'hour'].includes(this.draft.progress_info.media_type); },
+      isKnownUnit() { return this.$store.getProgressUnits().some(u => u.id === this.draft.progress_info.media_type); },
+      // 可选进度单位列表（用户可删除内置单位、新增自定义单位）
+      progressUnits() { return this.$store.getProgressUnits(); },
       // 收藏夹任务：时间选择器无效（无法绑定日期 / 周期）
       isColl() { return this.draft.folderType === 'collection'; },
       // 设置时间：日期 / 周期 二选一（由 draft 状态派生）
@@ -7327,7 +7414,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.draft.date_mode = ''; this.draft.plan_month = ''; this.draft.execute_date = ''; this.draft.date_start = ''; this.draft.date_end = '';
         this.timeTab = 'cycle';
       },
-      onUnitChange(e) { const v = e.target.value; this.draft.progress_info.media_type = v === '__custom' ? '' : v; },
+      // 选择某个进度单位（内置或自定义）
+      pickUnit(id) { this.draft.progress_info.media_type = id; },
+      // 删除一个进度单位（当前任务若正在使用它，则退化为可编辑的自定义项）
+      removeUnit(id) { this.$store.removeProgressUnit(id); },
+      // 新增自定义进度单位并立即选用
+      addUnit() {
+        const L = (this.newUnitLabel || '').trim();
+        if (!L) return;
+        const u = this.$store.addProgressUnit(L);
+        if (u) { this.draft.progress_info.media_type = u.id; this.newUnitLabel = ''; }
+      },
       // 切换三种日期类型（再次点击当前类型则取消，回到「未设置」）；清理互斥字段，并清空周期（二选一）
       setDateType(type) {
         if (this.draft.date_mode === type) { this.draft.date_mode = ''; if (type === 'week') this.draft.week_offset = null; return; }
@@ -7569,19 +7666,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="grp-body" v-if="grp.prog">
               <label class="fld check"><input type="checkbox" v-model="draft.progress_info.enable" /> 开启</label>
               <template v-if="draft.progress_info.enable">
-                <div class="unit-row">
-                  <select :value="isKnownUnit ? draft.progress_info.media_type : '__custom'" @change="onUnitChange">
-                    <option value="book">📚 书籍（页码）</option>
-                    <option value="drama">🎬 剧集（集数）</option>
-                    <option value="course">📖 课程（节）</option>
-                    <option value="video">🎞 视频（集）</option>
-                    <option value="pages">📄 页数</option>
-                    <option value="hour">⏱ 小时</option>
-                    <option value="__custom">✏️ 自定义…</option>
-                  </select>
-                  <input v-if="!isKnownUnit" v-model="draft.progress_info.media_type" placeholder="自定义单位，如：张 / 次" />
+                <div class="unit-list">
+                  <div class="unit-item" v-for="u in progressUnits" :key="u.id">
+                    <button type="button" class="unit-pick" :class="{on: draft.progress_info.media_type===u.id}" @click="pickUnit(u.id)">
+                      <span class="u-ico">{{ u.icon }}</span><span class="u-label">{{ u.label }}</span>
+                    </button>
+                    <button type="button" class="unit-del" @click.stop="removeUnit(u.id)" title="删除该单位">×</button>
+                  </div>
+                  <!-- 当前单位已被删除（不在可选列表）：退化为可编辑自定义项 -->
+                  <div class="unit-item" v-if="!isKnownUnit">
+                    <input class="unit-custom" v-model="draft.progress_info.media_type" placeholder="自定义单位，如：张 / 次" />
+                  </div>
+                  <!-- 新增自定义单位 -->
+                  <div class="unit-item add">
+                    <input class="unit-add-input" v-model="newUnitLabel" placeholder="新增单位，如：张 / 次" @keyup.enter="addUnit" />
+                    <button type="button" class="unit-add-btn" @click="addUnit">＋ 添加</button>
+                  </div>
                 </div>
-                <input class="prog-value" v-model="draft.progress_info.progress_value" placeholder="如：第 12 集 / p.230" />
+                <input class="prog-value" v-model="draft.progress_info.progress_value" placeholder="如：第 12 章 / 第 12 集" />
                 <p class="tip">开启后将在任务条目固定展示进度同步信息。</p>
               </template>
             </div>
@@ -8894,7 +8996,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="modal-head"><h3>任务详情</h3><button class="x" @click="cancel">✕</button></div>
         <div class="modal-body" v-if="task && form">
           <TaskFormCore :draft="form" :is-copy="isCopy" ref="form" @convert-habit="onConvertHabit" />
-          <p class="tip prog-sync" v-if="form.progress_info.enable">📊 进度已同步至：{{ form.progress_info.progress_value || '（开启记录）' }}{{ form.progress_info.media_type ? '（' + form.progress_info.media_type + '）' : '' }}</p>
+          <p class="tip prog-sync" v-if="form.progress_info.enable">📊 进度已同步至：{{ form.progress_info.progress_value || '（开启记录）' }}{{ $unitLabel(form.progress_info.media_type) ? '（' + $unitLabel(form.progress_info.media_type) + '）' : '' }}</p>
 
           <div v-if="hasExecHist">
             <!-- 标题栏常驻：复用「填报历史」标题行布局 + 看板折叠按钮（▼/▶）样式与交互 -->
@@ -9719,7 +9821,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (S.classifyMode(t) !== 'week') return false;
           if (S.copyDoneForWindow(t, win.ws, win.we)) return false;      // 本条已完成 → 该副本消失，母本不受影响
           if (t.cycle_end_date && win.ws > t.cycle_end_date) return false;
-          if (t.week_offset != null) return t.week_offset === 0;         // 本周 / 下周 / 下下周 → 仅取本周
+          // 指定周：优先按冻结的绝对目标周命中当前周（随时间迁移，到本周时自然归入）；旧数据仅 week_offset 则取「本周」
+          if (t.plan_year != null && t.plan_week != null) return t.plan_year === win.y && t.plan_week === win.w;
+          if (t.week_offset != null) return t.week_offset === 0;
           return t.plan_year === win.y && t.plan_week === win.w;
         };
         const tasks = (S.state.tasks || []).filter(ok).map(t => ({ type: 'task', data: t, _key: 'wt' + t._id }));
@@ -10837,8 +10941,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               if (this.$store.copyDoneForWindow(t, rs, re)) return false; // 副本「本条完成」后该副本消失，其余副本/母本不变
               // 子任务自身 cycle_end_date 约束：周窗口完全在结束日之后则不展示
               if (t.cycle_end_date && rs > t.cycle_end_date) return false;
-              // 指定周（本周/下周/下下周）：不绑定具体日期，按 week_offset 归入对应周分组（0→本周 / 1→下周 / 2→下下周）
-              if (t.week_offset != null) return i === t.week_offset;
+              // 指定周（本周/下周/下下周）：冻结的绝对目标周 → 随当前周动态归入对应分组
+              // （到那一周时落入「本周」分组，实现时间迁移）；旧数据（仅 week_offset 无目标周）按 offset 兜底
+              if (t.time_mode === 'week') {
+                if (t.plan_year != null && t.plan_week != null) return t.plan_year === w.year && t.plan_week === w.week;
+                if (t.week_offset != null) return i === t.week_offset;
+              }
               // 每周(cycleType==='week')/间隔(interval)周期：命中该周任意一天即归入此周分组（自动收纳所有每周任务；覆盖固定窗口 3 周）
               if (t.cycle && (t.cycle.type === 'week' || t.cycle.type === 'interval')) {
                 const pad = n => String(n).padStart(2, '0');
@@ -10864,15 +10972,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               // 紧急置顶：紧急任务统一排到分组最前（无视日期/周期）；取消紧急后立即按原时间顺序复位
               const ea = a.isEmergency ? 0 : 1, eb = b.isEmergency ? 0 : 1;
               if (ea !== eb) return ea - eb;
-              // 仅指定周（本周/下周/下下周）：无精确日期，整体置后（已按 week_offset 归入对应周分组末尾）
+              // 仅指定周（本周/下周/下下周）：无精确日期，整体置后（已按绝对目标周归入对应周分组末尾）
               const ca = this.hasConcreteAnchor(a) ? 0 : 1;
               const cb = this.hasConcreteAnchor(b) ? 0 : 1;
               if (ca !== cb) return ca - cb;
-              // 带具体日期任务：统一优先级 = 提醒时间升序(无提醒后置) → 任务日期由早到晚
-              const ra = this.$store.remindMinutes(a), rb = this.$store.remindMinutes(b);
-              if (ra !== rb) return ra - rb;
+              // 带具体日期任务：先按日期近到远（由早到晚），同日期内按提醒时间近到远（升序；无提醒后置）
               const ka = this.$store.weekDateKey(a, rs, re), kb = this.$store.weekDateKey(b, rs, re);
-              return ka < kb ? -1 : ka > kb ? 1 : 0;
+              if (ka !== kb) return ka < kb ? -1 : ka > kb ? 1 : 0;
+              const ra = this.$store.remindMinutes(a), rb = this.$store.remindMinutes(b);
+              return ra - rb;
             }),
           });
         }
@@ -10917,7 +11025,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 无一级标签的任务（排除临时任务 quickview），独立分组，避免移除「全部任务」视图后丢失入口
       folderUncatTasks() {
         if (!this.folderView) return [];
-        return this.folderScopeTasks.filter(t => !t.category_id && !this.isQuickView(t));
+        let list = this.folderScopeTasks.filter(t => !t.category_id && !this.isQuickView(t));
+        if (this.folderView === 'collection') list = this.sortProgressTop(list);
+        return list;
       },
       // 全局搜索结果：跨「任务夹 / 收藏夹 / 模版夹」所有未归档父任务 + 子任务，多字段模糊匹配
       // （标题 / 描述 / 素材备注 / 灵感素材 / 一级#标签 / 二级##标签）；标签关键词直接命中带该标签的任务；
@@ -10979,14 +11089,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 看板「本周 / 本月」分组：进入看板页面强制恢复默认展开（仅补开锚点，不清除其余已展开分组）
         this.ensureBoardDefaults();
       },
-      // 看板「本周 / 本月」锚点分组：强制恢复默认展开。
-      // 仅覆盖这两个锚点分组；其余时间维度分组（上周 / 下月等）折叠逻辑保持不变。
+      // 看板进入时强制重置为默认折叠态：仅「本月 / 本周」分组展开，其余时间维度分组（下周 / 下下周 / 下月…）全部收起。
+      // 解决「切换 / 返回看板后，手动展开的时间标签没有重新折叠」的问题。
       ensureBoardDefaults() {
         const U = this.$store.util; const now = new Date();
-        if (!this.boardOpen || typeof this.boardOpen !== 'object') this.boardOpen = {};
-        this.boardOpen[now.getFullYear() + '-' + (now.getMonth() + 1)] = true;  // 本月分组
+        const open = {};
+        open[now.getFullYear() + '-' + (now.getMonth() + 1)] = true;  // 本月分组默认展开
         const w = U.isoWeek(U.parseDate(U.todayStr()));
-        this.boardOpen[w.year + '-' + w.week] = true;                          // 本周分组
+        open[w.year + '-' + w.week] = true;                            // 本周分组默认展开
+        this.boardOpen = open;                                        // 其余时间维度分组（下周 / 下下周 / 下月…）全部收起
       },
       // 时间模式筛选（系统标签，可与自定义标签叠加；归档任务同样遵循）
       matchMode(t) {
@@ -11032,7 +11143,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return this.folderScopeTasks.filter(t => ids.indexOf(t.category_id) >= 0).length;
       },
       // 归属某分类（一级 / 二级 / 三级）的任务
-      folderTasksOf(catId) { return this.folderScopeTasks.filter(t => t.category_id === catId); },
+      folderTasksOf(catId) {
+        let list = this.folderScopeTasks.filter(t => t.category_id === catId);
+        if (this.folderView === 'collection') list = this.sortProgressTop(list);
+        return list;
+      },
+      // 收藏夹：开启进度记录(progress_info.enable) 的任务排到分组最上面，其余保持原顺序（稳定排序）
+      sortProgressTop(list) {
+        return list.slice().sort((a, b) => {
+          const pa = !!(a.progress_info && a.progress_info.enable);
+          const pb = !!(b.progress_info && b.progress_info.enable);
+          return (pb ? 1 : 0) - (pa ? 1 : 0);
+        });
+      },
       // 父任务下的子任务（三级标签语义：新任务归属为父任务的子任务）
       folderSubTasksOf(parentTask) {
         if (!parentTask || !parentTask.sub_tasks) return [];
@@ -12369,7 +12492,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 板块折叠：点击标题或箭头切换；状态本地缓存，再次进入保留
       toggleCol(key) {
         if (!this.collapsed.hasOwnProperty(key)) return;
+        const expanding = this.collapsed[key]; // 当前为折叠态 → 本次点击将展开
         this.collapsed = { ...this.collapsed, [key]: !this.collapsed[key] };
+        // 全局已归档仓库展开时，默认按「今日」筛选，直接呈现当日归档情况；
+        // 若已选中某日期 / 区间则保留用户选择，不强制覆盖
+        if (key === 'arch' && expanding && !this.archSelDate && !(this.archRange.start || this.archRange.end)) {
+          this.archSelDate = this.today;
+        }
         this.saveCol();
       },
       saveCol() {
@@ -13783,8 +13912,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         vizOpen: false, vizDim: 'day',
         // 饼图下钻：当前选中的标签（null = 标签总览，非 null = 该标签下各项目分布）
         vizDrillTag: null,
-        // 项目重要等级排序（默认关；本地缓存）
-        importanceSort: false,
+        // 项目重要等级排序（默认开；按 高度重要 > 一般重要 > 普通 降序）
+        importanceSort: true,
       };
     },
     computed: {
@@ -16828,15 +16957,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    *   - 图标、文字、单位完整渲染，不可缺失单位、缺失前缀标识
    *   - 多次填报时仅展示最新一条同步文案（progress_value 本身即最新值）
    *   - 删除进度记录（progress_info.enable=false）后，条目同步移除该展示行 */
+  /* ================== 进度单位解析 $unitLabel ==================
+   * 将 progress_info.media_type（内置 id / 自定义单位 id / 直接手填纯文本）
+   * 统一解析为可读单位文案：
+   *   ① 内置单位 id（book/drama/...）→ UNIT_MAP 中文；
+   *   ② 用户自定义单位 id（unit_xxx）→ store.progressUnits 中按 id 命中 label；
+   *   ③ 直接手填的纯文本（如「张」「次」）→ 原样返回。
+   * 杜绝「显示 unit_mt60gyi2djomp 这类原始 id」的问题。 */
+  app.config.globalProperties.$unitLabel = function (mediaType) {
+    if (!mediaType) return '';
+    const UNIT_MAP = { book: '章', drama: '集', course: '节', video: '集', pages: '页', hour: '小时' };
+    const known = UNIT_MAP[mediaType];
+    if (known) return known;
+    const units = (window.MPStore && window.MPStore.getProgressUnits) ? window.MPStore.getProgressUnits() : [];
+    const u = units.find(x => x.id === mediaType);
+    if (u && u.label) return u.label;
+    return String(mediaType);
+  };
   app.config.globalProperties.$progressSync = function (t) {
     if (!t) return '';
     const pi = t.progress_info;
     if (!pi || !pi.enable) return '';
     const pv = (pi.progress_value || '').trim();
     if (!pv) return '';
-    // 获取单位文案（media_type → 中文映射 + 自定义兜底）
-    const UNIT_MAP = { book: '页码', drama: '集', course: '节', video: '集', pages: '页', hour: '小时' };
-    const unitLabel = UNIT_MAP[pi.media_type] || pi.media_type || '';
+    // 获取单位文案：内置映射 → 自定义单位列表（按 id）→ 手填纯文本兜底
+    const unitLabel = this.$unitLabel(pi.media_type);
     return '进度已同步至：' + pv + (unitLabel ? '（' + unitLabel + '）' : '');
   };
   /* ================== 归档仓库专用标签渲染 $archTagList ==================
