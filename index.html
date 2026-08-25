@@ -3448,15 +3448,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return /阅读|读书/.test(h.name || '');
   }
 
-  // 拉取全部「书籍任务」：仅展示分类标签等于「书籍」的任务（不含项目子任务）
+  // 拉取全部「书籍任务」：分类标签（含其下任意层级二级标签）等于「书籍」的任务（不含项目子任务）
   function getBookTasks() {
-    // 书籍分类 id 集合（分类 name === '书籍'）
-    const bookCatIds = state.categories.filter(c => c.name === '书籍').map(c => c._id);
-    const isBookCategory = id => bookCatIds.indexOf(id) >= 0;
+    // 书籍分类判定：自身或任一祖先分类 name === '书籍'（兼容「书籍」一级标签下各二级标签内建的书）
+    function isBookCategory(catId) {
+      let c = findCategory(catId);
+      while (c) {
+        if (c.name === '书籍') return true;
+        c = c.parent ? findCategory(c.parent) : null;
+      }
+      return false;
+    }
     const list = [];
     state.tasks.forEach(t => {
       const p = t.progress_info || {};
-      // 仅保留：未归档 + 进度开启 + 媒体类型为书籍 + 分类标签等于「书籍」
+      // 仅保留：未归档 + 进度开启 + 媒体类型为书籍 + 分类标签（含层级）等于「书籍」
       if (p.enable && p.media_type === 'book' && !t.is_archived && isBookCategory(t.category_id)) {
         const done = Number(p.done) || 0;
         const total = Number(p.total) || 0;
@@ -3466,6 +3472,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           label: (total > 0 ? done + '/' + total : done) + ' 章',
         });
       }
+    });
+    // 排序：已开始读（done>0）置顶 → 未开始 → 已读完（reached）沉底，组内保持稳定
+    list.sort((a, b) => {
+      const ra = a.reached ? 1 : 0, rb = b.reached ? 1 : 0;
+      if (ra !== rb) return ra - rb;                       // 已读完沉底
+      const sa = (a.done > 0) ? 0 : 1, sb = (b.done > 0) ? 0 : 1;
+      if (sa !== sb) return sa - sb;                       // 已开始读置顶
+      return 0;
     });
     // 注：项目子任务（project_subs）不纳入阅读同步下拉，仅展示「书籍」分类的待办任务
     return list;
@@ -3503,10 +3517,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     persist();
   }
 
-  // 确认同步：先累加进度（如有），再标记习惯完成
+  // 确认同步：先累加进度（如有），再标记习惯完成；并记住本次所选书，下次打卡默认同一本
   function applyReadingSync(pr, selectedId, pages) {
     const book = (pr.books || []).find(b => b.id === selectedId);
     if (book) syncBookProgress(book, Number(pages) || 0, pr.date);
+    // 记忆上次同步的书籍（按阅读习惯维度）：下次打卡默认选中同一本；该书被归档后自动失效（getBookTasks 已排除归档）
+    const h = findHabit(pr.habitId);
+    if (h && selectedId) h.lastReadingBookId = selectedId;
     markHabitRecord(pr.habitId, pr.date, 'success');
   }
 
@@ -6869,9 +6886,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     computed: {
       books() { return (this.data && this.data.books) || []; },
     },
-    created() { if (this.books.length) this.selectedId = this.books[0].id; },
+    created() { if (this.books.length) this.selectedId = this.data.defaultId || this.books[0].id; },
     watch: {
-      data() { if (this.books.length) this.selectedId = this.books[0].id; this.pages = ''; this.err = ''; },
+      data() { if (this.books.length) this.selectedId = this.data.defaultId || this.books[0].id; this.pages = ''; this.err = ''; },
     },
     methods: {
       onConfirm() {
@@ -10077,7 +10094,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // —— 阅读习惯打卡 → 书籍进度同步 ——
       onReadingSync({ habitId, date }) {
-        this.pendingReading = { habitId, date, books: this.$store.getBookTasks() };
+        const books = this.$store.getBookTasks();
+        // 默认选中：上次同步的同一本书（该书若已归档则自动失效，回退到列表首本）
+        const habit = (this.$store.state.habits || []).find(h => h._id === habitId);
+        const lastId = habit && habit.lastReadingBookId;
+        const defaultId = (lastId && books.some(b => b.id === lastId)) ? lastId : (books.length ? books[0].id : '');
+        this.pendingReading = { habitId, date, books, defaultId };
       },
       onSyncConfirm({ selectedId, pages }) {
         if (!this.pendingReading) return;
