@@ -73,6 +73,11 @@ body {
 .backup-note { font-size: 12px; line-height: 1.6; color: var(--sub); margin: 0 0 10px; }
 .backup-note b { color: var(--no); }
 .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.backup-modlist { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 4px 0 12px; }
+.backup-mod { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; user-select: none; }
+.backup-mod input { width: 15px; height: 15px; accent-color: var(--no); }
+.backup-mod-all { padding-right: 4px; border-right: 1px solid var(--line); margin-right: 2px; }
+.backup-import { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 
 /* ---------- 同步 / 云端代发 UI（共享样式） ---------- */
 .sync-form { display: flex; flex-direction: column; gap: 8px; }
@@ -197,6 +202,22 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: 10p
 .hn-actions { display: flex; align-items: center; gap: 8px; }
 .hc-btn { background: #f0f1f6; color: var(--text); font-size: 12px; min-height: 30px; padding: 6px 12px; border-radius: 8px; line-height: 1.3; }
 .hc-btn:active { background: #e6e8ef; }
+/* 展开模式：全部习惯列表（仅点击「列表」后出现，不改动默认堆叠外观/大小） */
+.handcards-list { display: flex; flex-direction: column; }
+.hcl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.hcl-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.hcl-actions { display: flex; gap: 6px; }
+.hcl-row { display: flex; align-items: center; gap: 8px; padding: 9px 6px; border-radius: 10px; cursor: pointer; }
+.hcl-row + .hcl-row { border-top: 1px solid var(--line); }
+.hcl-row:active { background: #f3f4f8; }
+.hcl-idx { color: var(--sub); font-size: 12px; min-width: 16px; text-align: center; flex: 0 0 auto; }
+.hcl-badge { font-size: 11px; padding: 2px 7px; border-radius: 7px; background: rgba(0,0,0,.06); color: var(--sub); white-space: nowrap; flex: 0 0 auto; }
+.hcl-badge.ok { background: rgba(46,204,113,.16); color: #1e8e4e; }
+.hcl-badge.no { background: rgba(231,76,60,.16); color: #c0392b; }
+.hcl-badge.holiday { background: rgba(149,165,166,.2); color: #5b6667; }
+.hcl-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hcl-meta { font-size: 11px; color: var(--sub); white-space: nowrap; flex: 0 0 auto; }
+.hcl-ops { display: flex; gap: 6px; flex: 0 0 auto; }
 
 /* ============ AI 输入区 ============ */
 .ai-box { background: var(--card); border-radius: var(--radius); padding: 12px; margin-bottom: 14px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 8px; }
@@ -1264,6 +1285,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .tagbar-toggle.on { background: var(--primary); color: #fff; }
 /* —— 专注时长可视化模块 —— */
 .viz-module { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; margin-bottom: 12px; box-shadow: var(--shadow); }
+/* 可视化模块头部：左侧 日/周/年 切换，右侧 导出按钮 */
+.viz-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.viz-head .view-toggle { flex: 1; margin-bottom: 0; }
+.viz-export-btn { flex: 0 0 auto; background: #f0f1f6; color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.viz-export-btn:hover:not(:disabled) { background: #e7e9f2; }
+.viz-export-btn:active:not(:disabled) { transform: translateY(1px); }
+.viz-export-btn:disabled { opacity: .45; cursor: not-allowed; }
+/* 可视化时间左右切换筛选器：默认锚定当前日/周/月，可向左翻看过往时段 */
+.viz-nav { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 2px 0 6px; }
+.viz-arrow { width: 34px; height: 30px; border-radius: 9px; border: 1px solid var(--line); background: #f0f1f6; color: var(--text); font-size: 14px; cursor: pointer; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+.viz-arrow:hover:not(:disabled) { background: #e7e9f2; }
+.viz-arrow:active:not(:disabled) { transform: translateY(1px); }
+.viz-arrow:disabled { opacity: .4; cursor: not-allowed; }
+.viz-period-label { font-size: 13px; font-weight: 700; color: var(--text); min-width: 120px; text-align: center; }
 .viz-sec-title { font-size: 13px; color: var(--sub); margin: 14px 0 8px; font-weight: 600; }
 .viz-sec-title:first-of-type { margin-top: 4px; }
 .viz-pie-wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
@@ -1709,6 +1744,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     { id: 'video', icon: '🎞', label: '视频（集）' },
     { id: 'pages', icon: '📄', label: '页数（页）' },
     { id: 'hour', icon: '⏱', label: '小时' },
+  ];
+
+  // 备份模块注册表：每个模块映射到若干顶层 state 字段，供「选择性备份 / 恢复」按 Tab 拆份
+  const BACKUP_MODULES = [
+    { key: 'core', label: '今日', fields: ['tasks', 'habits', 'categories', 'progressUnits'] },
+    { key: 'projects', label: '项目', fields: ['projects', 'project_subs', 'project_records', 'project_ideas', 'project_folders', 'sub_custom_statuses'] },
+    { key: 'finance', label: '财务', fields: ['finance'] },
+    { key: 'career', label: '职业', fields: ['career'] },
   ];
 
   /* ----------------------------- 工具函数 ----------------------------- */
@@ -5991,6 +6034,42 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       fin.fieldTemplates = Array.isArray(f.fieldTemplates) ? f.fieldTemplates : [];
       persist(); // 落盘 + 广播刷新
     },
+    // 选择性备份：仅导出勾选的模块（每个模块 = 一组顶层 state 字段），文件记录所含模块清单
+    exportPartial(keys) {
+      const out = { app: 'MindPocket', kind: 'partial', version: 1, exportedAt: new Date().toISOString(), modules: [] };
+      BACKUP_MODULES.forEach(m => {
+        if (!keys || keys.indexOf(m.key) < 0) return;
+        const part = {};
+        m.fields.forEach(f => { part[f] = state[f]; });
+        out[m.key] = part;
+        out.modules.push(m.key);
+      });
+      if (!out.modules.length) throw new Error('请至少选择一个模块');
+      return JSON.stringify(out);
+    },
+    // 选择性恢复：仅覆盖文件中「被勾选」且「文件里确实存在」的模块；其余模块与当前数据互不影响
+    importPartial(raw, keys) {
+      const o = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      if (!o || typeof o !== 'object') throw new Error('备份文件格式无效');
+      let count = 0;
+      BACKUP_MODULES.forEach(m => {
+        if (!m.fields.length) return;
+        if (!keys || keys.indexOf(m.key) < 0) return;                 // 本次未勾选该模块
+        const part = (o[m.key] && typeof o[m.key] === 'object') ? o[m.key] : null;
+        if (!part) return;                                            // 文件里没有该模块，跳过（不报错）
+        m.fields.forEach(f => {
+          const v = part[f];
+          if (v === undefined || v === null) return;
+          state[f] = Array.isArray(v) ? v.slice() : (typeof v === 'object' ? { ...v } : v);
+        });
+        count++;
+      });
+      try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
+      persist(); // 落盘 + 广播全局刷新（revision++），各页面自动重载
+      return count;
+    },
+    // 模块清单（仅 key + 中文标签），供 UI 渲染勾选框；列表与 BACKUP_MODULES 保持一致
+    backupModules: BACKUP_MODULES.map(m => ({ key: m.key, label: m.label })),
 
     persist,
   };
@@ -6385,24 +6464,57 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       .replace(/(?:在|去|到|从)(?<![A-Za-z])([A-Za-z]{1,3}\d{1,4}(?:[-_][A-Za-z0-9]+)?)(?![A-Za-z0-9])/g, '') // 去y105
       .replace(/提醒我?去?|通知我?|闹钟/g, '');
     if (placeToken) title = title.split(placeToken).join('');
-    result.title = title.replace(/\s+/g, ' ').trim() || t;
+    result.title = title.replace(/《[^》]*》/g, '').replace(/\s+/g, ' ').trim() || t;
     if (cmp) result.title = cmp.title; // 复合词拆分：标题取内容词（如 SQL / 可视化）
 
-    // 9) 标签：未显式 #标签链时，优先「复合词拆分」的标签词（如 学习 / 作业 / 课），
-    //    否则按语义关键词兜底（琐事→#生活 / 复盘规划→#个人 / 课业→#作业），默认 #生活
-    if (!result.category_id) {
+    // 8.5) 收藏夹类《》识别：描述词决定收藏夹一级分类并作为二级标签；书名/片名/物名作任务标题
+    //      例：小说《cx》→ #书籍##小说 ；国产《yy》→ #影片##国产 ；无描述词《三体》→ #书籍（一级）
+    const COLL_DESCRIPTORS = {
+      '小说': ['书籍', '小说'], '书': ['书籍', '书'], '图书': ['书籍', '图书'], '读物': ['书籍', '读物'], '漫画': ['书籍', '漫画'], '漫画书': ['书籍', '漫画书'],
+      '电影': ['影片', '电影'], '影片': ['影片', '影片'], '剧': ['影片', '剧'], '韩剧': ['影片', '韩剧'], '美剧': ['影片', '美剧'], '日剧': ['影片', '日剧'], '国产剧': ['影片', '国产剧'], '动漫': ['影片', '动漫'], '纪录片': ['影片', '纪录片'], '综艺': ['影片', '综艺'], '短剧': ['影片', '短剧'], '国产': ['影片', '国产'],
+      '好物': ['好物', null], '物': ['好物', null], '种草': ['好物', null], '推荐': ['好物', null],
+      '旅游': ['旅游', null], '旅行': ['旅游', null], '景点': ['旅游', null], '攻略': ['旅游', null], '游记': ['旅游', null],
+    };
+    const bookM = t.match(/([^\s《》]*?)《([^》]+)》/);
+    if (bookM) {
+      const rawDesc = bookM[1] || '';
+      const itemName = bookM[2].trim();
+      const descs = Object.keys(COLL_DESCRIPTORS).sort((a, b) => b.length - a.length);
+      let fl = null, sl = null;
+      for (const d of descs) { if (rawDesc.indexOf(d) >= 0) { const m = COLL_DESCRIPTORS[d]; fl = m[0]; sl = m[1]; break; } }
+      if (!fl) fl = '书籍'; // 无描述词：默认归「书籍」一级（仍属收藏夹）
+      result.title = itemName;
+      result.isColl = true;            // 收藏夹类（书籍 / 影片 / 好物 / 旅游）
+      if (fl === '书籍') result.isBook = true; // 阅读同步仅对书籍生效
+      const media = fl === '书籍' ? 'book' : (fl === '影片' ? 'episode' : 'book');
+      result.progress_info = { enable: fl === '书籍', media_type: media, progress_value: '' };
+      result.tags = sl ? ('#' + fl + '##' + sl) : ('#' + fl);
+    }
+
+    // 9) 标签：未显式 #标签链时，按语义领域关键词识别（复盘规划→#个人 / 课业→#作业 / 班务→#班务 / 家务生活→#生活），
+    //    领域规则优先于「复合词拆分」的通用类目词；识别不出任何领域词则不强行带标签（默认空值，归属未分类）。
+    if (!result.category_id && !result.isBook && !result.isColl) {
       let tagName = null;
-      if (cmp) tagName = cmp.tag; // 复合词拆分得到的类目词
-      else if (/复盘|规划|总结|周报|月报|计划|回顾|反思|复盘会|年度|季度/.test(t)) tagName = '个人';
+      // 语义领域规则优先于「复合词拆分」的通用类目词（如 资料/文档），领域标签更具体
+      if (/复盘|规划|总结|周报|月报|计划|回顾|反思|复盘会|年度|季度/.test(t)) tagName = '个人';
       else if (/作业|课业|试卷|考试|学习|上课|复习|预习|功课|听课|备考|论文|习题|练习|PPT|报告|答辩/.test(t)) tagName = '作业';
-      else tagName = '生活'; // 默认琐事
-      const tagStr = '#' + tagName;
-      const pr = window.MPStore.parseTagString(tagStr, false);
-      result.tags = tagStr;
-      result.category_id = pr.category_id;
-      result.parent_category = pr.parent_category;
-      result.hasLevel3 = pr.hasLevel3;
-      result.level3Chain = pr.level3Chain;
+      else if (/班会|班级|查寝|晚点名|卫生检查|班主任|班委|班费|班群|课代表|年级大会|学号|收发作业|收集资料/.test(t)) tagName = '班务';
+      else if (/拖地|扫地|清理垃圾|丢垃圾|倒垃圾|扔垃圾|拿快递|取快递|收快递|寄快递|取外卖|拿外卖|点外卖|洗碗|洗衣服|晾衣服|收衣服|叠衣服|洗杯子|刷锅|擦地|墩地|通马桶|刷马桶|做饭|煮饭|炒菜|买菜|买早餐|买早饭|买午饭|买晚饭|买夜宵|带饭|买水果|浇花|擦桌子|擦窗|整理房间|收拾房间|叠被子|打扫|大扫除|充话费|交水电费|交房租|取药|拿药|晒被子|洗车|遛(狗|猫)|喂(猫|狗)|煮咖啡|泡咖啡|冲咖啡|泡茶|沏茶|煮茶|冲茶|收拾屋子|通下水道|换灯泡|逛超市|买东西|取钱|存钱|充水电|拿猫砂|买猫砂|囤猫砂|铲屎|猫粮|狗粮|洗面奶|洗脸|护肤|化妆|卸妆|洗头|吹头发|洗澡|蒸饭|熬粥|煮粥|煲汤|炖汤|煮面|下面条|煎蛋|热饭|打豆浆|榨汁|冲奶粉|热牛奶|和面|包饺子|蒸包子|煮鸡蛋|煎饼|热粥|熨衣服|烫衣服|洗鞋|刷鞋|收被子|吸尘|擦玻璃|擦地板|洗地毯|消毒|清理冰箱|整理衣柜|擦油烟机|刷牙|剪指甲|涂防晒|敷面膜|涂身体乳|梳头|剪头发|染发|做美甲|修眉|买零食|囤货|囤纸巾|买日用品|逛街|买衣服|买鞋|囤面膜|交网费|交燃气费|交物业费|交宽带|充值|充公交卡|体检|打疫苗|给猫梳毛|遛弯|修水管|换水龙头|修电器|充空调|装家具|拧螺丝|晒鞋|贴手机膜|给手机充电|充充电宝|关窗|收阳台/.test(t)) tagName = '生活';
+      else if (cmp) tagName = cmp.tag; // 复合词拆分得到的通用类目词（如 文档 / PPT）兜底
+      if (tagName) {
+        const tagStr = '#' + tagName;
+        const pr = window.MPStore.parseTagString(tagStr, false);
+        result.tags = tagStr;
+        result.category_id = pr.category_id;
+        result.parent_category = pr.parent_category;
+        result.hasLevel3 = pr.hasLevel3;
+        result.level3Chain = pr.level3Chain;
+      } else {
+        // 未命中任何标签词 → 留空（归属未分类），不默认「生活」
+        result.tags = '';
+        result.category_id = null;
+        result.parent_category = '';
+      }
     }
 
     return result;
@@ -6723,7 +6835,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     name: 'HandCards',
     props: { habits: { type: Array, default: () => [] } },
     data() {
-      return { currentIndex: 0, dragX: 0, dragging: false, startX: 0 };
+      return { currentIndex: 0, dragX: 0, dragging: false, startX: 0, expanded: false };
     },
     computed: {
       today() { return this.$store.util.todayStr(); },
@@ -6824,6 +6936,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       next() { this.currentIndex = Math.min(this.habits.length - 1, this.currentIndex + 1); },
       openManage() { if (this.hasCards) this.$emit('manage', this.habits[this.currentIndex]); },
       openEdit() { if (this.hasCards) this.$emit('edit', this.habits[this.currentIndex]._id); },
+      // 展开/收起「全部习惯列表」：堆叠手牌默认展示不变，仅新增一个便于选择/修改/新增/删除的列表视图
+      onRowEdit(h) { if (h) this.$emit('edit', h._id); },
+      onRowManage(h) { if (h) this.$emit('manage', h); },
+      hclBadgeText(h) {
+        if (this.isHoliday(h)) return '请假中';
+        const st = this.statusOf(h);
+        if (st === 'success') return '今日 ✅';
+        if (st === 'fail') return '今日 ❌';
+        return '未打卡';
+      },
+      hclBadgeClass(h) {
+        if (this.isHoliday(h)) return 'holiday';
+        const st = this.statusOf(h);
+        if (st === 'success') return 'ok';
+        if (st === 'fail') return 'no';
+        return 'wait';
+      },
     },
     // 进入今日页（含切 tab 重新挂载）/ 切回 App 前台时，自动定位到第一张待记录手牌
     mounted() {
@@ -6842,35 +6971,59 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     template: `
     <div class="handcards">
-      <div class="handcards-hint">👈 左滑 完成 ｜ 👉 右滑 未完成</div>
-      <div v-if="!hasCards" class="handcards-empty">暂无养成型习惯，点击「今日」页「养成手牌」右侧 ＋ 新增</div>
-      <div v-else class="handcards-stack" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
-        <div v-for="(h,i) in habits" :key="h._id" class="handcard" :class="cardClass(i)" :style="cardStyle(i)">
-          <div class="handcard-top">
-            <span class="handcard-type">养成手牌</span>
-            <span v-if="isHoliday(h)" class="handcard-badge holiday">请假中</span>
-            <span v-else-if="statusOf(h)==='success'" class="handcard-badge ok">今日 ✅</span>
-            <span v-else-if="statusOf(h)==='fail'" class="handcard-badge no">今日 ❌</span>
-            <span v-else class="handcard-badge wait">未打卡</span>
-          </div>
-          <div class="handcard-name">{{ h.name }}</div>
-          <div class="handcard-foot">
-            <span class="handcard-count">已坚持 {{ h.records.filter(r=>r.status==='success').length }} 天</span>
-            <span v-if="h.enable_remind" class="handcard-remind">⏰ {{ h.remind_time }}</span>
+      <!-- 展开模式：全部习惯列表，便于选择 / 修改 / 新增 / 删除（默认不展开，堆叠外观与大小保持不变） -->
+      <div v-if="expanded && hasCards" class="handcards-list">
+        <div class="hcl-head">
+          <span class="hcl-title">全部养成手牌（{{ habits.length }}）</span>
+          <div class="hcl-actions">
+            <button class="hc-btn" @click="$emit('add')">＋新增</button>
+            <button class="hc-btn" @click="expanded=false">收起</button>
           </div>
         </div>
-      </div>
-      <div v-if="hasCards" class="handcards-nav">
-        <div class="hn-page">
-          <button class="hn-arrow" @click="prev" :disabled="currentIndex===0" aria-label="上一页">‹</button>
-          <span class="hn-ind">{{ currentIndex+1 }} / {{ habits.length }}</span>
-          <button class="hn-arrow" @click="next" :disabled="currentIndex===habits.length-1" aria-label="下一页">›</button>
+        <div class="hcl-row" v-for="(h,i) in habits" :key="h._id" @click="onRowEdit(h)">
+          <span class="hcl-idx">{{ h.plan_time || '—' }}</span>
+          <span v-if="hclBadgeText(h) !== '未打卡'" class="hcl-badge" :class="hclBadgeClass(h)">{{ hclBadgeText(h) }}</span>
+          <span class="hcl-name">{{ h.name }}</span>
+          <span class="hcl-meta">已坚持 {{ h.records.filter(r=>r.status==='success').length }} 天</span>
+          <span class="hcl-ops">
+            <button class="hc-btn" @click.stop="onRowEdit(h)">编辑</button>
+            <button class="hc-btn" @click.stop="onRowManage(h)">管理</button>
+          </span>
         </div>
-        <div class="hn-actions">
-          <button class="hc-btn primary" @click="completeCurrent">完成</button>
-          <button class="hc-btn" @click="openEdit">编辑</button>
-        </div>
       </div>
+      <!-- 收起模式：原堆叠手牌 -->
+      <template v-else>
+        <div class="handcards-hint">👈 左滑 完成 ｜ 👉 右滑 未完成</div>
+        <div v-if="!hasCards" class="handcards-empty">暂无养成型习惯，点击「今日」页「养成手牌」右侧 ＋ 新增</div>
+        <div v-else class="handcards-stack" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
+          <div v-for="(h,i) in habits" :key="h._id" class="handcard" :class="cardClass(i)" :style="cardStyle(i)">
+            <div class="handcard-top">
+              <span class="handcard-type">养成手牌</span>
+              <span v-if="isHoliday(h)" class="handcard-badge holiday">请假中</span>
+              <span v-else-if="statusOf(h)==='success'" class="handcard-badge ok">今日 ✅</span>
+              <span v-else-if="statusOf(h)==='fail'" class="handcard-badge no">今日 ❌</span>
+              <span v-else class="handcard-badge wait">未打卡</span>
+            </div>
+            <div class="handcard-name">{{ h.name }}</div>
+            <div class="handcard-foot">
+              <span class="handcard-count">已坚持 {{ h.records.filter(r=>r.status==='success').length }} 天</span>
+              <span v-if="h.enable_remind" class="handcard-remind">⏰ {{ h.remind_time }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="hasCards" class="handcards-nav">
+          <div class="hn-page">
+            <button class="hn-arrow" @click="prev" :disabled="currentIndex===0" aria-label="上一页">‹</button>
+            <span class="hn-ind">{{ currentIndex+1 }} / {{ habits.length }}</span>
+            <button class="hn-arrow" @click="next" :disabled="currentIndex===habits.length-1" aria-label="下一页">›</button>
+          </div>
+          <div class="hn-actions">
+            <button class="hc-btn" @click="expanded=true" title="展开全部手牌，便于选择 / 修改 / 新增 / 删除">列表</button>
+            <button class="hc-btn primary" @click="completeCurrent">完成</button>
+            <button class="hc-btn" @click="openEdit">编辑</button>
+          </div>
+        </div>
+      </template>
     </div>`,
   };
 
@@ -10242,7 +10395,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <section class="block">
         <h3 class="block-title">养成型习惯</h3>
-        <HandCards :habits="sopHabits" @manage="id => manageHabitId = id._id" @edit="id => openEdit(id)" @reading-sync="onReadingSync" />
+        <HandCards :habits="sopHabits" @manage="id => manageHabitId = id._id" @edit="id => openEdit(id)" @reading-sync="onReadingSync" @add="openAddType" />
       </section>
 
       <section class="block">
@@ -10574,11 +10727,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 每条初始化为 TaskFormCore 所需的完整草稿形状（缺省字段安全兜底），勾选态默认全选
       const drafts = this.items.map((it) => {
         const cy = it.cycle ? (typeof it.cycle === 'string' ? { type: it.cycle, rule: '' } : it.cycle) : null;
+        // 收藏夹类（《》识别：书籍 / 影片 / 好物 / 旅游）→ 强制归属收藏夹，避免落入任务夹
+        const isBook = !!it.isBook;
+        const isColl = !!it.isColl;
+        const fFolder = (isBook || isColl) ? 'collection' : defFolder;
         // 标签预览：仅单条模式解析（优先用 AI 返回的 tags 链，否则按 category_id 兜底）；批量模式不解析
         let parsedTags = [], tagInput = '', hasLevel3 = false, level3Chain = null;
         let category_id = it.category_id || null, parent_category = it.parent_category || '';
         if (isSingle && it.tags) {
-          const pr = window.MPStore.parseTagString(it.tags, defFolder === 'collection');
+          const pr = window.MPStore.parseTagString(it.tags, fFolder === 'collection');
           parsedTags = pr.parsed; tagInput = it.tags;
           category_id = pr.category_id; parent_category = pr.parent_category;
           hasLevel3 = pr.hasLevel3; level3Chain = pr.level3Chain;
@@ -10597,7 +10754,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           material_link: it.material_link || '',
           parent_category, category_id,
           isHabit: !!it.isHabit,
-          folderType: defFolder, tagInput, parsedTags, hasLevel3, level3Chain,
+          folderType: fFolder, tagInput, parsedTags, hasLevel3, level3Chain,
           date_mode: it.date_mode || (it.date_start ? 'range' : (it.execute_date ? 'day' : '')),
           week_offset: (it.week_offset != null) ? it.week_offset : null,
           plan_year: it.plan_year || null, plan_month: it.plan_month || '', execute_date: it.execute_date || null, date_start: it.date_start || '', date_end: it.date_end || '',
@@ -11812,6 +11969,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 云端代发（P2+）：状态 + 表单字段
         relayStatus: { enabled: false, count: 0, lastRun: 0, lastError: '', backendError: '' },
         relayToken: '', relayVaultId: '',
+        // —— 选择性备份 / 恢复：导出勾选 + 导入勾选 ——
+        backupSel: { core: true, projects: true, wish: true, finance: true, career: true, settings: false },
+        importFileRaw: '',            // 已读取的导入文件原文
+        importFileName: '',
+        importModules: [],            // 文件中实际存在的模块 key
+        importSel: {},                // 导入时勾选的模块 key -> true
       };
     },
     mounted() {
@@ -12089,6 +12252,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       chartData() {
         if (!this.chartHabitId) return null;
         const h = this.$store.findHabit(this.chartHabitId);
+        if (!h) return null; // 习惯已被删除 / 导入备份后失效：图表安全隐藏，避免读取 records 崩溃
         if (this.tab === 'year') {
           const byMonth = [];
           for (let m = 1; m <= 12; m++) byMonth.push(this.$store.habitCount(this.chartHabitId, this.year, m));
@@ -12187,6 +12351,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return out;
       },
       dayHabitCount(h, dateStr) {
+        if (!h) return 0; // 习惯不存在（如导入备份后 chartHabitId 失效）时安全返回 0
         return h.records.filter(r => {
           if (r.date !== dateStr) return false;
           if (h.type === 'SOP_HABIT') return r.status === 'success';
@@ -12393,10 +12558,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.demoMode = !this.demoMode;
         try { localStorage.setItem('mindpocket:demoMode', this.demoMode ? '1' : '0'); } catch (e) {}
       },
-      // —— 数据备份 / 恢复（P0：零依赖本地备份）——
+      // —— 数据备份 / 恢复（支持按 Tab 选择性导出 / 导入）——
+      backupAllOn() { return this.$store.backupModules.every(m => this.backupSel[m.key]); },
+      toggleBackupAll(e) {
+        const v = !!e.target.checked;
+        this.$store.backupModules.forEach(m => { this.backupSel[m.key] = v; });
+      },
+      // 仅导出勾选的模块
       exportBackup() {
+        const keys = this.$store.backupModules.filter(m => this.backupSel[m.key]).map(m => m.key);
+        if (!keys.length) { this.showToast('请至少勾选一个模块'); return; }
         try {
-          const json = this.$store.exportAll();
+          const json = this.$store.exportPartial(keys);
           const blob = new Blob([json], { type: 'application/json' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
@@ -12406,7 +12579,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(url);
-          this.showToast('已导出备份文件');
+          this.showToast('已导出所选 ' + keys.length + ' 个模块');
+        } catch (e) {
+          console.error(e);
+          this.showToast('导出失败：' + (e && e.message ? e.message : e));
+        }
+      },
+      // 导出全部（等价于旧版全量备份，便于整库迁移）
+      exportBackupAll() {
+        try {
+          const json = this.$store.exportAll();
+          const blob = new Blob([json], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'mindpocket-backup-full-' + this.$store.util.todayStr() + '.json';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          this.showToast('已导出完整备份');
         } catch (e) {
           console.error(e);
           this.showToast('导出失败：' + (e && e.message ? e.message : e));
@@ -12417,16 +12609,34 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.$refs.backupFile) this.$refs.backupFile.value = '';
         if (this.$refs.backupFile) this.$refs.backupFile.click();
       },
+      // 读取导入文件：全量备份 → 直接确认覆盖；分部备份 → 展示模块勾选，让用户挑要恢复的 Tab
       onBackupFile(e) {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
         reader.onload = () => {
           try {
-            const ok = window.confirm('导入将覆盖当前全部数据，确定继续？\n建议先点「导出备份」留一份底。');
-            if (!ok) return;
-            this.$store.importAll(String(reader.result));
-            this.showToast('已恢复备份，数据已刷新');
+            const raw = String(reader.result);
+            const o = JSON.parse(raw);
+            if (!o || typeof o !== 'object') throw new Error('文件格式无效');
+            // 全量备份（兼容旧版无 kind / kind==='full'）：整库覆盖
+            if (o.kind !== 'partial') {
+              const ok = window.confirm('这是一份完整备份，导入将覆盖当前全部数据，确定继续？\n建议先点「导出备份」留一份底。');
+              if (!ok) return;
+              this.$store.importAll(raw);
+              this.showToast('已恢复完整备份，数据已刷新');
+              return;
+            }
+            // 分部备份：仅列出文件中实际存在的模块，默认全勾选
+            const known = this.$store.backupModules.map(m => m.key);
+            const mods = Array.isArray(o.modules) ? o.modules.filter(k => known.indexOf(k) >= 0 && o[k]) : [];
+            if (!mods.length) throw new Error('该文件未包含任何可识别模块');
+            this.importFileRaw = raw;
+            this.importFileName = file.name || 'backup.json';
+            this.importModules = mods;
+            const sel = {};
+            mods.forEach(k => { sel[k] = true; });
+            this.importSel = sel;
           } catch (err) {
             console.error(err);
             this.showToast('导入失败：' + (err && err.message ? err.message : '文件格式无效'));
@@ -12435,6 +12645,27 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         reader.onerror = () => { this.showToast('读取文件失败'); };
         reader.readAsText(file);
       },
+      // 仅导入勾选的模块（覆盖式，其余不受影响）
+      confirmImportSelected() {
+        const keys = this.importModules.filter(k => this.importSel[k]);
+        if (!keys.length) { this.showToast('请至少勾选一个要恢复的模块'); return; }
+        const labels = this.$store.backupModules.filter(m => keys.indexOf(m.key) >= 0).map(m => m.label).join('、');
+        const ok = window.confirm('将覆盖当前「' + labels + '」的数据，确定恢复这 ' + keys.length + ' 个模块？');
+        if (!ok) return;
+        try {
+          const n = this.$store.importPartial(this.importFileRaw, keys);
+          this.cancelImport();
+          this.showToast('已恢复 ' + n + ' 个模块，数据已刷新');
+        } catch (err) {
+          console.error(err);
+          this.showToast('导入失败：' + (err && err.message ? err.message : err));
+        }
+      },
+      cancelImport() {
+        this.importFileRaw = ''; this.importFileName = ''; this.importModules = []; this.importSel = {};
+        if (this.$refs.backupFile) this.$refs.backupFile.value = '';
+      },
+      moduleLabel(key) { const m = this.$store.backupModules.find(x => x.key === key); return m ? m.label : key; },
       // —— 手机提醒推送（P2：ntfy 延迟消息）——
       notifyGenTopic() {
         var a = new Uint8Array(12); crypto.getRandomValues(a);
@@ -12717,7 +12948,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button type="button" :class="{on:tab==='year'}" @click="tab='year'">年</button>
           </div>
         </div>
-        <div class="chart" v-if="chartHabitId">
+        <div class="chart" v-if="chartData">
           <template v-if="chartData.mode==='year'">
             <div class="chart-title">{{ chartData.name }} — {{ year }} 年 共 {{ chartData.annual }} 次</div>
             <div class="bars">
@@ -12761,11 +12992,37 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <section class="block">
         <h3 class="block-title">💾 数据备份与恢复</h3>
         <div class="backup-box">
-          <p class="backup-note">导出一份完整数据文件（含任务 / 习惯 / 项目 / 许愿池 / <b>财务复盘</b> / <b>职业</b> 等全部 Tab）。换设备、重装前先备份；导入将<b>覆盖</b>当前全部数据。</p>
+          <p class="backup-note">导出 JSON 备份时，可<b>单独勾选某个 Tab</b> 只备份该部分数据；导入时也支持<b>只恢复所选 Tab</b>，其余数据不受影响。换设备 / 重装前建议先备份。</p>
+
+          <div class="backup-modlist">
+            <label class="backup-mod backup-mod-all">
+              <input type="checkbox" :checked="backupAllOn" @change="toggleBackupAll" /> <b>全选</b>
+            </label>
+            <label class="backup-mod" v-for="m in $store.backupModules" :key="m.key">
+              <input type="checkbox" v-model="backupSel[m.key]" /> {{ m.label }}
+            </label>
+          </div>
+
           <div class="backup-actions">
-            <button class="btn primary" @click="exportBackup">⬇ 导出备份</button>
+            <button class="btn primary" @click="exportBackup">⬇ 导出所选</button>
+            <button class="btn ghost" @click="exportBackupAll">⬇ 导出全部</button>
             <button class="btn ghost" @click="importBackup">⬆ 导入备份</button>
             <input ref="backupFile" type="file" accept="application/json,.json" hidden @change="onBackupFile" />
+          </div>
+
+          <div class="backup-import" v-if="importModules.length">
+            <p class="backup-note">已读取 <b>{{ importFileName }}</b>，包含模块：
+              <span v-for="(k,i) in importModules" :key="k">{{ i ? '、' : '' }}{{ moduleLabel(k) }}</span>。
+              勾选要恢复的 Tab，点「导入所选」即可单独还原（覆盖式）：</p>
+            <div class="backup-modlist">
+              <label class="backup-mod" v-for="k in importModules" :key="k">
+                <input type="checkbox" v-model="importSel[k]" /> {{ moduleLabel(k) }}
+              </label>
+            </div>
+            <div class="backup-actions">
+              <button class="btn primary" @click="confirmImportSelected">⬆ 导入所选</button>
+              <button class="btn ghost" @click="cancelImport">取消</button>
+            </div>
           </div>
         </div>
       </section>
@@ -13932,6 +14189,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         toast: '', toastTimer: null,
         // 专注时长可视化模块（默认折叠；维度 日/周/月；本地缓存，切 Tab 保留）
         vizOpen: false, vizDim: 'day',
+        // 时间游标：0=当前时段，>0=往过去方向偏移的时段数（日=天/周=周/月=月）
+        vizOffset: 0,
         // 饼图下钻：当前选中的标签（null = 标签总览，非 null = 该标签下各项目分布）
         vizDrillTag: null,
         // 项目重要等级排序（默认开；按 高度重要 > 一般重要 > 普通 降序）
@@ -14032,21 +14291,64 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.baseList.forEach(p => this.$store.getSubs(p.pid).forEach(s => { sids[s.sid] = true; }));
         return (this.$store.state.project_records || []).filter(r => !r.deleted_at && sids[r.sid]);
       },
-      vizDimLabel() { return this.vizDim === 'day' ? '日' : (this.vizDim === 'month' ? '月' : '周'); },
-      // 柱状图：按 日 / 周 / 月 分桶聚合专注总时长
-      barBuckets() {
-        const dim = this.vizDim;
-        const map = {}, order = [];
-        this.focusRecords.forEach(r => {
-          const k = this.bucketKey(r.recordDate, dim);
-          if (!map[k]) { map[k] = 0; order.push(k); }
-          map[k] += (Number(r.spentMin) || 0);
+      vizDimLabel() { return this.vizDim === 'day' ? '日' : (this.vizDim === 'year' ? '年' : '周'); },
+      // 时间窗口：默认锚定当前时段（offset=0），向左翻看 offset>0 的过往时段
+      // 日=光标日往前 7 天（含光标日）；周=光标所在周(周一~周日)；月=光标所在自然月
+      vizWindow() {
+        const U = this.$store.util;
+        const today = U.parseDate(U.todayStr());
+        const off = this.vizOffset, dim = this.vizDim;
+        const keys = [];
+        let title = '', label = '';
+        if (dim === 'day') {
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - off - (6 - i));
+            keys.push(U.fmt(d));
+          }
+          title = '近 7 日专注时长';
+          label = off === 0 ? '近 7 日（至今日）' : (off + ' 天前');
+        } else if (dim === 'week') {
+          const dow = (today.getDay() + 6) % 7; // 周一为 0
+          const thisMon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dow);
+          const mon = new Date(thisMon.getFullYear(), thisMon.getMonth(), thisMon.getDate() - off * 7);
+          for (let i = 0; i < 7; i++) keys.push(U.fmt(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i)));
+          const ws = U.fmt(mon), we = U.fmt(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 6));
+          title = (off === 0 ? '本周' : (off === 1 ? '上周' : off + ' 周前')) + '专注时长';
+          label = off === 0 ? ('本周 ' + ws + ' ~ ' + we) : (off === 1 ? ('上周 ' + ws + ' ~ ' + we) : (off + ' 周前 ' + ws + ' ~ ' + we));
+        } else { // year
+          const y = today.getFullYear() - off;
+          for (let i = 1; i <= 12; i++) keys.push(y + '-' + String(i).padStart(2, '0'));
+          title = y + ' 年 专注时长';
+          label = off === 0 ? ('今年 ' + y + ' 年') : (off === 1 ? ('去年 ' + y + ' 年') : (off + ' 年前 ' + y + ' 年'));
+        }
+        return { keys, title, label, dim, off };
+      },
+      // 当前时段内的专注记录（已按 Tab 过滤）；年维度按 YYYY-MM 归并
+      vizFocusRecords() {
+        const win = this.vizWindow;
+        return this.focusRecords.filter(r => {
+          const k = win.dim === 'year' ? r.recordDate.slice(0, 7) : r.recordDate;
+          return win.keys.indexOf(k) >= 0;
         });
-        const max = order.reduce((m, k) => Math.max(m, map[k]), 0);
-        return order.slice().sort().map(k => ({
-          key: k, label: this.bucketLabel(k, dim), min: map[k],
-          pct: max > 0 ? Math.round(map[k] / max * 100) : 0,
-        }));
+      },
+      // 柱状图：仅渲染当前时段窗口内的分桶（无记录的日子/月份也占位，保持图表稳定）
+      barBuckets() {
+        const win = this.vizWindow, dim = win.dim;
+        const map = {};
+        this.vizFocusRecords.forEach(r => {
+          const k = dim === 'year' ? r.recordDate.slice(0, 7) : r.recordDate;
+          map[k] = (map[k] || 0) + (Number(r.spentMin) || 0);
+        });
+        const max = win.keys.reduce((m, k) => Math.max(m, map[k] || 0), 0);
+        const wd = ['日', '一', '二', '三', '四', '五', '六'];
+        const todayStr = this.$store.util.todayStr();
+        return win.keys.map(k => {
+          let label;
+          if (dim === 'day') label = (k === todayStr) ? '今日' : wd[this.$store.util.parseDate(k).getDay()];
+          else if (dim === 'week') label = '周' + wd[this.$store.util.parseDate(k).getDay()];
+          else label = Number(k.split('-')[1]) + '月'; // 年：月份
+          return { key: k, label, min: map[k] || 0, pct: max > 0 ? Math.round((map[k] || 0) / max * 100) : 0 };
+        });
       },
       // 饼图：各项目占用专注时长占比分布
       pieData() {
@@ -14062,14 +14364,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return slice;
         });
       },
-      vizHasData() { return this.focusRecords.length > 0; },
+      vizHasData() { return this.vizFocusRecords.length > 0; },
       // 饼图（层级1）：按项目标签聚合专注时长分布
       pieByTag() {
         const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'];
         const map = {};
         this.baseList.forEach(p => {
           const tags = (p.tags && p.tags.length) ? p.tags : ['未标签'];
-          const min = this.projFocusMin(p);
+          const min = this.projFocusMinInPeriod(p);
           if (min <= 0) return;
           tags.forEach(t => { map[t] = (map[t] || 0) + min; });
         });
@@ -14089,7 +14391,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'];
         const arr = this.baseList
           .filter(p => (p.tags || []).indexOf(this.vizDrillTag) >= 0)
-          .map(p => ({ pid: p.pid, name: p.name || '未命名', min: this.projFocusMin(p) }))
+          .map(p => ({ pid: p.pid, name: p.name || '未命名', min: this.projFocusMinInPeriod(p) }))
           .filter(x => x.min > 0);
         const total = arr.reduce((a, x) => a + x.min, 0);
         let acc = 0;
@@ -14139,7 +14441,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 折叠状态不持久化：每次进入页面默认折叠（全局规则）
         // vizDim 和 tab 保留本地记忆（用户偏好，非折叠状态）
         try { const t = localStorage.getItem('mindpocket:projectsTab'); if (t) this.tab = t; } catch (e) {}
-        try { const d = localStorage.getItem('mindpocket:projVizDim'); if (d === 'day' || d === 'week' || d === 'month') this.vizDim = d; } catch (e) {}
+        try { const d = localStorage.getItem('mindpocket:projVizDim'); if (d === 'day' || d === 'week' || d === 'year') this.vizDim = d; } catch (e) {}
       },
       go(p) { location.hash = '#/project/' + p.pid; },
       // 搜索灵感结果跳转：进入母本项目详情页并定位到该灵感（路由带 ?idea= 参数，详情页绿闪 2 秒）
@@ -14166,6 +14468,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       subCount(p) { return this.$store.getSubs(p.pid).length; },
       // 项目累计专注总时长（分钟）
       projFocusMin(p) { return this.$store.projectFocusMin(p.pid); },
+      // 时段内项目累计专注时长（分钟）：仅统计当前时间窗口内的 project_records（年维度按 YYYY-MM 归并）
+      projFocusMinInPeriod(p) {
+        const sids = {};
+        this.$store.getSubs(p.pid).forEach(s => { sids[s.sid] = true; });
+        const win = this.vizWindow;
+        return (this.$store.state.project_records || [])
+          .filter(r => {
+            if (r.deleted_at || !sids[r.sid]) return false;
+            const k = win.dim === 'year' ? r.recordDate.slice(0, 7) : r.recordDate;
+            return win.keys.indexOf(k) >= 0;
+          })
+          .reduce((a, r) => a + (Number(r.spentMin) || 0), 0);
+      },
       // 重要等级文案
       impLabel(p) { return ({ high: '高度重要', important: '一般重要', normal: '普通' }[(p && p.importance) || 'normal']) || '普通'; },
       // 稳定排序：按重要等级降序，同级保持原有顺序
@@ -14180,8 +14495,50 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       toggleSortMenu() { this.showSortMenu = !this.showSortMenu; },
       selectSort(mode) { this.importanceSort = (mode === 'importance'); this.showSortMenu = false; this.saveTab(); },
       // —— 专注时长可视化模块 ——
-      toggleViz() { this.vizOpen = !this.vizOpen; this.saveTab(); },
-      setVizDim(d) { this.vizDim = d; this.saveTab(); },
+      toggleViz() { this.vizOpen = !this.vizOpen; if (this.vizOpen) this.vizOffset = 0; this.saveTab(); },
+      setVizDim(d) { this.vizDim = d; this.vizOffset = 0; this.saveTab(); },
+      // 导出当前可视化数据（JSON）：含当前时段、柱状图分桶、饼图占比、各项目时段内专注时长
+      exportViz() {
+        try {
+          const win = this.vizWindow;
+          const bars = this.barBuckets.map(b => ({
+            key: b.key, label: b.label, minutes: b.min,
+            display: this.$store.fmtSpent(b.min), percent: b.pct,
+          }));
+          const pie = this.pieData.map(s => ({
+            name: s.name, minutes: s.min, display: this.$store.fmtSpent(s.min), percent: s.pct,
+          }));
+          const projects = this.baseList
+            .map(p => ({ pid: p.pid, name: p.name || '未命名', tags: p.tags || [], inPeriodMinutes: this.projFocusMinInPeriod(p) }))
+            .filter(x => x.inPeriodMinutes > 0)
+            .sort((a, b) => b.inPeriodMinutes - a.inPeriodMinutes)
+            .map(x => Object.assign({}, x, { display: this.$store.fmtSpent(x.inPeriodMinutes) }));
+          const total = bars.reduce((a, b) => a + b.minutes, 0);
+          const data = {
+            app: 'MindPocket', kind: 'viz', version: 1, exportedAt: new Date().toISOString(),
+            dimension: this.vizDim,
+            period: { label: win.label, title: win.title, offset: this.vizOffset, dates: win.keys },
+            barChart: bars,
+            pieChart: { drillTag: this.vizDrillTag || null, slices: pie },
+            projectsByFocus: projects,
+            totalMinutes: total, totalDisplay: this.$store.fmtSpent(total),
+          };
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'mindpocket-专注可视化-' + this.vizDim + '-' + this.$store.util.todayStr() + '.json';
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          this.showToast('已导出可视化数据');
+        } catch (e) {
+          console.error(e);
+          this.showToast('导出失败：' + (e && e.message ? e.message : e));
+        }
+      },
+      // 时间左右切换：向左=翻看更早的过往时段；向右=回到更近的时段（不会超过当前）
+      prevPeriod() { this.vizOffset = this.vizOffset + 1; },
+      nextPeriod() { this.vizOffset = Math.max(0, this.vizOffset - 1); },
       // 饼图下钻：点击标签进入该标签下各项目分布
       drillTag(tag) { this.vizDrillTag = tag; },
       // 返回标签总览
@@ -14370,13 +14727,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <!-- 专注时长可视化模块（默认折叠；仅统计项目 Tab 内各项目填报的 project_records） -->
       <div class="viz-module" v-if="vizOpen && !searchKeyword.trim()">
-        <div class="view-toggle">
-          <button :class="{on: vizDim==='day'}" @click="setVizDim('day')">日</button>
-          <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
-          <button :class="{on: vizDim==='month'}" @click="setVizDim('month')">月</button>
+        <div class="viz-head">
+          <div class="view-toggle">
+            <button :class="{on: vizDim==='day'}" @click="setVizDim('day')">日</button>
+            <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
+            <button :class="{on: vizDim==='year'}" @click="setVizDim('year')">年</button>
+          </div>
+          <button class="viz-export-btn" :disabled="!vizHasData" @click="exportViz" title="导出当前可视化数据（JSON）">⬇ 导出</button>
+        </div>
+        <div class="viz-nav">
+          <button class="viz-arrow" @click="prevPeriod" aria-label="更早时段">◀</button>
+          <span class="viz-period-label">{{ vizWindow.label }}</span>
+          <button class="viz-arrow" @click="nextPeriod" :disabled="vizOffset===0" aria-label="更晚时段">▶</button>
         </div>
         <template v-if="vizHasData">
-          <div class="viz-sec-title">⏱ 各{{ vizDimLabel }}专注时长</div>
+          <div class="viz-sec-title">⏱ {{ vizWindow.title }}</div>
           <div class="chart-bars">
             <div class="chart-bar" v-for="b in barBuckets" :key="b.key">
               <div class="bar-val">{{ $store.fmtSpent(b.min) }}</div>
