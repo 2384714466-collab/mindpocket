@@ -1839,8 +1839,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 实时自动备份：独立于主数据的快照序列，存于单独的 localStorage key，
   // 即使主数据被误删/误覆盖，也可从历史快照恢复（防止「删了收藏夹标签连任务夹一起没」这类数据丢失）。
   const AUTO_BACKUP_KEY = 'mindpocket:auto_backups';
-  const AUTO_BACKUP_MAX = 12;                 // 最多保留最近 12 份快照
-  const AUTO_BACKUP_MIN_INTERVAL_MS = 45000;  // 距上次快照不足 45s 不重复存（节流，避免频繁写盘爆 localStorage）
+  const AUTO_BACKUP_MAX = 5;                   // 最多保留最近 5 份快照
+  const AUTO_BACKUP_MIN_INTERVAL_MS = 30 * 60 * 1000;  // 自动备份间隔：每 30 分钟一份（避免频繁写盘爆 localStorage）
 
   // 进度记录可选单位（书籍默认「章」而非「页」；内置单位均可被用户删除/新增，不固定）
   const DEFAULT_PROGRESS_UNITS = [
@@ -3363,6 +3363,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         if (Array.isArray(s.archived_copies) && s.archived_copies.length) {
           s.archived_copies = s.archived_copies.filter(d => !(d && d > newEnd));
+        }
+      }
+    }
+    // 周期起始日（cycle_start_date）：与主任务 updateTask 一致，允许补设/清空开始时间；
+    // 之前遗漏此处会导致「周期子任务设置开始时间」保存后丢失（编辑路径不落库）。
+    if (patch && 'cycle_start_date' in patch) {
+      const oldStart = s.cycle_start_date || '';
+      const newStart = patch.cycle_start_date || '';
+      s.cycle_start_date = newStart;
+      // 起始日推后时，清理早于起始日的打卡记录与失效标记（与主任务 trimCycleCopiesBeforeStart 一致）
+      if (oldStart && newStart && newStart > oldStart) {
+        if (s.cycle_history && s.cycle_history.length) {
+          s.cycle_history = s.cycle_history.filter(h => !(h.execute_date && h.execute_date < newStart));
+        }
+        if (Array.isArray(s.archived_copies) && s.archived_copies.length) {
+          s.archived_copies = s.archived_copies.filter(d => !(d && d < newStart));
         }
       }
     }
@@ -6509,8 +6525,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       persist(); // 落盘 + 广播全局刷新（revision++），各页面自动重载
     },
     // —— 实时自动备份（防误删 / 误覆盖）——
-    // 每次主数据落盘后调度：距上次不足 AUTO_BACKUP_MIN_INTERVAL_MS 不重复存（节流）；
-    // 保留最近 AUTO_BACKUP_MAX 份快照，存于独立 key，与主数据隔离。
+    // 每次主数据落盘后调度：距上次不足 AUTO_BACKUP_MIN_INTERVAL_MS（30 分钟）不重复存；
+    // 保留最近 AUTO_BACKUP_MAX（5）份快照，存于独立 key，与主数据隔离。
     _autoBackupLast: 0,
     _autoBackupTimer: null,
     _saveAutoBackupNow() {
@@ -6529,6 +6545,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     scheduleAutoBackup() {
       const now = Date.now();
       const gap = now - (this._autoBackupLast || 0);
+      // 距上次不足 30 分钟：仅在尚无待触发定时器时，预约到「满 30 分钟」那一刻再写一份
       if (gap >= AUTO_BACKUP_MIN_INTERVAL_MS) { try { this._saveAutoBackupNow(); } catch (e) {} return; }
       if (this._autoBackupTimer) return;
       const self = this;
@@ -12646,7 +12663,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         importSel: {},                // 导入时勾选的模块 key -> true
         // —— 实时自动备份：快照列表（来自独立 localStorage 空间）——
         autoBackups: [],
-        autoBackupCap: 12,
+        autoBackupCap: 5,
       };
     },
     mounted() {
@@ -13656,7 +13673,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <section class="block">
         <h3 class="block-title">🔄 实时备份（自动防丢）</h3>
         <div class="backup-box">
-          <p class="backup-note">每次数据变动会自动生成一份本地快照（最近 {{ autoBackupCap }} 份，存于<b>独立空间</b>，与主数据隔离）。一旦误删 / 误覆盖，可在此<b>一键恢复到任意一份快照</b>——彻底杜绝「删了收藏夹标签、任务夹的同名标签也跟着没了」这类丢失。</p>
+          <p class="backup-note">每 30 分钟自动生成一份本地快照（仅保留最近 {{ autoBackupCap }} 份，存于<b>独立空间</b>，与主数据隔离）。一旦误删 / 误覆盖，可在此<b>一键恢复到任意一份快照</b>——彻底杜绝「删了收藏夹标签、任务夹的同名标签也跟着没了」这类丢失。</p>
           <div class="backup-actions">
             <button class="btn primary" @click="doAutoBackup">📌 立即备份一份</button>
             <button class="btn ghost" @click="refreshAutoBackups">🔃 刷新列表</button>
