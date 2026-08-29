@@ -2188,7 +2188,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* ----------------------------- 种子数据（首次运行） ----------------------------- */
   function seed() {
     state.categories = SYSTEM_CATEGORIES.map(c => ({ ...c }));
-    PRESET_CUSTOM_CATEGORIES.forEach(n => state.categories.push({ _id: uid('cat'), name: n, is_system: false }));
+    // 预置分类明确打上文件夹归属标记：COLLECTION_CATS 四个（好物/影片/书籍/旅游）归收藏夹，
+    // 其余归任务夹。避免「无标记 + 名字兜底」导致任务夹新建同名标签时无法复用合并、或误判为收藏。
+    PRESET_CUSTOM_CATEGORIES.forEach(n => {
+      const c = { _id: uid('cat'), name: n, is_system: false };
+      if (COLLECTION_CATS.indexOf(n) >= 0) c.is_collection = true;
+      else c.is_task = true;
+      state.categories.push(c);
+    });
     state.settings = { quickToQuickView: true, autoExtend: false, notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '' } };
     ensureFinancePresets();
     // 职业 Tab 预设分类（首次运行种子数据，与 load 成功路径保持一致）
@@ -2582,7 +2589,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (_pc && _pc.parent) t.parent_category = _pc.parent;
     }
     state.tasks.unshift(t);
-    if (t.cycle && !t.cycle._base) t.cycle._base = todayStr(); // 周期锚定创建日，保证「每 N 天 / 每月指定日」投射正确
+    if (t.cycle) {
+      if (!t.cycle._base) t.cycle._base = todayStr(); // 周期锚定创建日，保证「每 N 天 / 每月指定日」投射正确
+      // 开始时间早于创建锚点 → 用开始时间作为周期锚点，使执行区间从开始日（含过去）起投射，
+      // 而非从今天起（否则「第 1 天仍是今天」）
+      if (t.cycle_start_date && t.cycle_start_date < t.cycle._base) t.cycle._base = t.cycle_start_date;
+    }
     persist();
     return t;
   }
@@ -2612,7 +2624,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       t.cycle_end_mode = ''; t.cycle_end_count = 0;
       t.deadline_time = ''; t.remind_option = 'none'; t.add_to_calendar = false;
     }
-    if (t.cycle && !t.cycle._base) t.cycle._base = todayStr(); // 编辑时补锚点
+    if (t.cycle) {
+      if (!t.cycle._base) t.cycle._base = todayStr(); // 编辑时补锚点
+      // 开始时间早于创建锚点 → 用开始时间作为周期锚点，执行区间从开始日（含过去）起投射
+      if (t.cycle_start_date && t.cycle_start_date < t.cycle._base) t.cycle._base = t.cycle_start_date;
+    }
     // 规则③（模板专属）：时间配置变更 → 先回收全部旧副本（清空打卡历史/失效标记），再由虚拟投射自动生成新副本
     if (t.is_template) {
       const schedEq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -2683,9 +2699,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // （此前 start 由 cycle._base 优先决定，导致各处传入的起始日被静默忽略）
     if (o.from && start < o.from) start = o.from;
     if (!finish) {
-      // 无限循环：以今天为锚界定展示窗口（过去 hist 天 + 未来 fut 天）
-      const from = addDays(today, -(o.hist != null ? o.hist : 30));
-      if (start < from) start = from;
+      // 无限循环：以今天为锚界定展示窗口（过去 hist 天 + 未来 fut 天）。
+      const winStart = addDays(today, -(o.hist != null ? o.hist : 30));
+      if (start < winStart) start = winStart;
       finish = addDays(today, (o.fut != null ? o.fut : 60));
     }
     // 有限周期：若锚点晚于结束日（如 _base 在 cycle_end_date 之后），
@@ -2757,7 +2773,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 周期起始日硬下界（cycle_start_date）：优先于创建锚点 _base，
     // 保证补设开始时间后早于起始日的排期不再出现（执行历史 / 副本投射一致）
     const lower = o.from || '';
-    let base = cycle._base || o.base || today;
+    // 起点优先用「开始时间」(lower)：用户显式设定开始时间后，计划段从开始时间起生成（含过去日期），
+    // 不再被创建锚点 _base（=今天）覆盖导致「第 1 天仍是今天」。无开始时间才回落 _base / today。
+    let base = lower || cycle._base || o.base || today;
     if (lower && base < lower) base = lower;
     // 真实完成锚点同样受起始日约束：补设起始日后，未来段自「起始日」重新起算，
     // 与 cycleHits（今日 tab / 副本投射）保持同一序列，避免两侧日期错位
@@ -2922,9 +2940,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       list = occs.slice(0, Math.max(1, target));
     } else {
       list = occs;
-      const startWin = addDays(today, -hist);
+      // 展示窗口：today-hist ~ today+fut
+      const winStart = addDays(today, -hist);
       const endWin = addDays(today, fut);
-      list = list.filter(ds => ds >= startWin && ds <= endWin);
+      list = list.filter(ds => ds >= winStart && ds <= endWin);
     }
     if (!list.length) { const due = cycleCurrentDue(t); if (due) list = [due]; } // 极旧任务全在过去时至少保留当前应打卡日
     return {
@@ -3296,7 +3315,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 是否显示左侧复选框（默认 true；设为 false 则该子任务仅作条目展示、不标记完成）
       hasCheckbox: true,
     }, extra || {});
-    if (s.cycle && !s.cycle._base) s.cycle._base = todayStr(); // 周期锚定创建日（与主任务 addTask 一致），保证「每 N 天」投射正确
+    if (s.cycle) {
+      if (!s.cycle._base) s.cycle._base = todayStr(); // 周期锚定创建日（与主任务 addTask 一致），保证「每 N 天」投射正确
+      // 开始时间早于创建锚点 → 用开始时间作为周期锚点，执行区间从开始日（含过去）起投射
+      if (s.cycle_start_date && s.cycle_start_date < s.cycle._base) s.cycle._base = s.cycle_start_date;
+    }
     t.sub_tasks.push(s);
     persist();
     return s;
@@ -3372,6 +3395,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const oldStart = s.cycle_start_date || '';
       const newStart = patch.cycle_start_date || '';
       s.cycle_start_date = newStart;
+      // 开始时间早于周期锚点 → 用开始时间作为锚点，执行区间从开始日（含过去）起投射
+      if (s.cycle && s.cycle._base && newStart && newStart < s.cycle._base) s.cycle._base = newStart;
       // 起始日推后时，清理早于起始日的打卡记录与失效标记（与主任务 trimCycleCopiesBeforeStart 一致）
       if (oldStart && newStart && newStart > oldStart) {
         if (s.cycle_history && s.cycle_history.length) {
@@ -4363,15 +4388,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const c = { _id: uid('cat'), name: (name || '').trim() || '未命名', is_system: false, parent: parent || null };
     if (folder === 'collection') c.is_collection = true;
     else if (folder === 'template') c.is_template = true;
+    else c.is_task = true; // 任务夹显式标记，避免与内置收藏名（如「旅游」）同名时被误判为收藏
     state.categories.push(c);
     persist();
     return c;
   }
-  // 收藏判定（含祖先继承）：自身或任一祖先 is_collection，或 name 在收藏四类 → true
+  // 收藏判定（含祖先继承）：仅依据 is_collection 标记（自身或任一祖先），不再依赖名字兜底。
+  // 预置 COLLECTION_CATS（好物/影片/书籍/旅游）已在 seed 时显式打 is_collection 标记；
+  // 旧收藏任务也带 is_collection 标记；收藏夹视图另靠 collectionCats 的内置名列表兜底，
+  // 故去掉 isCollCat 名字兜底可避免「任务夹建同名标签被误判为收藏、无法合并」的问题。
   function isCollCat(catId) {
     let c = findCategory(catId);
     while (c) {
-      if (c.is_collection || COLLECTION_CATS.indexOf(c.name) >= 0) return true;
+      if (c.is_collection) return true;
+      if (c.is_task || c.is_template) return false;
       c = c.parent ? findCategory(c.parent) : null;
     }
     return false;
@@ -4384,14 +4414,39 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const nm = (name || '').trim();
     if (!nm) return null;
     const sameNameParent = x => x.name === nm && (x.parent || null) === (parent || null);
+    // 无标记分类「实际归哪个文件夹」：被该文件夹任务引用则归该文件夹（兼容旧版无标记分类）
+    const refColl = (x) => state.tasks.some(t => t.is_collection && (t.category_id === x._id || t.parent_category === x._id));
+    const refTpl = (x) => state.tasks.some(t => t.is_template && (t.category_id === x._id || t.parent_category === x._id));
     const inFolder = (x) => {
-      if (folder === 'collection') return !!x.is_collection;
-      if (folder === 'template') return !!x.is_template;
-      // task：既不是收藏也不是模版
-      return !x.is_collection && !x.is_template;
+      if (folder === 'collection') {
+        // 带 is_collection 标记，或（无 task/template 标记且被收藏任务引用）的旧分类，均归收藏夹可复用
+        return !!x.is_collection || (!x.is_task && !x.is_template && refColl(x));
+      }
+      if (folder === 'template') return !!x.is_template || (!x.is_collection && !x.is_task && refTpl(x));
+      // task：明确非收藏、非模版、且未被收藏/模板任务引用（避免误并到其它文件夹的旧无标记分类）即归任务夹。
+      // 预置分类已显式打标记（COLLECTION_CATS→is_collection，其余→is_task），带 is_collection 的被上面排除；
+      // 无标记的历史同类（如旧版任务夹好物，未被收藏/模板引用）可正常复用合并。
+      return !x.is_collection && !x.is_template && !refColl(x) && !refTpl(x);
     };
     let c = state.categories.find(x => sameNameParent(x) && inFolder(x));
     if (!c) c = addCategory(nm, parent, folder);
+    // 合并清理：选中的 c 若带明确文件夹标记，把同 name+parent、「无标记且实际归同一文件夹」的旧重复分类
+    // 合并过来（迁移任务引用、删除多余），避免新旧数据并存导致「同名标签没合并」的观感。
+    // 仅处理无子分类、无跨文件夹引用的安全旧分类，避免误删/误迁。
+    if (c.is_collection || c.is_template || c.is_task) {
+      state.categories.filter(x => x._id !== c._id && x.name === nm && (x.parent || null) === (c.parent || null)
+        && !x.is_collection && !x.is_template && !x.is_task && subCategories(x._id).length === 0)
+        .forEach(dup => {
+          const dupInFolder = folder === 'collection' ? refColl(dup) : folder === 'template' ? refTpl(dup) : (!refColl(dup) && !refTpl(dup));
+          if (!dupInFolder) return;
+          state.tasks.forEach(t => {
+            if (t.category_id === dup._id) t.category_id = c._id;
+            if (t.parent_category === dup._id) t.parent_category = c._id;
+          });
+          state.categories = state.categories.filter(k => k._id !== dup._id);
+        });
+      persist();
+    }
     return c;
   }
   // 标签串统一解析（#一级 ##二级 ###三级）：返回解析结果 + 绑定字段 + 三级链；手动输入与 AI 自然语言共用
@@ -6887,12 +6942,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       let tagStr = '#' + tagM[1];
       if (tagM[2]) tagStr += '##' + tagM[2];
       if (tagM[3]) tagStr += '###' + tagM[3];
-      const pr = window.MPStore.parseTagString(tagStr, 'task');
+      // 注意：此处仅产出标签串，不预先建分类（旧代码硬编码 'task' 会误建任务夹同名分类）。
+      // 真正的分类创建与文件夹归属由 AiTaskPreviewModal 按用户所选文件夹（fFolder）统一解析，避免串文件夹。
       result.tags = tagStr;
-      result.category_id = pr.category_id;
-      result.parent_category = pr.parent_category;
-      result.hasLevel3 = pr.hasLevel3;
-      result.level3Chain = pr.level3Chain;
+      result.category_id = null;
+      result.parent_category = '';
+      result.hasLevel3 = false;
+      result.level3Chain = null;
     }
 
     // 2) 地点 / 描述提取：介词 + 地点名词，或独立地点代码（如 y105 / A栋）→ desc，并从标题剥离
@@ -7089,12 +7145,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       else if (cmp) tagName = cmp.tag; // 复合词拆分得到的通用类目词（如 文档 / PPT）兜底
       if (tagName) {
         const tagStr = '#' + tagName;
-        const pr = window.MPStore.parseTagString(tagStr, 'task');
+        // 仅产出标签串，不预先建分类（避免硬编码 'task' 误建任务夹同名分类；分类创建交由预览层按文件夹统一解析）
         result.tags = tagStr;
-        result.category_id = pr.category_id;
-        result.parent_category = pr.parent_category;
-        result.hasLevel3 = pr.hasLevel3;
-        result.level3Chain = pr.level3Chain;
+        result.category_id = null;
+        result.parent_category = '';
+        result.hasLevel3 = false;
+        result.level3Chain = null;
       } else {
         // 未命中任何标签词 → 留空（归属未分类），不默认「生活」
         result.tags = '';
@@ -8097,7 +8153,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 周期规则输入框：校验错误提示 + 是否已交互（失焦 / 保存）后才展示红字，避免初始空白即报错
         cycleRuleError: '',
         cycleRuleTouched: false,
-        // 周期起始日：不允许早于今天（过去日期无意义，排期从当日（含）起算）
+        // 周期起始日：不允许早于今天（开始时间只能设为今天或未来，过去日期无意义）
         cycleStartBlur: false,
         // 新增进度单位输入框（临时草稿）
         newUnitLabel: '',
@@ -8238,12 +8294,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // 失焦触发校验；标记已交互后才展示红字（初始空白不报错）
       onCycleBlur() { this.cycleRuleTouched = true; this.validateCycleRule(); },
-      // 周期起始日校验：仅校验格式（允许设为今天或过去任意日期，空值=创建当天）
+      // 周期起始日校验：格式合法 + 不得早于今天（开始时间只能设今天或未来，空值=创建当天）
       startDateError() {
         const v = this.draft.cycle_start_date;
         if (!v) return '';                       // 留空 = 创建当天，合法
         const chk = this.$store.util.validateDateInput(v);
-        if (!chk.ok) return chk.msg;             // 仅校验格式，不限制过去日期
+        if (!chk.ok) return chk.msg;             // 格式非法
+        if (v < this.$store.util.todayStr()) return '开始时间不能早于今天，请设置为今天或未来日期';
         return '';
       },
       onCycleStartBlur() { this.cycleStartBlur = true; },
@@ -8277,6 +8334,37 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
       },
       onTagKey(e) { if (e && e.key === '#') this.parseTags(); },
+      // 切换归属文件夹：重解析当前标签串，使其分类归属与所选文件夹一致；
+      // 同时回收「旧文件夹下由本草幕新建、且当前没有任何任务引用」的孤立分类，
+      // 避免切换后另一个文件夹凭空残留一个空标签（如：模板夹预填下输过 #旅游，
+      // 切回任务夹保存后，模板夹却多出一个无任务的 #旅游）。
+      switchFolder(f) {
+        // 1) 记录切换前草稿关联的分类（一级 / 二级）
+        const oldCats = [];
+        if (this.draft.category_id) oldCats.push(this.draft.category_id);
+        if (this.draft.parent_category) oldCats.push(this.draft.parent_category);
+        (this.draft.parsedTags || []).forEach(p => {
+          if (p.l1 && p.l1._id) oldCats.push(p.l1._id);
+          if (p.l2 && p.l2._id) oldCats.push(p.l2._id);
+        });
+        // 2) 切换文件夹并按新文件夹重解析当前标签
+        this.draft.folderType = f;
+        this.parseTags();
+        // 3) 回收旧分类中「无任何任务引用」的（草稿尚未保存，引用者只可能是其它真实任务）
+        const S = this.$store;
+        const referenced = (id) => S.state.tasks.some(t =>
+          t.category_id === id || t.parent_category === id ||
+          (t.category && t.category === S.findCategory(id) && S.findCategory(id) ? S.findCategory(id).name : '') === t.category);
+        const hasChild = (id) => S.state.categories.some(c => c.parent === id);
+        oldCats.forEach(id => {
+          if (!id) return;
+          const cat = S.findCategory(id);
+          if (!cat) return;
+          if (hasChild(id)) return;                       // 有子分类则不删（可能含其它标签）
+          if (referenced(id)) return;                     // 被真实任务引用则不删
+          S.deleteCategory(id);
+        });
+      },
       // 素材链接识别（isValidMaterialLink / openMaterialLink）已抽出至 C.MaterialLinkMixin，
       // 行为不变，改由 mixin 提供，与灵感素材各处共用同一份实现
     },
@@ -8328,9 +8416,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="grp-body" v-if="grp.tag">
               <!-- 归属文件夹：自动识别当前页面夹类型，用户仍可手动切换 -->
               <div class="seg folder-modes">
-                <button :class="{on: draft.folderType==='task'}" @click="draft.folderType='task'">任务夹</button>
-                <button :class="{on: draft.folderType==='collection'}" @click="draft.folderType='collection'">收藏夹</button>
-                <button :class="{on: draft.folderType==='template'}" @click="draft.folderType='template'">模版夹</button>
+                <button :class="{on: draft.folderType==='task'}" @click="switchFolder('task')">任务夹</button>
+                <button :class="{on: draft.folderType==='collection'}" @click="switchFolder('collection')">收藏夹</button>
+                <button :class="{on: draft.folderType==='template'}" @click="switchFolder('template')">模版夹</button>
               </div>
               <label class="fld">标签输入
                 <input type="text" v-model="draft.tagInput" @blur="parseTags" @keyup.enter="parseTags" @keyup="onTagKey" placeholder="#一级##二级，空格分隔多条" />
@@ -11371,18 +11459,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 收藏夹类（《》识别：书籍 / 影片 / 好物 / 旅游）→ 强制归属收藏夹，避免落入任务夹
         const isBook = !!it.isBook;
         const isColl = !!it.isColl;
-        const fFolder = (isBook || isColl) ? 'collection' : defFolder;
-        // 标签预览：仅单条模式解析（优先用 AI 返回的 tags 链，否则按 category_id 兜底）；批量模式不解析
+        // 标签一级名命中「收藏夹已有分类」时，亦归属收藏夹（用户选的是收藏夹下的同名标签，
+        // 不应落到任务夹新建一份同名分类）。否则按默认文件夹。
+        const tagL1 = (it.tags || '').replace(/^#+/, '').split(/[#\s]/)[0] || '';
+        const S0 = window.MPStore;
+        const existsColl = tagL1 && S0.state.categories.some(c =>
+          c.name === tagL1 && (c.is_collection || S0.isCollCat(c._id)));
+        const fFolder = (isBook || isColl || existsColl) ? 'collection' : defFolder;
+        // 标签预览：仅单条模式解析；统一按 fFolder 重新解析（覆盖 mockParseTask 内部硬编码的 'task' 分类），
+        // 确保任务归属分类与所选文件夹一致，不会误建/误用任务夹同名分类。
         let parsedTags = [], tagInput = '', hasLevel3 = false, level3Chain = null;
-        let category_id = it.category_id || null, parent_category = it.parent_category || '';
-        if (isSingle && it.tags) {
-          const pr = window.MPStore.parseTagString(it.tags, fFolder);
-          parsedTags = pr.parsed; tagInput = it.tags;
-          category_id = pr.category_id; parent_category = pr.parent_category;
-          hasLevel3 = pr.hasLevel3; level3Chain = pr.level3Chain;
-        } else if (isSingle && it.category_id) {
-          const cat = (window.MPStore.state.categories || []).find(x => x._id === it.category_id);
-          if (cat) { parsedTags = [{ l1: { _id: cat._id, name: cat.name }, l2: null }]; tagInput = '#' + cat.name; }
+        let category_id = null, parent_category = '';
+        if (isSingle && (it.tags || it.category_id)) {
+          const tagStr = it.tags || (it.category_id ? '#' + (S0.state.categories.find(c => c._id === it.category_id) || {}).name : '');
+          if (tagStr) {
+            const pr = window.MPStore.parseTagString(tagStr, fFolder);
+            parsedTags = pr.parsed; tagInput = tagStr;
+            category_id = pr.category_id; parent_category = pr.parent_category;
+            hasLevel3 = pr.hasLevel3; level3Chain = pr.level3Chain;
+          }
         }
         // 名称来源：批量(>1)模式直接采用原始输入行（raw），不剥离时间/地点词块；
         //          单条模式沿用 AI 提炼后的核心标题（it.title）
@@ -11651,10 +11746,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     computed: {
       categories() { return this.$store.state.categories; },
-      // 收藏夹一级：仅取 parent===null 的顶层收藏分类（含 is_collection 标记或四大固定名）。
-      // 关键修复：不要把带 is_collection 的「二级/三级」分类当成顶层一级，避免其在树中
-      // 既作为父级的子节点、又被复制成顶层一级副本。子分类一律由 folderSubCatsOf 按真实 parent 层级下挂。
-      collectionCats() { return this.$store.state.categories.filter(c => !c.parent && (c.is_collection || ['好物', '影片', '书籍', '旅游'].indexOf(c.name) >= 0)); },
+      // 收藏夹一级：仅取 parent===null 的顶层「收藏夹分类」。
+      // 严格按文件夹隔离：仅归类为收藏夹的分类才展示，杜绝跨文件夹串用：
+      //   - 带 is_collection 标记（自身或祖先，含预置 COLLECTION_CATS 与收藏夹任务建的标签）；
+      //   - 或（无 task/template/collection 标记的历史遗留）被任一「收藏夹任务」引用（按顶层 parent 归属）。
+      // 不再用「好物/影片/书籍/旅游」名字兜底——否则任务夹建的 #好物 会因子名字命中而被收藏夹误显示，
+      // 违反「两夹可有同名标签但互不影响」的规则。子分类由 folderSubCatsOf 按真实 parent 层级下挂。
+      collectionCats() {
+        const cats = this.$store.state.categories;
+        return cats.filter(c => {
+          if (c.parent) return false;                 // 仅顶层一级
+          if (c.is_collection) return true;           // 显式收藏标记
+          if (c.is_task || c.is_template) return false; // 任务夹/模版夹分类绝不进收藏夹
+          // 无标记历史分类：被任一收藏夹任务（当前未归档）引用才归入收藏夹
+          return this.$store.state.tasks.some(t => !t.is_archived && this.isCollection(t) && (t.category_id === c._id || t.parent_category === c._id || (t.category && t.category === c.name)));
+        });
+      },
       // 第 3 层模块 2：一级 / 二级分类
       topCats() { return this.categories.filter(c => !c.parent); },
       curYear() { return new Date().getFullYear(); },
@@ -11831,16 +11938,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       folderTopCats() {
         if (!this.folderView) return [];
         if (this.folderView === 'collection') {
-          // 收藏夹任务可能引用「普通一级分类」（如悬浮球 AI 批量归属标签创建的标签，未必带 is_collection 标记）；
-          // 只要被任一收藏夹任务引用，就作为一级分组展示，避免任务 / 标签在待归档「消失」。
-          const used = new Set();
-          this.folderScopeTasks.forEach(t => {
-            if (!t.category_id) return;
-            const c = this.categories.find(x => x._id === t.category_id);
-            if (c) used.add(c.parent || c._id);
-          });
-          const usedCats = this.categories.filter(c => !c.parent && used.has(c._id));
-          return this.collectionCats.concat(usedCats).filter((c, i, a) => a.indexOf(c) === i);
+          // 收藏夹一级分组严格以 collectionCats 为准（仅 is_collection 标记或被收藏任务引用的分类）。
+          // 不额外把「被收藏夹任务引用的任意一级分类」拉入——避免任务夹建的 #好物（无标记/is_task）
+          // 因被收藏任务间接引用而误显示在收藏夹，保证跨文件夹标签互不干涉。
+          return this.collectionCats;
         }
         const qv = this.$store.getQuickViewCatId();
         // 内置「临时任务」仅任务夹展示：通用过滤中剔除 qv，仅任务夹单独置顶；模版夹/收藏夹不出现该内置标签
