@@ -561,7 +561,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
   transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
 }
-@media (max-width: 520px) { .habit-grid-btn { width: calc(25% - 8px); } }
+@media (max-width: 520px) {
+  .habit-grid { gap: 8px; }
+  .habit-grid-btn { width: calc(25% - 6px); min-width: 0; max-width: none; padding: 9px 4px; }
+  .hg-name { font-size: 12px; }
+  .hg-val { font-size: 10px; }
+}
 .habit-grid-btn:active { transform: scale(.95); filter: brightness(0.96); }
 /* 打卡成功：整颗按钮置灰，一眼区分未打卡 / 已打卡 */
 .habit-grid-btn.done { background: #eef0f5; border-color: #e3e6ee; box-shadow: none; }
@@ -6514,7 +6519,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       let arr = [];
       try { const raw = localStorage.getItem(AUTO_BACKUP_KEY); if (raw) arr = JSON.parse(raw) || []; } catch (e) {}
       if (!Array.isArray(arr)) arr = [];
-      arr.push({ ts: Date.now(), data: this.exportAll() });
+      // exportAll() 返回的是 JSON 字符串，需解析为对象再存，否则快照 data 成为字符串，
+      // 导致统计页 autoBackupCount 读不到 tasks/categories/habits（显示「空快照」）。
+      let data; try { data = JSON.parse(this.exportAll()); } catch (e) { data = {}; }
+      arr.push({ ts: Date.now(), data: data });
       if (arr.length > AUTO_BACKUP_MAX) arr = arr.slice(arr.length - AUTO_BACKUP_MAX);
       try { localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(arr)); } catch (e) { console.warn('[MP] autobackup write failed', e); }
     },
