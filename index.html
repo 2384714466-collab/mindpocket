@@ -4357,8 +4357,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* ============================ 分类相关方法（第 3 层模块 2：支持一级+二级层级） ============================ */
   function findCategory(id) { return state.categories.find(c => c._id === id); }
   // 第 3 层模块 2：新增分类，parent 为一级分类 _id（为空=一级分类）；仅允许两级嵌套
-  function addCategory(name, parent) {
+  // folder：'task' | 'collection' | 'template' —— 新建分类直接落库所属文件夹标记，
+  // 避免「刚建好、任务还没落库」瞬间 folderOfCat 因无任务引用而误判为 task。
+  function addCategory(name, parent, folder) {
     const c = { _id: uid('cat'), name: (name || '').trim() || '未命名', is_system: false, parent: parent || null };
+    if (folder === 'collection') c.is_collection = true;
+    else if (folder === 'template') c.is_template = true;
     state.categories.push(c);
     persist();
     return c;
@@ -4372,33 +4376,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     }
     return false;
   }
-  // 查重复用 / 新建分类：
-  // 收藏夹与任务夹是两套独立体系——同名标签在不同「文件夹」视为**不同对象**（不再跨文件夹合并）。
-  // 否则收藏夹与任务夹共享同一条 category 记录，一旦删除其一（按 _id 整条删除）会连累另一个文件夹，
-  // 造成「删了收藏夹的『生活』却把任务夹的『生活』也删了」这类数据丢失。
-  // 检索严格按 is_collection 隔离：收藏入口只复用/新建「收藏标签」，任务入口只复用/新建「非收藏标签」，
-  // 两者各自独立，互不干扰。
-  function ensureCategory(name, parent, isColl) {
+  // 查重复用 / 新建分类：三文件夹（任务夹 / 收藏夹 / 模版夹）各自独立体系。
+  // 同名标签在不同「文件夹」视为**不同对象**（不跨文件夹合并）；同一文件夹内同名标签则复用合并。
+  // 否则例如任务夹与收藏夹共享同一条 category 记录，按 _id 整条删除会连累另一文件夹造成数据丢失。
+  // folder：'collection' | 'template' | 'task'(默认) —— 严格按文件夹隔离复用目标。
+  function ensureCategory(name, parent, folder) {
     const nm = (name || '').trim();
     if (!nm) return null;
     const sameNameParent = x => x.name === nm && (x.parent || null) === (parent || null);
-    if (isColl) {
-      // 收藏入口：优先复用已有的「收藏标签」；不存在则新建一条独立收藏标签
-      // （不复用任务夹同名标签，避免与任务夹共享同一条记录）
-      let c = state.categories.find(x => sameNameParent(x) && x.is_collection);
-      if (!c) {
-        c = addCategory(nm, parent);
-        c.is_collection = true; persist();
-      }
-      return c;
-    }
-    // 任务入口：优先复用已有的「非收藏标签」；不存在则新建一条独立任务标签
-    // （若仅有同名收藏标签也不复用，新建独立任务标签，两层各自独立）
-    let c = state.categories.find(x => sameNameParent(x) && !x.is_collection);
-    if (!c) {
-      c = addCategory(nm, parent);
-      persist();
-    }
+    const inFolder = (x) => {
+      if (folder === 'collection') return !!x.is_collection;
+      if (folder === 'template') return !!x.is_template;
+      // task：既不是收藏也不是模版
+      return !x.is_collection && !x.is_template;
+    };
+    let c = state.categories.find(x => sameNameParent(x) && inFolder(x));
+    if (!c) c = addCategory(nm, parent, folder);
     return c;
   }
   // 标签串统一解析（#一级 ##二级 ###三级）：返回解析结果 + 绑定字段 + 三级链；手动输入与 AI 自然语言共用
@@ -4416,7 +4409,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (nextHash >= 0) rest = rest.slice(0, nextHash);
     return rest.trim();
   }
-  function parseTagString(text, isColl) {
+  function parseTagString(text, folder) {
     const out = { parsed: [], category_id: null, parent_category: '', hasLevel3: false, level3Chain: null };
     const s = (text || '').trim();
     if (!s) return out;
@@ -4463,8 +4456,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const parsed = [];
     let lastL1 = null, lastL2 = null, lastL1Name = '', lastL2Name = '';
     for (const p of pairs) {
-      const l1 = ensureCategory(p.l1, null, isColl);
-      let l2 = null; if (p.l2) l2 = ensureCategory(p.l2, l1._id, isColl);
+      const l1 = ensureCategory(p.l1, null, folder);
+      let l2 = null; if (p.l2) l2 = ensureCategory(p.l2, l1._id, folder);
       // 注意：### 不再创建三级分类，l3 统一为 null（仅为创建指令，非标签体系）
       parsed.push({ l1: { _id: l1._id, name: l1.name }, l2: l2 ? { _id: l2._id, name: l2.name } : null, l3: null });
       lastL1 = l1; lastL2 = l2; lastL1Name = l1.name; lastL2Name = l2 ? l2.name : '';
@@ -4486,10 +4479,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     c.name = name;
     persist();
   }
-  // 判定分类归属文件夹：收藏夹=isCollCat；模版夹=被模板任务引用；任务夹=其余
+  // 判定分类归属文件夹：优先看分类自身 is_collection / is_template 标记（新建瞬间即可判定），
+  // 否则按任务引用回退推断（兼容历史数据）
   function folderOfCat(catId) {
     const c = findCategory(catId);
     if (!c) return 'task';
+    if (c.is_collection) return 'collection';
+    if (c.is_template) return 'template';
     if (isCollCat(catId)) return 'collection';
     const tpl = state.tasks.some(t => t.is_template && (t.category_id === catId || t.parent_category === catId));
     return tpl ? 'template' : 'task';
@@ -4510,6 +4506,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       });
     }
     if (folder === 'template') {
+      const c = findCategory(catId);
+      if (c && c.is_template) return true;
       return state.tasks.some(t => !t.is_archived && t.is_template && t.category_id === catId);
     }
     // task：非收藏 / 非模版 即归入任务夹
@@ -6889,7 +6887,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       let tagStr = '#' + tagM[1];
       if (tagM[2]) tagStr += '##' + tagM[2];
       if (tagM[3]) tagStr += '###' + tagM[3];
-      const pr = window.MPStore.parseTagString(tagStr, false);
+      const pr = window.MPStore.parseTagString(tagStr, 'task');
       result.tags = tagStr;
       result.category_id = pr.category_id;
       result.parent_category = pr.parent_category;
@@ -7091,7 +7089,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       else if (cmp) tagName = cmp.tag; // 复合词拆分得到的通用类目词（如 文档 / PPT）兜底
       if (tagName) {
         const tagStr = '#' + tagName;
-        const pr = window.MPStore.parseTagString(tagStr, false);
+        const pr = window.MPStore.parseTagString(tagStr, 'task');
         result.tags = tagStr;
         result.category_id = pr.category_id;
         result.parent_category = pr.parent_category;
@@ -8099,6 +8097,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 周期规则输入框：校验错误提示 + 是否已交互（失焦 / 保存）后才展示红字，避免初始空白即报错
         cycleRuleError: '',
         cycleRuleTouched: false,
+        // 周期起始日：不允许早于今天（过去日期无意义，排期从当日（含）起算）
+        cycleStartBlur: false,
         // 新增进度单位输入框（临时草稿）
         newUnitLabel: '',
       };
@@ -8238,6 +8238,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // 失焦触发校验；标记已交互后才展示红字（初始空白不报错）
       onCycleBlur() { this.cycleRuleTouched = true; this.validateCycleRule(); },
+      // 周期起始日校验：仅校验格式（允许设为今天或过去任意日期，空值=创建当天）
+      startDateError() {
+        const v = this.draft.cycle_start_date;
+        if (!v) return '';                       // 留空 = 创建当天，合法
+        const chk = this.$store.util.validateDateInput(v);
+        if (!chk.ok) return chk.msg;             // 仅校验格式，不限制过去日期
+        return '';
+      },
+      onCycleStartBlur() { this.cycleStartBlur = true; },
       // 「每天」→ 习惯：确认 / 取消
       confirmDaily() { this.showDailyConfirm = false; this.$emit('convert-habit', this.draft); },
       cancelDaily() { this.showDailyConfirm = false; }, // 维持任务原有数据不变（未设置 cycle）
@@ -8247,7 +8256,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const text = (this.draft.tagInput || '').trim();
         if (!text) { this.draft.parsedTags = []; this.draft.hasLevel3 = false; this.draft.level3Chain = null; return; }
         // 统一委托 Store.parseTagString（手动输入与 AI 自然语言共用，支持三级）
-        const r = this.$store.parseTagString(text, this.draft.folderType === 'collection');
+        const r = this.$store.parseTagString(text, this.draft.folderType || 'task');
         this.draft.parsedTags = r.parsed;
         this.draft.parent_category = r.parent_category;
         this.draft.category_id = r.category_id;
@@ -8417,8 +8426,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     </div>
                     <p class="tip delay-hint">{{ cycleDelayHint }}</p>
                   </div>
-                  <!-- 周期起始日（可选）：副本从该日起生成；留空=创建当天；设置后可修改 -->
-                  <label class="fld">开始日期（可选）<input type="text" v-model="draft.cycle_start_date" placeholder="YYYY-MM-DD（留空=创建当天）" @blur="draft.cycle_start_date=$store.util.autoFormatDate(draft.cycle_start_date)" :class="{invalid: draft.cycle_start_date && !$store.util.validateDateInput(draft.cycle_start_date).ok}" /></label>
+                  <!-- 周期起始日（可选）：副本从该日起生成；留空=创建当天；可设为今天或过去的日期 -->
+                  <label class="fld">开始日期<input type="text" v-model="draft.cycle_start_date" placeholder="YYYY-MM-DD（留空=今天）" @blur="draft.cycle_start_date=$store.util.autoFormatDate(draft.cycle_start_date); onCycleStartBlur()" :class="{invalid: (draft.cycle_start_date && !$store.util.validateDateInput(draft.cycle_start_date).ok) || (cycleStartBlur && startDateError())}" /></label>
+                  <p class="err" v-if="cycleStartBlur && startDateError()">{{ startDateError() }}</p>
                 </div>
               </template>
               <!-- 提醒时刻：可选，两种模式通用 -->
@@ -8539,6 +8549,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 周期规则校验（月 / 周）：失焦未校验或非法时阻断保存
         const form = this.$refs.form;
         if (form && form.validateCycleRule && !form.validateCycleRule()) return;
+        // 周期起始日校验：仅格式非法时阻断保存（允许今天或过去日期）
+        if (form && form.startDateError) {
+          form.cycleStartBlur = true;
+          const e = form.startDateError();
+          if (e) { alert(e); return; }
+        }
         // 存入前归一化分隔符（逗号 → 空格）
         if (this.draft.cycle && (this.draft.cycle.type === 'week' || this.draft.cycle.type === 'month')) {
           this.draft.cycle = Object.assign({}, this.draft.cycle, { rule: this.$store.util.normalizeCycleRule(this.draft.cycle.rule) });
@@ -11360,7 +11376,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         let parsedTags = [], tagInput = '', hasLevel3 = false, level3Chain = null;
         let category_id = it.category_id || null, parent_category = it.parent_category || '';
         if (isSingle && it.tags) {
-          const pr = window.MPStore.parseTagString(it.tags, fFolder === 'collection');
+          const pr = window.MPStore.parseTagString(it.tags, fFolder);
           parsedTags = pr.parsed; tagInput = it.tags;
           category_id = pr.category_id; parent_category = pr.parent_category;
           hasLevel3 = pr.hasLevel3; level3Chain = pr.level3Chain;
@@ -11421,7 +11437,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       parseBatchTags() {
         const text = (this.batchTagInput || '').trim();
         if (!text) { this.batchParsedTags = []; this.batchLevel3Chain = null; return; }
-        const pr = this.$store.parseTagString(text, false);
+        const pr = this.$store.parseTagString(text, this.folderType || 'task');
         this.batchParsedTags = pr.parsed;
         this.batchLevel3Chain = pr.level3Chain;
       },
@@ -13309,6 +13325,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // —— 实时自动备份（快照）——
       refreshAutoBackups() {
+        // 兜底：进入统计页时若一份快照都没有（如新装 / 清缓存后尚未到首次 30 分钟自动备份），
+        // 立即生成一份，避免列表空白让用户误以为「没有内容」。已有一份则不动，仍按 30 分钟节奏。
+        try { if (!this.$store.listAutoBackups().length) this.$store.doAutoBackup(); } catch (e) {}
         try { this.autoBackups = this.$store.listAutoBackups(); } catch (e) { this.autoBackups = []; }
       },
       doAutoBackup() {
