@@ -103,7 +103,8 @@ body {
 .backup-mod input { width: 15px; height: 15px; accent-color: var(--no); }
 .backup-mod-all { padding-right: 4px; border-right: 1px solid var(--line); margin-right: 2px; }
 .backup-import { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
-/* 实时自动备份快照列表 */
+.backup-warn { font-size: 12px; line-height: 1.5; color: #b42318; background: #fff4f2; border: 1px solid #f3c2ba; border-radius: var(--radius-sm); padding: 8px 10px; margin: 0 0 10px; }
+/* 本地自动备份快照列表 */
 .ab-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .ab-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; background: #f7f8fb; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; }
 .ab-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--text); }
@@ -1057,9 +1058,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* 子任务完成态按钮 */
 .btn-mini.success { background: #e8f6ee; color: #1f9d57; }
 
-/* —— 项目详情：进度条右侧时间胶囊（子任务页同款 📅 排期，替代原甘特图 FAB） —— */
-.meta-timecap { margin-bottom: 8px; }
-
 /* —— 项目子任务 / 灵感素材卡片：滑动 + 长按手势（仅项目详情页） —— */
 .psub.swipe-card, .pidea.swipe-card { touch-action: pan-y; -webkit-user-select: none; user-select: none; will-change: transform; transition: transform .18s ease, background .45s ease, box-shadow .45s ease, border-color .45s ease; }
 .psub.swipe-card.dragging, .pidea.swipe-card.dragging { transition: none; }
@@ -1842,6 +1840,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   const AUTO_BACKUP_MAX = 5;                   // 最多保留最近 5 份快照
   const AUTO_BACKUP_MIN_INTERVAL_MS = 30 * 60 * 1000;  // 自动备份间隔：每 30 分钟一份（避免频繁写盘爆 localStorage）
 
+  // 写入自动备份快照：localStorage 配额溢出时分级降级重试，最大限度保住「至少一份可用快照」。
+  // 降级顺序：① 全量（保留最近 N 份）→ ② 仅留最新 1 份 → ③ 最新 1 份并剔除重型冗余字段 → ④ 放弃并记录错误。
+  // 返回是否写入成功，避免「静默失败导致快照列表空白且无提示」。
+  const BACKUP_HEAVY_KEYS = ['projects', 'project_subs', 'project_records', 'project_ideas', 'project_folders',
+    'sub_custom_statuses', 'wish_items', 'wish_records', 'finance', 'career',
+    'archive_snapshot', 'sub_tasks', 'material_link', 'material_notes', 'progressUnits'];
+  function tryWriteBackups(arr) {
+    const attempts = [arr];
+    if (arr.length > 1) attempts.push(arr.slice(-1));           // 仅最新 1 份
+    const slim = arr.slice(-1).map(s => {
+      const d = (s && s.data) || {};
+      const c = Object.assign({}, d);
+      BACKUP_HEAVY_KEYS.forEach(k => { if (k in c) delete c[k]; });
+      return Object.assign({}, s, { data: c, _slim: true });
+    });
+    attempts.push(slim);                                        // 最新 1 份 + 剔除重型字段
+    for (const a of attempts) {
+      try { localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(a)); return true; } catch (e) { /* 配额仍不足，试下一级降级 */ }
+    }
+    return false;
+  }
+
   // 进度记录可选单位（书籍默认「章」而非「页」；内置单位均可被用户删除/新增，不固定）
   const DEFAULT_PROGRESS_UNITS = [
     { id: 'book', icon: '📚', label: '书籍（章）' },
@@ -2065,8 +2085,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         finance: state.finance,
         career: state.career,
       }));
-      // 主数据落盘后调度实时自动备份（节流，存于独立 key）
-      try { if (window.MPStore && window.MPStore.scheduleAutoBackup) window.MPStore.scheduleAutoBackup(); } catch (e) {}
+      // 本地自动备份不再随每次落盘触发（旧「实时备份」逻辑）；改为：① 固定每 30 分钟一份 ② 切后台 / 关闭页面立即补一份
+      // （见下方 _onPageHide 与启动时 setInterval），避免高频落盘产生大量冗余快照。
     } catch (e) { console.error('[MP] persist failed', e); }
   }
   // 立即落盘（绕过防抖）：页面卸载 / 路由切换 / 关键单向操作前调用，防止防抖窗口内数据丢失
@@ -2082,12 +2102,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (_persistTimer) clearTimeout(_persistTimer);
     _persistTimer = setTimeout(writeStorageNow, PERSIST_DEBOUNCE_MS);
   }
-  // 页面卸载 / 切后台 / 隐藏时立即落盘：防止防抖窗口内（350ms）用户关闭或切走 App 导致待写数据丢失
-  function _onPageHide() { if (_persistTimer) flushPersist(); }
+  // 页面卸载 / 切后台 / 隐藏时立即落盘 + 立即备份：防止防抖窗口内（350ms）用户关闭或切走 App 导致待写数据丢失；
+  // 同时生成一份本地快照，作为「页面崩溃 / 误删数据」时的最新可恢复点（独立于防抖落盘节奏）。
+  function _onPageHide() {
+    if (_persistTimer) flushPersist();   // 先落盘，保证快照基于最新主数据
+    try { if (window.MPStore && window.MPStore.doAutoBackup) window.MPStore.doAutoBackup(); } catch (e) {}
+  }
   if (typeof window !== 'undefined') {
     window.addEventListener('pagehide', _onPageHide);
     window.addEventListener('beforeunload', _onPageHide);
     document.addEventListener('visibilitychange', function () { if (document.hidden) _onPageHide(); });
+    // 本地自动备份：固定每 30 分钟生成一份快照（独立于主数据落盘节奏，保证「每 30 分钟必有一份」）；
+    // 切后台 / 关闭页面由 _onPageHide 立即补一份。最多保留最近 5 份（见 AUTO_BACKUP_MAX）。
+    setInterval(function () {
+      try { if (window.MPStore && window.MPStore.doAutoBackup) window.MPStore.doAutoBackup(); } catch (e) {}
+    }, AUTO_BACKUP_MIN_INTERVAL_MS);
   }
   // 全局刷新通知：自增响应式版本号，供各页面 watch 监听后主动重载数据
   function notifyChange() { state.revision = (state.revision || 0) + 1; }
@@ -3003,6 +3032,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // - 全部日期完成 → 自动归档母本；撤销任一打卡使未全完成时 → 母本退回待归档
   // - 手动归档（archiveTaskFull）/到期归档（autoArchiveExpiredCycles）不受此撤销影响
   function toggleOccurrence(id, date, done) {
+    console.log('DBG_TOGGLE', JSON.stringify({id, date, done}), 'found=', !!(state.tasks.find(x=>x._id===id)));
     const t = findTask(id);
     if (!t) return;
     // 仅周期 / 自定义区间任务支持逐日打卡（单点任务走 doneDates）
@@ -3014,14 +3044,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }
     } else {
       const idx = t.cycle_history.map(h => h.execute_date).lastIndexOf(date);
+      console.log('DBG_UNDO', JSON.stringify({date, idx, hist: (t.cycle_history||[]).map(h=>h.execute_date)}));
       if (idx >= 0) t.cycle_history.splice(idx, 1);
+      console.trace('DBG_AFTER_SPLICE', (t.cycle_history||[]).length);
     }
     syncCycleAnchor(t);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算
     // 全部完成 → 自动归档母本（模版任务禁用：仅手动按钮可归档母本）
-    if (allOccurrencesDone(t) && !t.is_archived && !t.is_template) { t.is_archived = true; t.archived_at = todayStr(); t.autoArchivedByCopies = true; }
+    // 归档前先写【归档快照】：保存全部副本 + cycle_history，使撤销归档时能按历史打卡日期完整恢复（绿勾保留、未打卡变灰）
+    if (allOccurrencesDone(t) && !t.is_archived && !t.is_template) { archiveMasterCopies(t); t.is_archived = true; t.archived_at = todayStr(); t.autoArchivedByCopies = true; }
     else if (t.is_template && allOccurrencesDone(t)) { resetTemplate(t._id); } // 模板：副本全完成→统一重置（清空时间+回收副本+重置子任务），不归档
     // 撤销后未全完成 → 母本退回待归档（仅自动归档情形，手动归档不受影响；模版任务不触发）
     if (!done && t.is_archived && t.autoArchivedByCopies && !allOccurrencesDone(t) && !t.is_template) { t.is_archived = false; t.autoArchivedByCopies = false; }
+    console.log('DBG_END', (t.cycle_history||[]).length, 'isArchived=', t.is_archived);
     persist();
   }
 
@@ -3607,6 +3641,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (cycleHits(t.cycle, ds, t.cycle_start_date) && !cycleArchivedToday(t, ds)) {
           // overdue：本次出现日早于今天（过期单次记录）→ 打「延期未完成」标记
           const real = ds < today ? today : ds;   // 真实完成日：逾期则记今天，否则记出现日
+          console.log('DBG_MARKPUSH', ds, t._id);
           t.cycle_history.push({ execute_date: ds, is_archived: true, overdue: ds < today, real_done: real });
         }
         cur = parseDate(addDays(fmt(cur), 1));
@@ -3742,18 +3777,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       syncCycleAnchor(s);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算
       // 子任务母本自动归档：与顶层任务口径一致 —— 有限周期全部出现日打卡完成 → 子任务母本自动归档
       // 父任务不受影响（父子时间独立，规范⑥）；无限循环周期（无结束日）恒为 false，仅手动归档
-      if (allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
+      if (allOccurrencesDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
     } else if (s.date_mode === 'range' && s.date_start) {
       if (!cycleArchivedToday(s, ws)) {
         s.cycle_history.push({ execute_date: ws, is_archived: true, overdue: ws < today });
       }
-      if (allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
+      if (allOccurrencesDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
     } else {
       const key = copyKey(s, ws);
       s.doneDates = s.doneDates || [];
       if (!s.doneDates.includes(key)) s.doneDates.push(key);
       // 子任务全部日期副本完成 → 自动归档子任务母本（与主任务 markCopyDone 口径一致）
-      if (copiesAllDone(s) && !s.is_archived) { s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
+      if (copiesAllDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
     }
     persist();
     // 积分联动：子任务副本完成（学习工作类标签 → study_work 积分）
@@ -4141,23 +4176,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 看板（周/月计划）中的子任务副本：仅含带时间且归类为 month/week 的子任务
   // 子任务来源：① 分类子任务体系（t.sub_tasks）；② 项目子任务体系（project_subs，经 getSubs 读取）
   // 两类统一纳入看板副本池，使「区间子任务」也能同步副本进入周/月看板
+  // 【周期隔离规则】周期副本只按「执行历史」投射到【今日Tab】，绝不进入周/月看板：
+  //   · 周期母本（t.cycle）名下的全部子任务一律排除（含非周期子任务）
+  //   · 子任务自身带 cycle（每天/每周/每月/间隔）的一律排除，与母本是否周期无关
   function getBoardSubTasks() {
     const out = [];
     state.tasks.forEach(t => {
       if (t.is_archived) return;
       if (isCollectionTask(t)) return; // 收藏夹任务（含子任务）不参与看板副本同步
+      if (t.cycle) return;             // 周期母本：整条任务树（含其子任务）不进周/月看板
       // 合并两类子任务来源
       const pool = [];
       (t.sub_tasks || []).forEach(s => pool.push(s));
       try { (getSubs(t._id) || []).forEach(s => pool.push(s)); } catch (e) {}
       pool.forEach(s => {
         if (s.is_archived) return;
-        // 普通（非周/月循环）子任务：仅跟随非周期母本进入看板；周期母本下的普通子任务仍只走今日Tab
-        if (t.cycle && !(s.cycle && (s.cycle.type === 'week' || s.cycle.type === 'month'))) return;
-        // 周期子任务：周/月循环纳入对应看板（与母本一致，classifyMode 按 cycle.type 归类为 week/month）；
-        // 每天/间隔循环仍仅【今日Tab】/【习惯】展示（沿用原设计，不进看板）
-        if (s.cycle && s.cycle.type !== 'week' && s.cycle.type !== 'month') return;
-        // 非周期自定义区间子任务：保留进入周看板（按与本周相交归入），不再排除
+        if (s.cycle) return;           // 周期子任务：仅【今日Tab】按执行历史投射，不同步周/月看板
         if (!subHasDate(s)) return;
         const m = classifyMode(s);
         if (m === 'month' || m === 'week') out.push(mkSubProxy(s, t));
@@ -4307,8 +4341,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (parentName.includes(k) || catName.includes(k)) return true;
     return false;
   }
+  // 是否「可进入全局已归档仓库」：已归档任务；或周期/区间任务只要有任一次已打卡，
+  // 其每一个已打卡日都应归属到归档仓库对应日期下（无需等母本整体归档，见需求 #3）
+  function isArchiveRelevant(t) {
+    if (t.is_archived) return true;
+    if ((t.cycle || (t.date_mode === 'range' && t.date_start)) && (t.cycle_history || []).some(h => h.is_archived)) return true;
+    return false;
+  }
+
   function getArchivedTasks(categoryId, keyword) {
-    let list = state.tasks.filter(t => t.is_archived);
+    let list = state.tasks.filter(t => t.is_archived || isArchiveRelevant(t));
     if (categoryId && categoryId !== '__all__') list = list.filter(t => matchCategory(t, categoryId));
     if (keyword) list = list.filter(t => taskMatchesKeyword(t, keyword));
     return list;
@@ -4320,7 +4362,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const k = (keyword || '').trim().toLowerCase();
     state.tasks.forEach(t => {
       (t.sub_tasks || []).forEach(s => {
-        if (!s.is_archived) return;
+        if (!s.is_archived && !isArchiveRelevant(s)) return;
         // 子任务沿用父任务分类参与筛选
         if (categoryId && categoryId !== '__all__' && !matchCategory(t, categoryId)) return;
         // 关键词筛选：子任务自身字段（标题/描述/素材/一级·二级标签）命中即保留；否则沿用父任务标题参与筛选
@@ -4369,10 +4411,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function archivedCountOnDate(date) {
     let n = 0;
     state.tasks.forEach(t => {
-      // 周期 / 区间任务：每个「已打卡日」都计入日历点阵，而非仅末日
-      if (t.is_archived && archiveDatesOf(t).indexOf(date) >= 0) n++;
-      // 已归档子任务（沿用父任务归档日）一并计入日历点阵
-      (t.sub_tasks || []).forEach(s => { if (s.is_archived && archiveDatesOf(s).indexOf(date) >= 0) n++; });
+      // 周期 / 区间任务：每个「已打卡日」都计入日历点阵，而非仅末日（含未整体归档但已打卡的副本）
+      if (isArchiveRelevant(t) && archiveDatesOf(t).indexOf(date) >= 0) n++;
+      // 已归档 / 已打卡子任务（沿用父任务归档日）一并计入日历点阵
+      (t.sub_tasks || []).forEach(s => { if (isArchiveRelevant(s) && archiveDatesOf(s).indexOf(date) >= 0) n++; });
     });
     state.habits.forEach(h => { if (h.is_archived && archiveDateOf(h) === date) n++; });
     state.projects.forEach(p => { if (p.status === 'archive' && !p.deleted_at && (p.archived_at || '') === date) n++; });
@@ -4414,39 +4456,34 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const nm = (name || '').trim();
     if (!nm) return null;
     const sameNameParent = x => x.name === nm && (x.parent || null) === (parent || null);
-    // 无标记分类「实际归哪个文件夹」：被该文件夹任务引用则归该文件夹（兼容旧版无标记分类）
+    // 分类实际归属文件夹：优先用分类自身显式标记（is_collection/is_template/is_task，新建瞬间即可判定，
+    // 不受「任务被加入收藏夹/模板」等引用变化影响，避免同名标签在不同文件夹间被误判而无法合并）；
+    // 仅无标记旧分类回退引用推断（兼容历史数据）
     const refColl = (x) => state.tasks.some(t => t.is_collection && (t.category_id === x._id || t.parent_category === x._id));
     const refTpl = (x) => state.tasks.some(t => t.is_template && (t.category_id === x._id || t.parent_category === x._id));
-    const inFolder = (x) => {
-      if (folder === 'collection') {
-        // 带 is_collection 标记，或（无 task/template 标记且被收藏任务引用）的旧分类，均归收藏夹可复用
-        return !!x.is_collection || (!x.is_task && !x.is_template && refColl(x));
-      }
-      if (folder === 'template') return !!x.is_template || (!x.is_collection && !x.is_task && refTpl(x));
-      // task：明确非收藏、非模版、且未被收藏/模板任务引用（避免误并到其它文件夹的旧无标记分类）即归任务夹。
-      // 预置分类已显式打标记（COLLECTION_CATS→is_collection，其余→is_task），带 is_collection 的被上面排除；
-      // 无标记的历史同类（如旧版任务夹好物，未被收藏/模板引用）可正常复用合并。
-      return !x.is_collection && !x.is_template && !refColl(x) && !refTpl(x);
+    const catFolder = (x) => {
+      if (x.is_collection) return 'collection';
+      if (x.is_template) return 'template';
+      if (x.is_task) return 'task';
+      if (refColl(x)) return 'collection';
+      if (refTpl(x)) return 'template';
+      return 'task';
     };
+    const inFolder = (x) => catFolder(x) === folder;
     let c = state.categories.find(x => sameNameParent(x) && inFolder(x));
     if (!c) c = addCategory(nm, parent, folder);
-    // 合并清理：选中的 c 若带明确文件夹标记，把同 name+parent、「无标记且实际归同一文件夹」的旧重复分类
-    // 合并过来（迁移任务引用、删除多余），避免新旧数据并存导致「同名标签没合并」的观感。
-    // 仅处理无子分类、无跨文件夹引用的安全旧分类，避免误删/误迁。
-    if (c.is_collection || c.is_template || c.is_task) {
-      state.categories.filter(x => x._id !== c._id && x.name === nm && (x.parent || null) === (c.parent || null)
-        && !x.is_collection && !x.is_template && !x.is_task && subCategories(x._id).length === 0)
-        .forEach(dup => {
-          const dupInFolder = folder === 'collection' ? refColl(dup) : folder === 'template' ? refTpl(dup) : (!refColl(dup) && !refTpl(dup));
-          if (!dupInFolder) return;
-          state.tasks.forEach(t => {
-            if (t.category_id === dup._id) t.category_id = c._id;
-            if (t.parent_category === dup._id) t.parent_category = c._id;
-          });
-          state.categories = state.categories.filter(k => k._id !== dup._id);
+    // 合并清理：把同 name+parent、且实际归属同一文件夹的其它重复分类（含无标记旧分类）合并过来
+    // （迁移任务引用、删除多余），避免「同名标签没合并」的观感。仅处理无子分类的安全旧分类，避免跨文件夹误并。
+    state.categories.filter(x => x._id !== c._id && x.name === nm && (x.parent || null) === (c.parent || null)
+      && catFolder(x) === folder && subCategories(x._id).length === 0)
+      .forEach(dup => {
+        state.tasks.forEach(t => {
+          if (t.category_id === dup._id) t.category_id = c._id;
+          if (t.parent_category === dup._id) t.parent_category = c._id;
         });
-      persist();
-    }
+        state.categories = state.categories.filter(k => k._id !== dup._id);
+      });
+    persist();
     return c;
   }
   // 标签串统一解析（#一级 ##二级 ###三级）：返回解析结果 + 绑定字段 + 三级链；手动输入与 AI 自然语言共用
@@ -4795,6 +4832,47 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       date_end: fields.date_end || '',
     });
     return { parentId: parent._id, subId: sub._id };
+  }
+  // 编辑已有任务时，通过 ###父任务 语法将其「重新归属」为对应父任务的子任务：
+  // 确保父任务存在（按当前一级/二级上下文创建或复用），把现有任务的标题/描述/日期/周期/进度等核心字段
+  // 落到新子任务上（保留原任务已打的历史打卡与归档副本），再从顶层任务列表移除原任务。
+  // 支持从其它父任务迁移：原任务即便已归属到别的父任务（或顶层），也会被摘出挂到新父任务下。
+  function convertTaskToSubTask(taskId, chain, fields) {
+    const t = findTask(taskId);
+    if (!t) return null;
+    const l3name = chain.l3name;
+    if (!l3name) return null;
+    const parent = ensureParentTaskForCategory(l3name, chain.l1, chain.l2, { is_template: !!(fields && fields.is_template), is_collection: !!(fields && fields.is_collection) });
+    if (!parent) return null;
+    const catId = chain.l2 ? chain.l2._id : (chain.l1 ? chain.l1._id : null);
+    const parentCat = chain.l2 ? chain.l1._id : '';
+    const f = fields || {};
+    const s = addSubTask(parent._id, f.title || t.title, f.execute_date || t.execute_date || null, {
+      desc: f.desc || t.desc || '', material_notes: f.material_notes || t.material_notes || '', material_link: f.material_link || t.material_link || '',
+      category_id: catId, parent_category: parentCat,
+      cycle: f.cycle || t.cycle || null, enable_remind: !!(f.enable_remind || t.enable_remind), remind_time: f.remind_time || t.remind_time || '',
+      progress_info: f.progress_info || t.progress_info || { enable: false, media_type: 'book', progress_value: '' },
+      date_mode: f.date_mode || t.date_mode || '', plan_year: f.plan_year != null ? f.plan_year : (t.plan_year || null),
+      plan_month: f.plan_month != null ? f.plan_month : (t.plan_month || null),
+      execute_date: f.execute_date || t.execute_date || null, date_start: f.date_start || t.date_start || '', date_end: f.date_end || t.date_end || '',
+      cycle_end_date: f.cycle_end_date || t.cycle_end_date || '', cycle_end_mode: f.cycle_end_mode || t.cycle_end_mode || '',
+      cycle_end_count: f.cycle_end_count || t.cycle_end_count || 0, cycle_start_date: f.cycle_start_date || t.cycle_start_date || '', cycle_delay_mode: f.cycle_delay_mode || t.cycle_delay_mode || 'recount',
+      isEmergency: !!(f.isEmergency || t.isEmergency), hasCheckbox: true,
+    });
+    // 迁移原任务的历史打卡与归档副本，保证「已打卡绿勾 / 周期副本」在新子任务下延续
+    const src = findTask(taskId);
+    if (src) {
+      s.cycle_history = (src.cycle_history || []).map(h => Object.assign({}, h));
+      s.doneDates = (src.doneDates || []).slice();
+      s.doneOverdueDates = (src.doneOverdueDates || []).slice();
+      s.archived_copies = (src.archived_copies || []).slice();
+      s.archive_snapshot = src.archive_snapshot ? Object.assign({}, src.archive_snapshot) : null;
+      // 若原任务自身还带子任务，一并搬到新父任务下（保持层级）
+      (src.sub_tasks || []).forEach(st => parent.sub_tasks.push(st));
+    }
+    state.tasks = state.tasks.filter(x => x._id !== taskId);
+    persist();
+    return s;
   }
   // 拖拽排序：按给定 id 顺序重排分类数组
   function setCategoriesOrder(orderedIds) {
@@ -6455,7 +6533,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 闲趣随机卡
     getLeisurePool, categoryChainNames,
     // 分类
-    findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, descendantCategoryIds, matchCategory, parseTagString,
+    findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, convertTaskToSubTask, descendantCategoryIds, matchCategory, parseTagString,
     // 进度记录单位（内置可删除/新增）
     getProgressUnits, addProgressUnit, removeProgressUnit,
     // 奇想 / 临时任务
@@ -6577,13 +6655,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
       persist(); // 落盘 + 广播全局刷新（revision++），各页面自动重载
     },
-    // —— 实时自动备份（防误删 / 误覆盖）——
-    // 每次主数据落盘后调度：距上次不足 AUTO_BACKUP_MIN_INTERVAL_MS（30 分钟）不重复存；
-    // 保留最近 AUTO_BACKUP_MAX（5）份快照，存于独立 key，与主数据隔离。
+    // —— 本地自动备份（防误删 / 误覆盖 / 页面崩溃）——
+    // 触发方式：① 固定每 30 分钟一份（启动时 setInterval）；② 切后台 / 关闭页面立即补一份（_onPageHide）。
+    // 保留最近 AUTO_BACKUP_MAX（5）份快照，存于独立 key，与主数据隔离，即便主数据被清空也可恢复。
     _autoBackupLast: 0,
-    _autoBackupTimer: null,
+    _lastBackupError: null,
     _saveAutoBackupNow() {
-      const self = this;
       this._autoBackupLast = Date.now();
       let arr = [];
       try { const raw = localStorage.getItem(AUTO_BACKUP_KEY); if (raw) arr = JSON.parse(raw) || []; } catch (e) {}
@@ -6591,21 +6668,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // exportAll() 返回的是 JSON 字符串，需解析为对象再存，否则快照 data 成为字符串，
       // 导致统计页 autoBackupCount 读不到 tasks/categories/habits（显示「空快照」）。
       let data; try { data = JSON.parse(this.exportAll()); } catch (e) { data = {}; }
+      // 与最新快照完全一致则不再新增：避免「切后台 / 切标签页」瞬间产生大量相同快照，浪费 5 份配额。
+      const last = arr[arr.length - 1];
+      if (last && last.data && JSON.stringify(last.data) === JSON.stringify(data)) return true;
       arr.push({ ts: Date.now(), data: data });
       if (arr.length > AUTO_BACKUP_MAX) arr = arr.slice(arr.length - AUTO_BACKUP_MAX);
-      try { localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(arr)); } catch (e) { console.warn('[MP] autobackup write failed', e); }
+      // 写入（配额溢出自动分级降级：全量 → 仅最新1份 → 剔除重型字段；全失败则记可见错误，杜绝「静默空白」）
+      const ok = tryWriteBackups(arr);
+      this._lastBackupError = ok ? null : '本地存储空间不足，自动备份未能保存（请到浏览器设置清理站点数据，或改用「导出文件备份」）';
+      if (!ok) console.warn('[MP] autobackup write failed: localStorage quota exceeded');
+      return ok;
     },
-    scheduleAutoBackup() {
-      const now = Date.now();
-      const gap = now - (this._autoBackupLast || 0);
-      // 距上次不足 30 分钟：仅在尚无待触发定时器时，预约到「满 30 分钟」那一刻再写一份
-      if (gap >= AUTO_BACKUP_MIN_INTERVAL_MS) { try { this._saveAutoBackupNow(); } catch (e) {} return; }
-      if (this._autoBackupTimer) return;
-      const self = this;
-      this._autoBackupTimer = setTimeout(function () {
-        self._autoBackupTimer = null; try { self._saveAutoBackupNow(); } catch (e) {}
-      }, AUTO_BACKUP_MIN_INTERVAL_MS - gap);
-    },
+    // 最近一次自动备份是否失败（UI 用于展示提示，避免静默空白让用户误以为没功能）
+    lastBackupError() { return this._lastBackupError || null; },
     listAutoBackups() {
       // 最新快照排在最前（倒序），与统计页「最新备份在最上面」的展示一致；
       // 恢复 / 删除均按同一数组索引操作，倒序不影响其正确性。
@@ -6614,7 +6689,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     // 立即生成一份快照（不受节流限制），返回是否成功
     doAutoBackup() {
-      try { this._saveAutoBackupNow(); return true; } catch (e) { return false; }
+      return !!this._saveAutoBackupNow();
     },
     // 从指定快照恢复（等价于 importAll 覆盖，但来源是本地快照）
     restoreAutoBackup(idx) {
@@ -8713,6 +8788,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         form: null, showDel: false, showTerminateConfirm: false,
         // 执行历史折叠状态（与主任务执行历史一致：仅临时生效、默认折叠，不做持久化）
         execHistOpen: false,
+        // 执行历史：打卡 / 撤销打卡 二次确认（防误触）
+        confirmSubDate: null, confirmSubDone: false,
       };
     },
     computed: {
@@ -8753,27 +8830,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           overdue: hist.some(h => h.execute_date === ds && h.overdue),
         }));
       },
-      // 执行历史打卡/撤销：双向同步（与主任务 toggleOccurrence 口径一致）
-      // 全部日期完成 → 自动归档子任务母本；撤销任一打卡 → 退回待归档
-      toggleSubOccurrence(date, done) {
+      // 执行历史「撤销打卡」确认提示：当前条目已打卡且子任务母本为「副本全完成自动归档」态时，
+      // 撤销该打卡会使母本退回待归档（其余已打卡日仍保留为绿勾），故显示「子任务母本将退回待归档」
+      subWillReopen() {
+        if (!this.confirmSubDate || !this.confirmSubDone) return false;
         const s = this.sub;
-        if (!s) return;
-        if (done) {
-          if (!this.$store.cycleArchivedToday(s, date)) {
-            const today = this.$store.util.todayStr();
-            const real = date < today ? today : date;   // 真实完成日：逾期则记今天，否则记出现日
-            s.cycle_history.push({ execute_date: date, is_archived: true, overdue: date < today, real_done: real });
-          }
-        } else {
-          const idx = s.cycle_history.map(h => h.execute_date).lastIndexOf(date);
-          if (idx >= 0) s.cycle_history.splice(idx, 1);
-        }
-        this.$store.syncCycleAnchor(s);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算
-        // 全部完成 → 自动归档子任务母本
-        if (this.$store.allOccurrencesDone(s) && !s.is_archived) { s.is_archived = true; s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; }
-        // 撤销后未全完成 → 子任务母本退回待归档（仅自动归档情形）
-        if (!done && s.is_archived && s.autoArchivedByCopies && !this.$store.allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
-        this.$store.persist();
+        return !!(s && s.autoArchivedByCopies);
       },
       // —— 执行历史模块可见性：与主任务口径一致 ——
       // 仅「周期子任务」或「自定义区间子任务」展示；新建态与普通一次性子任务整块隐藏。
@@ -8821,6 +8883,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       this.$root.pushOverlay(this._overlayDismiss);
     },
     methods: {
+      // 执行历史打卡/撤销核心逻辑（与主任务 toggleOccurrence 口径一致）
+      // 全部日期完成 → 自动归档子任务母本（先写归档快照，保证撤销可恢复）；撤销任一打卡 → 退回待归档
+      doSubOccurrence(date, done) {
+        const s = this.sub;
+        if (!s) return;
+        if (done) {
+          if (!this.$store.cycleArchivedToday(s, date)) {
+            const today = this.$store.util.todayStr();
+            const real = date < today ? today : date;   // 真实完成日：逾期则记今天，否则记出现日
+            s.cycle_history.push({ execute_date: date, is_archived: true, overdue: date < today, real_done: real });
+          }
+        } else {
+          const idx = s.cycle_history.map(h => h.execute_date).lastIndexOf(date);
+          if (idx >= 0) s.cycle_history.splice(idx, 1);
+        }
+        this.$store.syncCycleAnchor(s);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算
+        // 全部完成 → 自动归档子任务母本（先写快照，保证撤销按历史打卡日期完整恢复）
+        if (this.$store.allOccurrencesDone(s) && !s.is_archived) { this.$store.archiveMasterCopies(s); s.is_archived = true; s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; }
+        // 撤销后未全完成 → 子任务母本退回待归档（仅自动归档情形）
+        if (!done && s.is_archived && s.autoArchivedByCopies && !this.$store.allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
+        this.$store.persist();
+      },
+      // 执行历史：点击某日期 → 弹窗确认标记完成 / 撤销完成
+      onSubExecDateClick(h) { this.confirmSubDate = h.execute_date; this.confirmSubDone = h.is_archived; },
+      cancelSubExecConfirm() { this.confirmSubDate = null; this.confirmSubDone = false; },
+      confirmSubToggle() {
+        if (!this.confirmSubDate) return;
+        this.doSubOccurrence(this.confirmSubDate, !this.confirmSubDone);
+        this.confirmSubDate = null; this.confirmSubDone = false;
+      },
       // 完整回写主任务时间体系字段（与主任务 addTask/updateTask 一致）
       extra() {
         const df = dateFieldsFromDraft(this.form);
@@ -8873,10 +8965,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         } else {
           this.$store.updateSubTask(this.taskId, this.subId, this.extra());
         }
-        // 保存后兜底：若编辑了 cycle_end_date 且此时全部日期已打卡完成 → 立即触发自动归档
+        // 保存后兜底：若编辑了 cycle_end_date 且此时全部日期已打卡完成 → 立即触发自动归档（先写快照保证可撤销恢复）
         const s = this.sub;
         if (s && s.cycle && this.$store.allOccurrencesDone(s) && !s.is_archived) {
-          s.is_archived = true; s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; this.$store.persist();
+          this.$store.archiveMasterCopies(s); s.is_archived = true; s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; this.$store.persist();
         }
         // 数据已落盘（persist → notifyChange 自增 revision），周/月看板副本池自动重算同步刷新
         this.$emit('close');
@@ -8921,7 +9013,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="cycle-hist" v-if="hasExecHist && execHistOpen">
             <span v-for="h in finishHist" :key="h.execute_date"
                   class="cycle-chip" :class="{done: h.is_archived, undone: !h.is_archived, overdue: h.overdue}"
-                  @click="toggleSubOccurrence(h.execute_date, !h.is_archived)">
+                  @click="onSubExecDateClick(h)">
               {{ h.is_archived ? '✅' : '⬜' }} {{ h.execute_date }}
               <span v-if="h.overdue" class="chip-overdue">延期未完成</span>
             </span>
@@ -8953,6 +9045,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="modal-actions">
               <button class="btn ghost" @click="cancelTerminate">取消</button>
               <button class="btn warn" @click="confirmTerminate">确认终止</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 执行历史：打卡 / 撤销打卡 二次确认（防误触，与主任务详情页一致） -->
+        <div class="chart-confirm" v-if="confirmSubDate" @click.self="cancelSubExecConfirm">
+          <div class="idea-choice-box" @click.stop>
+            <div class="idea-choice-title">{{ confirmSubDone ? '确认撤销这次打卡？' : '确认标记这次已完成？' }}</div>
+            <p class="tip" v-if="confirmSubDone">撤销后 <b>{{ confirmSubDate }}</b> 将变回 ⬜ 未完成；该日的归档记录一并回退<span v-if="subWillReopen">，子任务母本将退回待归档</span>。</p>
+            <p class="tip" v-else>打卡后 <b>{{ confirmSubDate }}</b> 记为 ✅ 已完成，并归入「📦 全局已归档仓库」该日期下。</p>
+            <div class="modal-actions">
+              <button class="btn ghost" @click="cancelSubExecConfirm">取消</button>
+              <button class="btn primary" @click="confirmSubToggle">{{ confirmSubDone ? '确认撤销' : '确认打卡' }}</button>
             </div>
           </div>
         </div>
@@ -9765,6 +9870,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           overdue: hist.some(h => h.execute_date === ds && h.overdue),
         }));
       },
+      // 执行历史「撤销打卡」确认弹窗提示：当前条目为已打卡、且母本为「副本全完成自动归档」态时，
+      // 撤销该打卡会使母本退回待归档（其余已打卡日仍保留为绿勾），故显示「母本将退回待归档」提示
+      confirmWillReopen() {
+        if (!this.confirmDate || !this.confirmDone) return false;
+        const t = this.task;
+        return !!(t && t.autoArchivedByCopies);
+      },
     },
     created() {
       const t = this.task;
@@ -9817,6 +9929,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 存入前归一化分隔符（逗号 → 空格）
         if (this.form.cycle && (this.form.cycle.type === 'week' || this.form.cycle.type === 'month')) {
           this.form.cycle = Object.assign({}, this.form.cycle, { rule: this.$store.util.normalizeCycleRule(this.form.cycle.rule) });
+        }
+        // 编辑态 ### 重新归属：若标签含 ###父任务 语法，把当前任务转为该父任务下的子任务
+        if (this.form.hasLevel3 && this.form.level3Chain) {
+          const fields = Object.assign(dateFieldsFromDraft(this.form), {
+            title: this.form.title.trim(),
+            desc: this.form.desc || '',
+            material_notes: this.form.material_notes || '',
+            material_link: this.form.material_link || '',
+            cycle: this.form.cycle || null,
+            cycle_end_date: this.form.cycle_end_date || '',
+            cycle_start_date: this.form.cycle_start_date || '',
+            cycle_end_mode: this.form.cycle_end_mode || '',
+            cycle_end_count: Number(this.form.cycle_end_count) || 0,
+            cycle_delay_mode: this.form.cycle_delay_mode || 'recount',
+            progress_info: this.form.progress_info,
+            is_template: this.form.folderType === 'template',
+            is_collection: this.form.folderType === 'collection',
+            isEmergency: !!this.form.isEmergency,
+          });
+          this.$store.convertTaskToSubTask(this.taskId, this.form.level3Chain, fields);
+          this.$emit('close');
+          return;
         }
         this.upd(Object.assign(dateFieldsFromDraft(this.form), {
           title: this.form.title.trim(),
@@ -9899,7 +10033,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="cycle-hist" v-if="execHistOpen">
               <span v-for="d in execHistory" :key="d.date"
                     class="cycle-chip" :class="{done: d.done, undone: !d.done, overdue: d.overdue}"
-                    @click="$store.toggleOccurrence(taskId, d.date, !d.done)">
+                    @click="onExecDateClick(d)">
                 {{ d.done ? '✅' : '⬜' }} {{ d.date }}
                 <span v-if="d.overdue" class="chip-overdue">延期未完成</span>
               </span>
@@ -9932,6 +10066,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="modal-actions">
                 <button class="btn ghost" @click="cancelTerminate">取消</button>
                 <button class="btn warn" @click="confirmTerminate">确认终止</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 执行历史：打卡 / 撤销打卡 二次确认（防误触） -->
+          <div class="chart-confirm" v-if="confirmDate" @click.self="cancelExecConfirm">
+            <div class="idea-choice-box" @click.stop>
+              <div class="idea-choice-title">{{ confirmDone ? '确认撤销这次打卡？' : '确认标记这次已完成？' }}</div>
+              <p class="tip" v-if="confirmDone">撤销后 <b>{{ confirmDate }}</b> 将变回 ⬜ 未完成；该日的归档记录与积分一并回退<span v-if="confirmWillReopen">，母本将退回待归档</span>。</p>
+              <p class="tip" v-else>打卡后 <b>{{ confirmDate }}</b> 记为 ✅ 已完成，并归入「📦 全局已归档仓库」该日期下。</p>
+              <div class="modal-actions">
+                <button class="btn ghost" @click="cancelExecConfirm">取消</button>
+                <button class="btn primary" @click="confirmExecToggle">{{ confirmDone ? '确认撤销' : '确认打卡' }}</button>
               </div>
             </div>
           </div>
@@ -10698,7 +10845,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       monthWin() {
         const now = new Date(); const y = now.getFullYear(), m = now.getMonth() + 1;
         const pad = n => String(n).padStart(2, '0');
-        return { y, m, ws: y + '-' + pad(m) + '-01', we: y + '-' + pad(m) + '-' + pad(new Date(y, m, 0).getDate()), label: '本月 · ' + y + ' 年 ' + m + ' 月' };
+        return { y, m, ws: y + '-' + pad(m) + '-01', we: y + '-' + pad(m) + '-' + pad(new Date(y, m, 0).getDate()), label: y + ' 年 ' + m + ' 月（本月）' };
       },
       // 本周待办：「指定周」类型（week_offset=本周 或 plan_year/plan_week 命中当前周）的主任务 + 子任务副本
       weekPlanItems() {
@@ -11798,7 +11945,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       boardTasks() {
         // 看板任务池：仅含归类为「月计划 / 周计划」的未归档任务
         // 周期类任务（含母本及其按日/按周/按月生成的副本）禁止进入周计划 / 月计划看板，
-        //   统一仅在【今日Tab】/【习惯】展示（每天 / 每周 / 间隔 / 每月周期均不进看板）
+        //   统一仅按「执行历史」投射到【今日Tab】/【习惯】（每天 / 每周 / 间隔 / 每月周期均不进看板）
         const today = this.$store.util.todayStr();
         const list = (this.$store.state.tasks || []).filter(t => {
           if (t.is_archived) return false;
@@ -11836,17 +11983,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               if (this.$store.copyDoneForWindow(t, ws, we)) return false; // 副本「本条完成」后该副本消失，其余副本/母本不变
               // 子任务自身 cycle_end_date 约束：月份窗口完全在结束日之后则不展示
               if (t.cycle_end_date && ws > t.cycle_end_date) return false;
-              // 每月周期（初/末/指定日）：命中所属月任意一天即在该月展示（覆盖固定窗口 6 个月；大小月/2月自动适配）
-              if (t.cycle && t.cycle.type === 'month') {
-                const pad = n => String(n).padStart(2, '0');
-                const last = new Date(y, m, 0).getDate();
-                // 用统一解析器展开候选日：0=月末、区间 3-5=3/4/5、零散数字；覆盖区间与月末（大小月/2月自动适配）
-                const r = this.$store.util.parseCycleRule(t.cycle.rule || '', 'month');
-                const days = new Set([1, last]);
-                if (r.ok) for (const n of r.nums) { if (n === 0) days.add(last); else if (n >= 1 && n <= last) days.add(n); }
-                for (const dd of days) if (this.$store.util.cycleHits(t.cycle, y + '-' + pad(m) + '-' + pad(dd), t.cycle_start_date)) return true;
-                return false;
-              }
+              // 周期任务（母本 / 子任务副本）已在副本池入口整条排除，此处无需再判定 cycle
               return t.plan_year === y && t.plan_month === m;
             }).sort((a, b) => {
               // 紧急置顶：紧急任务统一排到分组最前（无视日期/周期）；取消紧急后立即按原时间顺序复位
@@ -11883,17 +12020,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 if (t.plan_year != null && t.plan_week != null) return t.plan_year === w.year && t.plan_week === w.week;
                 if (t.week_offset != null) return i === t.week_offset;
               }
-              // 每周(cycleType==='week')/间隔(interval)周期：命中该周任意一天即归入此周分组（自动收纳所有每周任务；覆盖固定窗口 3 周）
-              if (t.cycle && (t.cycle.type === 'week' || t.cycle.type === 'interval')) {
-                const pad = n => String(n).padStart(2, '0');
-                const r = U.weekRange(w.year, w.week);
-                for (let i = 0; i < 7; i++) {
-                  const dd = new Date(r.start); dd.setUTCDate(dd.getUTCDate() + i);
-                  const ds = dd.getUTCFullYear() + '-' + pad(dd.getUTCMonth() + 1) + '-' + pad(dd.getUTCDate());
-                  if (this.$store.util.cycleHits(t.cycle, ds, t.cycle_start_date)) return true;
-                }
-                return false;
-              }
+              // 周期任务（母本 / 子任务副本）已在副本池入口整条排除，此处无需再判定 cycle
               if (t.time_mode === 'week') return t.plan_year === w.year && t.plan_week === w.week;
               // 自动周任务：单点按执行日 ISO 周；区间按与本周相交
               if (t.date_mode === 'single' && t.execute_date) {
@@ -12762,7 +12889,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         archLongTimer: null, archSuppressClick: false,
         toast: '', toastTimer: null,
         // 统计板块折叠状态（默认全展开；本地缓存，再次进入保留）
-        collapsed: { habit: false, health: false, arch: false },
+        collapsed: { habit: false, health: false, arch: false, backup: true },
         // 归档仓库：项目条目长按操作弹窗（重命名/删除/取消）+ 项目编辑/删除二次确认
         showProjEdit: false, editPid: null,
         // 演示数据模式（本地持久化）
@@ -12778,7 +12905,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         importFileName: '',
         importModules: [],            // 文件中实际存在的模块 key
         importSel: {},                // 导入时勾选的模块 key -> true
-        // —— 实时自动备份：快照列表（来自独立 localStorage 空间）——
+        // —— 本地自动备份：快照列表（来自独立 localStorage 空间）——
         autoBackups: [],
         autoBackupCap: 5,
       };
@@ -13424,16 +13551,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.importFileRaw = ''; this.importFileName = ''; this.importModules = []; this.importSel = {};
         if (this.$refs.backupFile) this.$refs.backupFile.value = '';
       },
-      // —— 实时自动备份（快照）——
+      // —— 本地自动备份（快照）——
       refreshAutoBackups() {
         // 兜底：进入统计页时若一份快照都没有（如新装 / 清缓存后尚未到首次 30 分钟自动备份），
-        // 立即生成一份，避免列表空白让用户误以为「没有内容」。已有一份则不动，仍按 30 分钟节奏。
+        // 立即生成一份，避免列表空白让用户误以为「没有内容」。已有一份则不动，仍按 30 分钟节奏 + 切后台补备。
         try { if (!this.$store.listAutoBackups().length) this.$store.doAutoBackup(); } catch (e) {}
         try { this.autoBackups = this.$store.listAutoBackups(); } catch (e) { this.autoBackups = []; }
       },
       doAutoBackup() {
         const ok = this.$store.doAutoBackup();
-        this.showToast(ok ? '已生成一份实时备份' : '备份失败（本地存储空间可能不足）');
+        this.showToast(ok ? '已生成一份本地备份' : '备份失败（本地存储空间可能不足）');
         this.refreshAutoBackups();
       },
       restoreAutoBackup(i) {
@@ -13459,6 +13586,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const h = Array.isArray(data.habits) ? data.habits.length : 0;
         return '任务 ' + t + ' · 标签 ' + c + ' · 习惯 ' + h;
       },
+      // 最近一次自动备份是否失败（配额溢出等），用于展示红色提示，避免「静默空白」
+      backupError() { return this.$store.lastBackupError(); },
       moduleLabel(key) { const m = this.$store.backupModules.find(x => x.key === key); return m ? m.label : key; },
       // —— 手机提醒推送（P2：ntfy 延迟消息）——
       notifyGenTopic() {
@@ -13789,16 +13918,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </section>
 
-      <!-- 实时自动备份：独立于主数据的本地快照序列，防误删 / 误覆盖 -->
+      <!-- 本地自动备份：独立于主数据的本地快照序列，防误删 / 误覆盖 / 页面崩溃 -->
       <section class="block">
-        <h3 class="block-title">🔄 实时备份（自动防丢）</h3>
-        <div class="backup-box">
-          <p class="backup-note">每 30 分钟自动生成一份本地快照（仅保留最近 {{ autoBackupCap }} 份，存于<b>独立空间</b>，与主数据隔离）。一旦误删 / 误覆盖，可在此<b>一键恢复到任意一份快照</b>——彻底杜绝「删了收藏夹标签、任务夹的同名标签也跟着没了」这类丢失。</p>
+        <h3 class="block-title" @click="toggleCol('backup')">🔄 本地自动备份 <span class="caret">{{ collapsed.backup ? '▶' : '▼' }}</span></h3>
+        <div class="backup-box" v-show="!collapsed.backup">
+          <p class="backup-note">本地每 <b>30 分钟</b>自动生成一份快照（切到后台 / 关闭页面时也会<b>立即备份</b>），仅保留最近 <b>{{ autoBackupCap }}</b> 份，存于<b>独立空间</b>、与主数据隔离。若页面崩溃或误删 / 误覆盖数据，可在此<b>一键恢复到任意一份快照</b>。</p>
+          <p class="backup-warn" v-if="backupError">{{ backupError }}</p>
           <div class="backup-actions">
             <button class="btn primary" @click="doAutoBackup">📌 立即备份一份</button>
             <button class="btn ghost" @click="refreshAutoBackups">🔃 刷新列表</button>
           </div>
-          <p class="backup-note" v-if="!autoBackups.length">暂无快照——改动任意数据（如打一次卡、加个任务）后会自动生成第一份。</p>
+          <p class="backup-note" v-if="!autoBackups.length">暂无快照——首次自动备份将在 30 分钟内生成，或切到后台 / 关闭页面时立即生成。</p>
           <ul class="ab-list" v-else>
             <li class="ab-item" v-for="(s, i) in autoBackups" :key="i">
               <span class="ab-time">{{ autoBackupTime(s.ts) }}<em v-if="i === 0" class="ab-new">最新</em></span>
@@ -15766,20 +15896,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       ideas() { return this.$store.getIdeas(this.pid); },
       ideaChoiceTitle() { const i = this.ideas.find(x => x.idea_id === this.ideaChoiceId); return i ? i.title : ''; },
       progress() { return this.$store.projectProgress(this.pid); },
-      // 项目整体排期时间胶囊（与子任务页 / 待归档列表进度条右侧的时间标签同款 📅）：
-      // 聚合全部子任务的 sub_start / sub_end 得到项目排期区间；无区间则退化为「总截止日」；再无则 null（不展示）。
-      // 替代原先误用于子任务页的「项目页甘特图可视化」，保证子任务页只呈现子任务自身的时间信息。
-      projTimeCap() {
-        const subs = this.allSubs || [];
-        let min = null, max = null;
-        subs.forEach(s => {
-          if (s.sub_start) { if (!min || s.sub_start < min) min = s.sub_start; }
-          if (s.sub_end) { if (!max || s.sub_end > max) max = s.sub_end; }
-        });
-        if (min && max) return { kind: 'time', icon: '📅', text: min + ' ~ ' + max };
-        if (this.project && this.project.deadline) return { kind: 'time', icon: '📅', text: this.project.deadline };
-        return null;
-      },
       countdown() { return this.project ? this.$store.projectCountdown(this.project.deadline) : null; },
       today() { return this.$store.util.todayStr(); },
       // 所有子任务时间跨度的参考窗口（用于卡片内区间色块定位）；无时间数据则 null
@@ -16047,16 +16163,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <span v-else-if="countdown === 0" class="cd-warn">⏰ 今天到期（{{ project.deadline }}）</span>
           <span v-else class="cd-over">⚠️ 已过期 {{ -countdown }} 天（{{ project.deadline }}）</span>
         </div>
-        <!-- 子任务页进度条右侧同款「时间胶囊 📅」：展示该项目子任务的整体排期（区间起止 / 总截止），
-             替代原先误用的「项目页甘特图可视化」；与子任务行 / 待归档列表的时间标签样式一致 -->
-        <div class="meta-timecap" v-if="projTimeCap">
-          <span class="cap" :class="'cap-' + projTimeCap.kind"><span class="cap-ico">{{ projTimeCap.icon }}</span><span class="cap-txt">{{ projTimeCap.text }}</span></span>
-        </div>
         <div class="meta-prog" v-if="progress !== null">
           <div class="pbar"><div class="pbar-fill" :style="{width: progress + '%'}"></div></div>
           <span class="pct">整体进度 {{ progress }}%</span>
         </div>
-        <div class="meta-none" v-if="!project.deadline && progress === null && !projTimeCap">无总截止 · 无总目标进度</div>
+        <div class="meta-none" v-if="!project.deadline && progress === null">无总截止 · 无总目标进度</div>
       </div>
 
       <div class="tabs">
@@ -16099,14 +16210,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <template v-if="estMin(s) > 0"> / {{ estText(s) }}<span v-if="isOverEst(s)" class="over-txt"> 超</span></template>
             </span>
           </div>
-          <div class="psub-span-wrap" v-if="hasSpan(s)">
+          <div class="psub-span-wrap" v-if="s.sub_start">
             <div class="psub-span-text" :class="{overdue: isOverdue(s.sub_end)}">📅 {{ spanText(s) }}</div>
           </div>
-          <!-- 子任务剩余天数（无 sub_end 不显示；到期红 / 过期灰，复用倒计时配色） -->
+          <!-- 子任务剩余天数（无 sub_end 不显示；到期红 / 过期灰，复用倒计时配色；日期并入括号） -->
           <div class="psub-cd" v-if="s.sub_end">
-            <span v-if="subRemain(s) > 0" class="cd-ok">⏳ 剩余 {{ subRemain(s) }} 天</span>
-            <span v-else-if="subRemain(s) === 0" class="cd-warn">⏰ 今天到期</span>
-            <span v-else class="cd-over">⚠️ 已过期 {{ -subRemain(s) }} 天</span>
+            <span v-if="subRemain(s) > 0" class="cd-ok">⏳ 剩余 {{ subRemain(s) }} 天（{{ s.sub_end }}）</span>
+            <span v-else-if="subRemain(s) === 0" class="cd-warn">⏰ 今天到期（{{ s.sub_end }}）</span>
+            <span v-else class="cd-over">⚠️ 已过期 {{ -subRemain(s) }} 天（{{ s.sub_end }}）</span>
           </div>
           <div class="proj-tags" v-if="s.tags && s.tags.length">
             <span class="ptag" v-for="t in s.tags" :key="t">{{ t }}</span>
