@@ -1862,6 +1862,58 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return false;
   }
 
+  // —— 备份存储后端：优先 IndexedDB（配额远高于 localStorage，彻底规避「本地存储空间不足」导致备份失败）——
+  // IndexedDB 不可用时，降级回 localStorage（沿用 tryWriteBackups 三级降级）。
+  function _idbOpen() {
+    return new Promise(function (resolve, reject) {
+      if (typeof indexedDB === 'undefined') { reject(new Error('no-indexeddb')); return; }
+      let req;
+      try { req = indexedDB.open('mindpocket_backups', 1); }
+      catch (e) { reject(e); return; }
+      req.onupgradeneeded = function () {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('snaps')) db.createObjectStore('snaps', { keyPath: 'id' });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error || new Error('idb-open-failed')); };
+    });
+  }
+  function _idbAll() {
+    return _idbOpen().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const tx = db.transaction('snaps', 'readonly');
+        const r = tx.objectStore('snaps').getAll();
+        r.onsuccess = function () { resolve(r.result || []); };
+        r.onerror = function () { reject(r.error); };
+      });
+    });
+  }
+  function _idbReplaceAll(list) {
+    return _idbOpen().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const tx = db.transaction('snaps', 'readwrite');
+        const store = tx.objectStore('snaps');
+        store.clear();
+        (list || []).forEach(function (s) { store.put(s); });
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+  function _normSnap(s) {
+    s = s || {};
+    const ts = s.ts || Date.now();
+    return { id: s.id || (String(ts) + '_' + Math.random().toString(36).slice(2, 7)), ts: ts, data: s.data || {} };
+  }
+  function _localLoadAll() {
+    try { const raw = localStorage.getItem(AUTO_BACKUP_KEY); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; }
+    catch (e) { return []; }
+  }
+  function _localPersist(list) {
+    // list 为最新在前（倒序），localStorage 旧约定为正序（最新在末尾），需反转后交给 tryWriteBackups
+    return tryWriteBackups((list || []).slice().reverse());
+  }
+
   // 进度记录可选单位（书籍默认「章」而非「页」；内置单位均可被用户删除/新增，不固定）
   const DEFAULT_PROGRESS_UNITS = [
     { id: 'book', icon: '📚', label: '书籍（章）' },
@@ -2106,16 +2158,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 同时生成一份本地快照，作为「页面崩溃 / 误删数据」时的最新可恢复点（独立于防抖落盘节奏）。
   function _onPageHide() {
     if (_persistTimer) flushPersist();   // 先落盘，保证快照基于最新主数据
-    try { if (window.MPStore && window.MPStore.doAutoBackup) window.MPStore.doAutoBackup(); } catch (e) {}
+    try { if (window.MPStore && window.MPStore.doAutoBackup) window.MPStore.doAutoBackup().catch(function () {}); } catch (e) {}
   }
   if (typeof window !== 'undefined') {
+    // 启动即把已有快照（含旧 localStorage 快照）载入内存镜像，保证去重 / 恢复 / 删除基于最新列表
+    setTimeout(function () {
+      try { if (window.MPStore && window.MPStore._loadBackups) window.MPStore._loadBackups().catch(function () {}); } catch (e) {}
+    }, 0);
     window.addEventListener('pagehide', _onPageHide);
     window.addEventListener('beforeunload', _onPageHide);
     document.addEventListener('visibilitychange', function () { if (document.hidden) _onPageHide(); });
     // 本地自动备份：固定每 30 分钟生成一份快照（独立于主数据落盘节奏，保证「每 30 分钟必有一份」）；
     // 切后台 / 关闭页面由 _onPageHide 立即补一份。最多保留最近 5 份（见 AUTO_BACKUP_MAX）。
     setInterval(function () {
-      try { if (window.MPStore && window.MPStore.doAutoBackup) window.MPStore.doAutoBackup(); } catch (e) {}
+      try { if (window.MPStore && window.MPStore.doAutoBackup) window.MPStore.doAutoBackup().catch(function () {}); } catch (e) {}
     }, AUTO_BACKUP_MIN_INTERVAL_MS);
   }
   // 全局刷新通知：自增响应式版本号，供各页面 watch 监听后主动重载数据
@@ -6660,52 +6716,79 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 保留最近 AUTO_BACKUP_MAX（5）份快照，存于独立 key，与主数据隔离，即便主数据被清空也可恢复。
     _autoBackupLast: 0,
     _lastBackupError: null,
-    _saveAutoBackupNow() {
+    _autoBackups: [],            // 内存镜像（最新在前）：UI 直接读取，避免模板依赖同步读盘
+    _autoBackupsReady: false,
+    // 从存储后端加载全部快照（最新在前）；首次启动顺带把旧 localStorage 快照迁移进 IndexedDB
+    async _loadBackups() {
+      let list = [];
+      try { list = await _idbAll(); } catch (e) { list = _localLoadAll(); }
+      if (!list || !list.length) {
+        // 迁移旧 localStorage 快照（仅一次：IndexedDB 为空且 localStorage 仍有数据时）
+        try {
+          const raw = localStorage.getItem(AUTO_BACKUP_KEY);
+          if (raw) {
+            const arr = JSON.parse(raw) || [];
+            if (Array.isArray(arr) && arr.length) {
+              list = arr.map(_normSnap);
+              try { await _idbReplaceAll(list); } catch (e2) {}
+              try { localStorage.removeItem(AUTO_BACKUP_KEY); } catch (e2) {}
+            }
+          }
+        } catch (e) {}
+      }
+      list = (list || []).filter(Boolean).map(_normSnap)
+        .sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); })
+        .slice(0, AUTO_BACKUP_MAX);
+      this._autoBackups = list;
+      this._autoBackupsReady = true;
+      return list;
+    },
+    // 将内存镜像整体写回存储后端（快照极少，≤5，开销可忽略）
+    async _persistBackups() {
+      try { await _idbReplaceAll(this._autoBackups); return true; }
+      catch (e) { return _localPersist(this._autoBackups); }
+    },
+    async _saveAutoBackupNow() {
+      if (!this._autoBackupsReady) { try { await this._loadBackups(); } catch (e) {} }
       this._autoBackupLast = Date.now();
-      let arr = [];
-      try { const raw = localStorage.getItem(AUTO_BACKUP_KEY); if (raw) arr = JSON.parse(raw) || []; } catch (e) {}
-      if (!Array.isArray(arr)) arr = [];
       // exportAll() 返回的是 JSON 字符串，需解析为对象再存，否则快照 data 成为字符串，
       // 导致统计页 autoBackupCount 读不到 tasks/categories/habits（显示「空快照」）。
       let data; try { data = JSON.parse(this.exportAll()); } catch (e) { data = {}; }
-      // 与最新快照完全一致则不再新增：避免「切后台 / 切标签页」瞬间产生大量相同快照，浪费 5 份配额。
-      const last = arr[arr.length - 1];
+      // 与最新快照完全一致则不再新增：避免「切后台 / 切标签页」瞬间产生大量相同快照，浪费配额。
+      const last = this._autoBackups[0];
       if (last && last.data && JSON.stringify(last.data) === JSON.stringify(data)) return true;
-      arr.push({ ts: Date.now(), data: data });
-      if (arr.length > AUTO_BACKUP_MAX) arr = arr.slice(arr.length - AUTO_BACKUP_MAX);
-      // 写入（配额溢出自动分级降级：全量 → 仅最新1份 → 剔除重型字段；全失败则记可见错误，杜绝「静默空白」）
-      const ok = tryWriteBackups(arr);
+      const snap = _normSnap({ ts: Date.now(), data: data });
+      let arr = this._autoBackups.slice();
+      arr.unshift(snap);
+      if (arr.length > AUTO_BACKUP_MAX) arr = arr.slice(0, AUTO_BACKUP_MAX);
+      this._autoBackups = arr;
+      const ok = await this._persistBackups();
       this._lastBackupError = ok ? null : '本地存储空间不足，自动备份未能保存（请到浏览器设置清理站点数据，或改用「导出文件备份」）';
-      if (!ok) console.warn('[MP] autobackup write failed: localStorage quota exceeded');
+      if (!ok) console.warn('[MP] autobackup write failed');
       return ok;
     },
     // 最近一次自动备份是否失败（UI 用于展示提示，避免静默空白让用户误以为没功能）
     lastBackupError() { return this._lastBackupError || null; },
     listAutoBackups() {
-      // 最新快照排在最前（倒序），与统计页「最新备份在最上面」的展示一致；
-      // 恢复 / 删除均按同一数组索引操作，倒序不影响其正确性。
-      try { const raw = localStorage.getItem(AUTO_BACKUP_KEY); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr.slice().reverse() : []; }
-      catch (e) { return []; }
+      // 最新快照排在最前（倒序），与统计页「最新备份在最上面」的展示一致
+      return this._autoBackups.slice();
     },
     // 立即生成一份快照（不受节流限制），返回是否成功
     doAutoBackup() {
-      return !!this._saveAutoBackupNow();
+      return this._saveAutoBackupNow();
     },
     // 从指定快照恢复（等价于 importAll 覆盖，但来源是本地快照）
     restoreAutoBackup(idx) {
-      const arr = this.listAutoBackups();
-      const snap = arr[idx];
+      const snap = this._autoBackups[idx];
       if (!snap || !snap.data) throw new Error('快照不存在或已损坏');
       this.importAll(snap.data);
     },
-    deleteAutoBackup(idx) {
-      const arr = this.listAutoBackups();   // 倒序视图（最新在前）
-      if (idx < 0 || idx >= arr.length) return;
+    async deleteAutoBackup(idx) {
+      if (idx < 0 || idx >= this._autoBackups.length) return;
+      const arr = this._autoBackups.slice();
       arr.splice(idx, 1);
-      // listAutoBackups 返回的是倒序视图，写回本地存储前须还原为正序（最新在末尾），
-      // 以兼容 _saveAutoBackupNow 的「push 到末尾 + slice 截留最近 N 份」约定。
-      const back = arr.slice().reverse();
-      try { localStorage.setItem(AUTO_BACKUP_KEY, JSON.stringify(back)); } catch (e) {}
+      this._autoBackups = arr;
+      await this._persistBackups();
     },
     // 仅导出「财务复盘」Tab 的数据（数据隔离，不含其他模块）
     exportFinance() {
@@ -13552,28 +13635,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.$refs.backupFile) this.$refs.backupFile.value = '';
       },
       // —— 本地自动备份（快照）——
-      refreshAutoBackups() {
+      async refreshAutoBackups() {
         // 兜底：进入统计页时若一份快照都没有（如新装 / 清缓存后尚未到首次 30 分钟自动备份），
         // 立即生成一份，避免列表空白让用户误以为「没有内容」。已有一份则不动，仍按 30 分钟节奏 + 切后台补备。
-        try { if (!this.$store.listAutoBackups().length) this.$store.doAutoBackup(); } catch (e) {}
+        try { if (!this.$store.listAutoBackups().length) await this.$store.doAutoBackup(); } catch (e) {}
         try { this.autoBackups = this.$store.listAutoBackups(); } catch (e) { this.autoBackups = []; }
       },
-      doAutoBackup() {
-        const ok = this.$store.doAutoBackup();
+      async doAutoBackup() {
+        let ok = false;
+        try { ok = await this.$store.doAutoBackup(); } catch (e) { ok = false; }
         this.showToast(ok ? '已生成一份本地备份' : '备份失败（本地存储空间可能不足）');
-        this.refreshAutoBackups();
+        await this.refreshAutoBackups();
       },
-      restoreAutoBackup(i) {
+      async restoreAutoBackup(i) {
         const s = this.autoBackups[i];
         if (!s) return;
         const ok = window.confirm('恢复到「' + this.autoBackupTime(s.ts) + '」的快照？\n当前数据将被该快照覆盖（恢复后仍可再恢复其它快照回到现在）。');
         if (!ok) return;
-        try { this.$store.restoreAutoBackup(i); this.showToast('已从快照恢复，数据已刷新'); this.refreshAutoBackups(); }
-        catch (e) { this.showToast('恢复失败：' + (e && e.message ? e.message : e)); }
+        try { this.$store.restoreAutoBackup(i); this.showToast('已从快照恢复，数据已刷新'); }
+        catch (e) { this.showToast('恢复失败：' + (e && e.message ? e.message : e)); return; }
+        await this.refreshAutoBackups();
       },
-      deleteAutoBackup(i) {
-        this.$store.deleteAutoBackup(i);
-        this.refreshAutoBackups();
+      async deleteAutoBackup(i) {
+        try { await this.$store.deleteAutoBackup(i); } catch (e) {}
+        await this.refreshAutoBackups();
       },
       autoBackupTime(ts) {
         const d = new Date(ts); const p = n => String(n).padStart(2, '0');
