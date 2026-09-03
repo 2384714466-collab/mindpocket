@@ -2231,6 +2231,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.project_ideas = o.project_ideas || [];
       state.project_folders = o.project_folders || [];
       state.sub_custom_statuses = o.sub_custom_statuses || [];
+      // 任务表实例（含填报时长 durationSec / 手动耗时 manualMin / 计时态）—— 刷新必须原样恢复，否则重新生成实例会丢失已填报时长
+      state.taskBoard = (o.taskBoard && Array.isArray(o.taskBoard.instances)) ? o.taskBoard : { instances: [] };
       state.wish_items = o.wish_items || [];
       state.wish_records = o.wish_records || [];
       state.progressUnits = (o.progressUnits && Array.isArray(o.progressUnits) && o.progressUnits.length)
@@ -10772,7 +10774,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       taskAddCat: '', taskAddPreset: '', taskAddMonth: null, taskAddDate: '', taskAddWeek: null,
       // —— 滑动打卡窗口：本周/本月区块传入所在周期窗口，今日区块为空（回落 selectedDate）——
       dragWin: null }; },
-    created() { this.selectedDate = this.$store.util.todayStr(); },
+    created() {
+      this.selectedDate = this.$store.util.todayStr();
+      // 该日无待办时，周计划看板默认展开；其余情况保持原折叠设计（待归档的周计划看板为独立组件，不受影响）
+      this.planOpen.week = this.noDayTasks;
+    },
     computed: {
       today() { return this.$store.util.todayStr(); },
       // —— 今日页日期表头倒数小模块 ——
@@ -10851,6 +10857,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       timedItems() { return this.mergedDateItems.filter(it => this.hasRemindTime(it.data)); },
       // B 区条目（未配置提醒时间的主任务 + 子任务副本）
       untimedItems() { return this.mergedDateItems.filter(it => !this.hasRemindTime(it.data)); },
+      // 该日是否「暂无待办与子任务」（与 empty-tip 显示条件完全一致）：用于决定周计划看板默认展开
+      noDayTasks() { return !this.timedGroups.length && !this.untimedItems.length; },
       // A 区时间轴节点：以「提醒时刻」聚合，同一时刻下堆叠多条父/子任务；节点按时刻升序
       timedGroups() {
         const map = new Map();
@@ -11211,6 +11219,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     watch: {
       '$store.state.revision'() { this.$forceUpdate(); },
+      // 切到「无待办日」时周计划看板默认展开；切回「有待办日」不强制收起（保持用户态/原设计）；同日期内手动折叠仍生效
+      noDayTasks(v) { if (v) this.planOpen.week = true; },
     },
     template: `
     <div class="page">
