@@ -9677,11 +9677,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const bg = dx < -TH ? 'rgba(46,204,113,0.15)' : (dx > TH ? 'rgba(231,76,60,0.12)' : 'transparent');
         return { transform: `translateX(${dx}px)`, transition: this.dragging ? 'none' : 'transform .18s ease', background: bg };
       },
+      // 滑动「完成 / 撤销」提示条方向：左滑→绿色「完成」(right)、右滑→橙色「撤销」(left)，
+      // 与主任务行 rowHintDir/rowHintText 口径完全一致；仅在已开始横向拖动（moved）时显示，避免误触抖动
+      cardHintDir() {
+        if (this.dragId !== this.sub._id || !this.moved) return '';
+        const TH = this.$store.SWIPE_TRIGGER_PX;
+        if (this.dx < -TH) return 'right';
+        if (this.dx > TH) return 'left';
+        return '';
+      },
+      cardHintText() {
+        if (this.dragId !== this.sub._id || !this.moved) return '';
+        const TH = this.$store.SWIPE_TRIGGER_PX;
+        if (this.dx < -TH) return '✓ 完成';
+        if (this.dx > TH) return '↺ 撤销';
+        return '';
+      },
     },
     template: `
     <div class="row task-row subtask-copy swipeable" @click="onClick" :style="cardStyle"
          :class="{ 'emergency-bg': sub.isEmergency, 'is-overdue': overdue }"
          @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
+      <div class="swipe-hint" :class="cardHintDir()" v-if="cardHintDir()">{{ cardHintText() }}</div>
       <button class="row-emg-btn" :class="{on:sub.isEmergency}" @click.stop="toggleEmg" :title="sub.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ sub.isEmergency ? '🚨' : '🚩' }}</button>
       <button v-if="overdue && !sub.cycle" class="row-ext" @click.stop="$emit('extend', sub._id, parentId)" title="推迟到下一周 / 下一月">⏩ 延期</button>
       <div class="row-main">
@@ -12671,6 +12688,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                @pointerup="r.isSub ? void(0) : rowUp($event, r.task)"
                @pointercancel="r.isSub ? void(0) : rowUp($event, r.task)"
                @click="r.isSub ? onSubEdit(r.sub._id, r.parent._id) : onRowClick(r.task)">
+            <div class="swipe-hint" :class="rowHintDir(r.task._id)" v-if="!r.isSub && rowHintDir(r.task._id)">{{ rowHintText(r.task._id) }}</div>
             <div class="row-main">
               <div class="row-title">
                 <span class="rt-text"><template v-if="r.isSub">↳ {{ r.sub.title }}</template><template v-else>{{ r.task.title }}</template></span>
