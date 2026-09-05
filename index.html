@@ -421,6 +421,21 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 /* 今日页：日计划任务「退回周计划」按钮 */
 .row-back-btn { flex: 0 0 auto; background: #e8effe; color: #3a63c8; font-size: 12px; padding: 6px 10px; border-radius: var(--radius-sm); }
 
+/* 周看板「指定周」任务快捷「安排」按钮 + 弹层 */
+.row-sched-btn { flex: 0 0 auto; margin-right: 2px; background: #eef7ff; color: #2f6fd8; border: 1px solid #bcd6f5; border-radius: var(--radius-round); font-size: 12px; font-weight: 600; line-height: 1; display: flex; align-items: center; justify-content: center; padding: 0 9px; height: 30px; cursor: pointer; white-space: nowrap; touch-action: manipulation; }
+.row-sched-btn:active { transform: scale(.94); }
+.wk-sched { position: relative; display: inline-flex; }
+.wk-sched-mask { position: fixed; inset: 0; z-index: 9990; background: transparent; }
+.wk-sched-pop { position: fixed; z-index: 9991; width: 240px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 10px; }
+.wk-sched-h { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.wk-sched-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
+.wk-sched-days button { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #f4f7fc; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 0; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; touch-action: manipulation; }
+.wk-sched-days button .wk-sched-date { font-size: 9px; font-weight: 400; color: var(--sub); }
+.wk-sched-days button:active { background: #e6effb; }
+.wk-sched-acts { display: flex; flex-direction: column; gap: 6px; }
+.wk-sched-acts button { background: #fff3e3; border: 1px solid #f3d2b0; border-radius: var(--radius-sm); padding: 8px 0; font-size: 12px; font-weight: 600; color: #e8862b; cursor: pointer; touch-action: manipulation; }
+.wk-sched-acts button:active { background: #ffe9cf; }
+
 /* ============ 已归档分组 ============ */
 .archived-group { margin-top: 14px; }
 .archived-toggle { width: 100%; text-align: left; background: #f0f1f6; color: var(--sub); padding: 10px 12px; font-size: 13px; }
@@ -4439,6 +4454,42 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     } else return;
     persist();
   }
+  // 指定周任务「安排到某天」：退出指定周，转为单点执行日（落入该日今日/待办）
+  // subId 非空时操作该父任务下的指定周子任务；dateStr 为 YYYY-MM-DD（目标周内某天）
+  function scheduleSpecifiedToDate(id, subId, dateStr) {
+    if (!dateStr) return;
+    const t = findTask(id);
+    if (!t) return;
+    const obj = subId ? (t.sub_tasks || []).find(s => s._id === subId) : t;
+    if (!obj || obj.time_mode !== 'week') return;
+    const patch = {
+      time_mode: null,
+      date_mode: 'single',
+      plan_year: null, plan_month: null, plan_week: null,
+      week_offset: null,
+      execute_date: dateStr,
+      date_start: '', date_end: '',
+      cycle: obj.cycle || null,
+    };
+    if (subId) updateSubTask(id, subId, patch);
+    else updateTask(id, patch);
+    persist();
+  }
+  // 指定周任务「推迟」：把冻结的目标周向后推 n 周（1=下一周, 2=下下一周）
+  function postponeSpecifiedWeek(id, subId, n) {
+    const t = findTask(id);
+    if (!t) return;
+    const obj = subId ? (t.sub_tasks || []).find(s => s._id === subId) : t;
+    if (!obj || obj.time_mode !== 'week') return;
+    if (obj.plan_year == null || obj.plan_week == null) return;
+    const sunday = weekRange(obj.plan_year, obj.plan_week).end;     // 目标周周日
+    const next = new Date(sunday); next.setDate(next.getDate() + (n || 1) * 7);
+    const nw = isoWeek(next);
+    const patch = { plan_year: nw.year, plan_week: nw.week };
+    if (subId) updateSubTask(id, subId, patch);
+    else updateTask(id, patch);
+    persist();
+  }
 
   // 周期任务到期自动归档：cycle_end_date 非空且早于今天 → 母本归档，停止生成所有副本（永久终止同步）
   function autoArchiveExpiredCycles() {
@@ -6698,7 +6749,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
     isCopyArchived, copyShouldRender, archiveMasterCopies, trimCycleCopiesAfterEnd,
     // 周期「延期机制」：模式分派与滚动链排期
@@ -8235,8 +8286,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const w = U.isoWeek(d2);
       return { date_mode: 'week', time_mode: 'week', week_offset: off, plan_year: w.year, plan_month: null, plan_week: w.week, execute_date: null, date_start: '', date_end: '', cycle: null };
     }
-    // 未设置日期：保持已有 execute_date（若有），不清空用户已设的日期数据
-    return { date_mode: 'single', plan_year: null, plan_month: null, plan_week: null, execute_date: d.execute_date || null, date_start: d.date_start || '', date_end: d.date_end || '' };
+    // 未设置日期：彻底清除全部「指定周/指定月/时间」标识（含 time_mode / week_offset / plan 字段），
+    // 避免清除时间后旧标识残留（主任务 extra 不显式补这两个字段，靠此处兜底清空，否则 time_mode 残留 'week'、week_offset 残留旧值 → 仍显示「本周」）
+    return { date_mode: 'single', plan_year: null, plan_month: null, plan_week: null, time_mode: null, week_offset: null, execute_date: d.execute_date || null, date_start: d.date_start || '', date_end: d.date_end || '' };
   }
   // 由已有任务推导编辑态 date_mode（用于初始化 draft）
   function dateModeOfTask(t) {
@@ -8387,6 +8439,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       clearTime() {
         this.draft.date_mode = ''; this.draft.plan_month = ''; this.draft.execute_date = '';
         this.draft.date_start = ''; this.draft.date_end = ''; this.draft.cycle = null; this.draft.week_offset = null;
+        // 「指定周」残留标识一并清除：time_mode / plan_year / plan_week（默认分支兜底清空，这里同步保证草稿自洽）
+        this.draft.time_mode = null; this.draft.plan_year = null; this.draft.plan_week = null;
         this.draft.cycle_start_date = ''; this.draft.cycle_end_date = ''; this.draft.cycle_end_mode = ''; this.draft.cycle_end_count = 0; this.draft.cycle_delay_mode = 'recount';
         // 彻底清空提醒时刻（remind_time 置空）+ 取消提醒复选框（v-model 双向绑定随之取消勾选）
         this.draft.remind_time = ''; this.draft.enable_remind = false;
@@ -9587,6 +9641,103 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   };
 
   /* =====================================================================
+   * WeekScheduleBtn —— 周看板中「指定周」任务的快捷「安排」按钮
+   * 仅对 time_mode==='week' 的条目显示；点击弹出小面板：
+   *   - 安排到目标周（本周/下周/…）的某一天（转为单点执行日，离开指定周，落入该日今日/待办）
+   *   - 推迟到下周 / 下下周（冻结目标周向后推 1/2 周）
+   * 面板用 <Teleport to="body"> 渲染到 body，彻底脱离 .row 的 will-change:transform 包含块与
+   * .board-group 的 overflow:hidden 裁剪（否则 position:fixed 会相对 .row 定位并被看板裁掉，看起来像“点了没反应”）
+   * ===================================================================== */
+  C.WeekScheduleBtn = {
+    name: 'WeekScheduleBtn',
+    props: {
+      task: { type: Object, required: true },   // 主任务或子任务对象
+      subId: { type: String, default: '' },       // 子任务时填其 _id
+      parentId: { type: String, default: '' },     // 主任务=task._id；子任务=父任务 _id（缺省回退 task._id）
+    },
+    data() { return { open: false, pop: { top: 0, left: 0 } }; },
+    computed: {
+      isSpecWeek() { return !!(this.task && this.task.time_mode === 'week'); },
+      // 目标周（冻结的绝对 ISO 周）→ { y, w, start(Date) }
+      targetWeek() {
+        const t = this.task;
+        if (!t || t.time_mode !== 'week') return null;
+        const U = this.$store.util;
+        let y, w;
+        if (t.plan_year != null && t.plan_week != null) { y = t.plan_year; w = t.plan_week; }
+        else if (t.week_offset != null) {
+          const base = U.parseDate(U.todayStr());
+          const d = new Date(base); d.setDate(d.getDate() + (t.week_offset || 0) * 7);
+          const iw = U.isoWeek(d); y = iw.year; w = iw.week;
+        } else return null;
+        return { y, w, start: U.weekRange(y, w).start };
+      },
+      // 目标周相对当前周的偏移（0=本周, 1=下周, 2=下下周, …）
+      curOff() {
+        const tw = this.targetWeek; if (!tw) return 0;
+        const U = this.$store.util;
+        const cur = U.isoWeek(U.parseDate(U.todayStr()));
+        const curStart = U.weekRange(cur.year, cur.week).start;
+        return Math.round((tw.start - curStart) / 86400000 / 7);
+      },
+      // 目标周七天（周一..周日）的日期按钮
+      days() {
+        const tw = this.targetWeek; if (!tw) return [];
+        const wd = ['日', '一', '二', '三', '四', '五', '六'];
+        const out = [];
+        let d = new Date(tw.start);
+        for (let i = 0; i < 7; i++) {
+          out.push({ ds: this.fmtU(d), label: wd[d.getUTCDay()] });
+          d.setUTCDate(d.getUTCDate() + 1);
+        }
+        return out;
+      },
+    },
+    methods: {
+      fmtU(d) { const p = n => String(n).padStart(2, '0'); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); },
+      offLabel(o) { if (o <= 0) return '本周'; if (o === 1) return '下周'; if (o === 2) return '下下周'; return '下' + o + '周'; },
+      openPop(e) {
+        const r = e.currentTarget.getBoundingClientRect();
+        const W = (typeof window !== 'undefined') ? window.innerWidth : 320;
+        const H = (typeof window !== 'undefined') ? window.innerHeight : 640;
+        const EST_H = 220; // 弹层估算高度，用于就近翻转
+        let top = r.bottom + 6;
+        if (top + EST_H > H) top = Math.max(8, r.top - EST_H - 6); // 底部空间不足 → 翻到按钮上方
+        this.pop = { top: Math.round(top), left: Math.min(Math.round(r.left), W - 248) };
+        this.open = true;
+      },
+      close() { this.open = false; },
+      pickDay(ds) {
+        const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
+        this.$store.scheduleSpecifiedToDate(pid, this.subId || null, ds);
+        this.open = false;
+      },
+      postpone(n) {
+        const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
+        this.$store.postponeSpecifiedWeek(pid, this.subId || null, n);
+        this.open = false;
+      },
+    },
+    template: `
+    <span class="wk-sched" v-if="isSpecWeek">
+      <button class="row-sched-btn" @click.stop="openPop($event)" @pointerdown.stop title="安排到某天 / 推迟">安排</button>
+      <Teleport to="body" v-if="open">
+        <div class="wk-sched-mask" @click.stop="close"></div>
+        <div class="wk-sched-pop" :style="{ top: pop.top + 'px', left: pop.left + 'px' }">
+          <div class="wk-sched-h">安排到{{ offLabel(curOff) }}的某天</div>
+          <div class="wk-sched-days">
+            <button v-for="d in days" :key="d.ds" @click.stop="pickDay(d.ds)">{{ d.label }}<span class="wk-sched-date">{{ d.ds.slice(5) }}</span></button>
+          </div>
+          <div class="wk-sched-acts">
+            <button @click.stop="postpone(1)">⏩ 推迟到{{ offLabel(curOff + 1) }}</button>
+            <button @click.stop="postpone(2)">⏩ 推迟到{{ offLabel(curOff + 2) }}</button>
+          </div>
+        </div>
+      </Teleport>
+    </span>`,
+  };
+
+  /* =====================================================================
    * SubTaskCopyCard —— 子任务「副本」标准卡片（今日 / 看板 共用）
    * 仅展示：上层 = 标题 + 🔁循环箭头 + 浅绿色周期标签（同行）；下层 = 灰色描述（无描述填"无描述"）
    * 无复选框 / 删除按钮；保留左滑归档、长按编辑（改动同步母本）
@@ -9603,6 +9754,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       overdue: { type: Boolean, default: false },
     },
     emits: ['archive', 'unarchive', 'edit', 'extend'],
+    components: { WeekScheduleBtn: C.WeekScheduleBtn },
     data() {
       return {
         dragId: null, startX: 0, dx: 0, dragging: false, moved: false,
@@ -9708,6 +9860,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="row-sub subtask-desc">{{ sub.desc || '无描述' }}<span class="tag cat" v-for="tg in catChips" :key="tg">{{ tg }}</span><span v-if="parentCap" class="cap" :class="'cap-'+parentCap.kind"><span class="cap-ico">{{ parentCap.icon }}</span><span class="cap-txt">{{ parentCap.text }}</span></span></div>
         <div class="row-prog prog-sync" v-if="$progressSync(sub)">📊 {{ $progressSync(sub) }}</div>
       </div>
+      <WeekScheduleBtn v-if="inWeek" :task="sub" :sub-id="sub._id" :parent-id="parentId" />
     </div>`,
   };
 
@@ -10773,7 +10926,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   ];
   C.TodayPage = {
     name: 'TodayPage',
-    components: { HandCards: C.HandCards, HabitManageModal: C.HabitManageModal, HabitEditModal: C.HabitEditModal, HabitTypeChooseModal: C.HabitTypeChooseModal, TaskDetailModal: C.TaskDetailModal, TaskAddModal: C.TaskAddModal, ReadingSyncModal: C.ReadingSyncModal, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal, LeisureCard: C.LeisureCard, WishPool: C.WishPool },
+    components: { HandCards: C.HandCards, HabitManageModal: C.HabitManageModal, HabitEditModal: C.HabitEditModal, HabitTypeChooseModal: C.HabitTypeChooseModal, TaskDetailModal: C.TaskDetailModal, TaskAddModal: C.TaskAddModal, ReadingSyncModal: C.ReadingSyncModal, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal, LeisureCard: C.LeisureCard, WishPool: C.WishPool, WeekScheduleBtn: C.WeekScheduleBtn },
     data() { return { manageHabitId: null, manageFromEdit: false, showHabitEdit: false, editHabitId: null, detailId: null, quickCollapsed: false, addType: 'RECORD_HABIT', showTypeChoose: false, showTaskAdd: false, pressId: null, startY: 0, pressTimer: null, pendingUndo: null,
       // —— 习惯 / 闲趣随机卡 区块折叠：默认全部收起；切 tab 重新挂载即回到默认折叠态 ——
       collapsed: { record: true, quit: true, leisure: true },
@@ -11329,6 +11482,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <div class="row-sub">{{ it.data.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span></div>
                     <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
                   </div>
+                  <WeekScheduleBtn v-if="it.data.time_mode==='week'" :task="it.data" />
                 </div>
               </template>
             </div>
@@ -11929,7 +12083,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * ===================================================================== */
   C.InboxPage = {
     name: 'InboxPage',
-    components: { TaskDetailModal: C.TaskDetailModal, CategoryManageModal: C.CategoryManageModal, AiTaskPreviewModal: C.AiTaskPreviewModal, TaskAddModal: C.TaskAddModal, CategoryEditModal: C.CategoryEditModal, InboxSubPage: C.InboxSubPage, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal },
+    components: { TaskDetailModal: C.TaskDetailModal, CategoryManageModal: C.CategoryManageModal, AiTaskPreviewModal: C.AiTaskPreviewModal, TaskAddModal: C.TaskAddModal, CategoryEditModal: C.CategoryEditModal, InboxSubPage: C.InboxSubPage, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal, WeekScheduleBtn: C.WeekScheduleBtn },
     data() {
       const LS = (k, d) => { try { const v = localStorage.getItem('mindpocket:' + k); return v === null ? d : v; } catch (e) { return d; } };
       return {
@@ -12873,6 +13027,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <div class="row-sub">{{ t.desc || '无描述' }}<span v-if="quickBadge(t)" class="mode-badge m-quick">📌临时</span><span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
                   </div>
+                  <WeekScheduleBtn v-if="t.time_mode==='week'" :task="t" />
                 </div>
                 <SubTaskCopyCard v-else :sub="t" :parent="$store.findTask(t._parentId)" :win-start="t._od ? t._od.ws : g.ws" :win-end="t._od ? t._od.we : g.we" :in-week="boardSub==='week'" :overdue="!!g.overdue" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" @extend="onSubExtend" />
               </template>
