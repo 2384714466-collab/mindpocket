@@ -435,6 +435,10 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .wk-sched-acts { display: flex; flex-direction: column; gap: 6px; }
 .wk-sched-acts button { background: #fff3e3; border: 1px solid #f3d2b0; border-radius: var(--radius-sm); padding: 8px 0; font-size: 12px; font-weight: 600; color: #e8862b; cursor: pointer; touch-action: manipulation; }
 .wk-sched-acts button:active { background: #ffe9cf; }
+.wk-sched-weeks { display: flex; gap: 6px; margin-top: 8px; }
+.wk-sched-weeks button { flex: 1; background: #f4f7fc; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 0; font-size: 12px; font-weight: 600; color: var(--text); cursor: pointer; touch-action: manipulation; }
+.wk-sched-weeks button.on { background: #e6effb; border-color: var(--primary); color: var(--primary); }
+.wk-sched-weeks button:active { background: #e6effb; }
 
 /* ============ 已归档分组 ============ */
 .archived-group { margin-top: 14px; }
@@ -2665,7 +2669,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       cycle_delay_mode: 'recount',
       doneDates: [],
       doneOverdueDates: [],
-      is_template: false, is_collection: false,
+      is_template: false, is_collection: false, showArrangeBtn: true,
       material_link: '',
       // —— 紧急任务标记：勾选后无视所有日期/周期排序，强制置顶今日Tab，需优先完成 ——
       isEmergency: false,
@@ -2942,6 +2946,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       return (d && cycleHits(t.cycle, d, t.cycle_start_date)) ? d : '';
     }
     const cycle = t.cycle, lower = t.cycle_start_date || '';
+    // 卡住重算（recount）· 浮动类型（interval / day>1）：补卡后未来段从「真实完成日(_anchor)」顺延，
+    // 首个 ≥ 完成日且未完成的发生日即「当前应打卡日」，实现「从当日开始重新计算」。
+    // 其余机制（extend 忽视漏卡保留原网格 / independent 固定排期）维持原滚动链口径。
+    if (mode === 'recount') {
+      const n = parseInt(cycle.rule, 10) || 1;
+      const isFloat = (cycle.type === 'interval') || (cycle.type === 'day' && n > 1);
+      if (isFloat && cycle._anchor) {
+        const today = todayStr();
+        let ds = cycle._anchor;
+        // 跳过已完成（含锚点自身，其真实完成日即归档日）直至首个 ≥ 今日 且未完成的发生日
+        while (ds < today || cycleArchivedToday(t, ds)) ds = addDays(ds, n);
+        let guard = 0;
+        while (ds && guard < 4000) {
+          if (!cycleArchivedToday(t, ds)) return ds;
+          ds = addDays(ds, n); guard++;
+        }
+        return '';
+      }
+    }
     const start = cycleRollAnchor(t);
     let occ = cycleHits(cycle, start, lower) ? start : nextCycleHit(cycle, addDays(start, -1), lower);
     let n = 0;
@@ -3040,7 +3063,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (t.cycle_end_date) maxDate = t.cycle_end_date;
     else if (isCount) maxDate = addDays(today, fut + baseCount * 5); // 次数模式给足窗口容纳漏卡扩展
     else maxDate = addDays(today, fut);
-    let occs = rollCycleOccurrences(cycle, maxDate, lower);
+    // 卡住重算（recount）· 浮动类型（interval / day>1）：补卡后未来段从「真实完成日(_anchor)」顺延（完成日+N），
+    // 与 cycleCurrentDue 的锚点逻辑一致，落实「补卡后从当日开始重新计算」。
+    // 计划段（_base 网格截至锚点）保留历史已打卡发生日；extend / week / month / count 维持原滚动链口径（不滑动）。
+    const isFloat = (cycle.type === 'interval') || (cycle.type === 'day' && parseInt(cycle.rule, 10) > 1);
+    let occs;
+    if (mode === 'recount' && isFloat && cycle._anchor) {
+      const n = parseInt(cycle.rule, 10) || 1;
+      const past = rollCycleOccurrences(cycle, cycle._anchor, lower); // _base 网格：base → 锚点（含历史已完成发生日）
+      const fut2 = [];
+      let fs = addDays(cycle._anchor, n); // 未来段从「完成日+N」起步（完成日本身已归档，顺延跳过）
+      while (fs <= maxDate) { fut2.push(fs); fs = addDays(fs, n); }
+      const set = {};
+      past.concat(fut2).forEach(d => { if (d <= maxDate) set[d] = 1; });
+      occs = Object.keys(set).sort();
+    } else {
+      occs = rollCycleOccurrences(cycle, maxDate, lower);
+    }
     const doneSet = {}, overSet = {};
     (t.cycle_history || []).forEach(h => { if (h.is_archived) { doneSet[h.execute_date] = 1; if (h.overdue) overSet[h.execute_date] = 1; } });
     const isDone = ds => !!doneSet[ds];
@@ -4486,6 +4525,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const next = new Date(sunday); next.setDate(next.getDate() + (n || 1) * 7);
     const nw = isoWeek(next);
     const patch = { plan_year: nw.year, plan_week: nw.week };
+    if (subId) updateSubTask(id, subId, patch);
+    else updateTask(id, patch);
+    persist();
+  }
+  // 无日期任务「安排」：快捷安排到某天单点执行日（不改变原无日期语义；仅追加单点日期）
+  function scheduleTaskToDate(id, subId, dateStr) {
+    if (!dateStr) return;
+    const t = findTask(id);
+    if (!t) return;
+    const obj = subId ? (t.sub_tasks || []).find(s => s._id === subId) : t;
+    if (!obj) return;
+    const patch = {
+      date_mode: 'single',
+      execute_date: dateStr,
+      time_mode: null,
+      week_offset: null,
+      plan_year: null, plan_month: null, plan_week: null,
+      date_start: '', date_end: '',
+      cycle: obj.cycle || null,
+    };
     if (subId) updateSubTask(id, subId, patch);
     else updateTask(id, patch);
     persist();
@@ -6749,7 +6808,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
     isCopyArchived, copyShouldRender, archiveMasterCopies, trimCycleCopiesAfterEnd,
     // 周期「延期机制」：模式分派与滚动链排期
@@ -8692,6 +8751,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn clear-time" @click="clearTime">🧹 清除全部时间</button>
             </div>
           </div>
+          <!-- 安排按钮：是否在条目上显示「安排」按钮（默认勾选；取消则所有场景隐藏） -->
+          <div class="board-group sub">
+            <div class="grp-body">
+              <label class="fld check"><input type="checkbox" v-model="draft.showArrangeBtn" /> 安排按钮是否展现于条目</label>
+            </div>
+          </div>
           <p class="tip" v-if="isColl">📦 收藏夹任务不支持设置时间（日期 / 周期）。</p>
           <!-- 启动进度记录（折叠） -->
           <div class="board-group sub">
@@ -8785,6 +8850,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle: null,
           progress_info: { enable: false, media_type: 'book', progress_value: '' },
           isEmergency: false,
+          showArrangeBtn: true,
         },
       };
     },
@@ -8831,6 +8897,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle_delay_mode: this.draft.cycle_delay_mode || 'recount',
           progress_info: this.draft.progress_info,
           isEmergency: !!this.draft.isEmergency,
+          showArrangeBtn: this.draft.showArrangeBtn !== false,
         });
         if (this.draft.hasLevel3 && this.draft.level3Chain) {
           this.$store.addTaskUnderLevel3(fields, this.draft.level3Chain);
@@ -9655,9 +9722,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       subId: { type: String, default: '' },       // 子任务时填其 _id
       parentId: { type: String, default: '' },     // 主任务=task._id；子任务=父任务 _id（缺省回退 task._id）
     },
-    data() { return { open: false, pop: { top: 0, left: 0 } }; },
+    data() { return { open: false, pop: { top: 0, left: 0 }, weekOffset: 0 }; },
     computed: {
       isSpecWeek() { return !!(this.task && this.task.time_mode === 'week'); },
+      // 是否「无任何日期」的任务（无周期 / 无指定周 / 无单点 / 无区间 / 无年月周计划）
+      noDate() {
+        const t = this.task;
+        if (!t) return false;
+        if (t.cycle) return false;
+        if (t.time_mode) return false;                 // 'week' / 'month'
+        if (t.execute_date) return false;
+        if (t.date_start) return false;                // 自定义区间
+        if (t.plan_year && (t.plan_month || t.plan_week)) return false;
+        return true;
+      },
+      // 是否展现「安排」按钮（按任务级开关，默认展现）
+      showArrange() { return this.task ? (this.task.showArrangeBtn !== false) : false; },
+      // 仅当「指定周」或「无日期」且允许展现时才显示按钮
+      visible() { return (this.isSpecWeek || this.noDate) && this.showArrange; },
       // 目标周（冻结的绝对 ISO 周）→ { y, w, start(Date) }
       targetWeek() {
         const t = this.task;
@@ -9692,6 +9774,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         return out;
       },
+      // 「无日期」任务快捷安排：以 weekOffset 定位目标周（0=本周,1=下周,2=下下周），返回该周七天
+      thisWeekDays() {
+        const U = this.$store.util;
+        const cur = U.isoWeek(U.parseDate(U.todayStr()));
+        const baseStart = U.weekRange(cur.year, cur.week).start;
+        const start = new Date(baseStart);
+        start.setUTCDate(start.getUTCDate() + (this.weekOffset || 0) * 7);
+        const wd = ['日', '一', '二', '三', '四', '五', '六'];
+        const out = [];
+        let d = new Date(start);
+        for (let i = 0; i < 7; i++) {
+          out.push({ ds: this.fmtU(d), label: wd[d.getUTCDay()] });
+          d.setUTCDate(d.getUTCDate() + 1);
+        }
+        return out;
+      },
+      // 无日期分支的周切换标签（本周 / 下周 / 下下周）
+      noDateWeekTabs() {
+        return [
+          { off: 0, label: '本周' },
+          { off: 1, label: '下周' },
+          { off: 2, label: '下下周' },
+        ];
+      },
     },
     methods: {
       fmtU(d) { const p = n => String(n).padStart(2, '0'); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); },
@@ -9704,12 +9810,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         let top = r.bottom + 6;
         if (top + EST_H > H) top = Math.max(8, r.top - EST_H - 6); // 底部空间不足 → 翻到按钮上方
         this.pop = { top: Math.round(top), left: Math.min(Math.round(r.left), W - 248) };
+        this.weekOffset = 0; // 每次打开无日期安排面板都从「本周」开始
         this.open = true;
       },
       close() { this.open = false; },
       pickDay(ds) {
         const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
         this.$store.scheduleSpecifiedToDate(pid, this.subId || null, ds);
+        this.open = false;
+      },
+      pickNoDateDay(ds) {
+        const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
+        this.$store.scheduleTaskToDate(pid, this.subId || null, ds);
         this.open = false;
       },
       postpone(n) {
@@ -9719,19 +9831,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
     },
     template: `
-    <span class="wk-sched" v-if="isSpecWeek">
+    <span class="wk-sched" v-if="visible">
       <button class="row-sched-btn" @click.stop="openPop($event)" @pointerdown.stop title="安排到某天 / 推迟">安排</button>
       <Teleport to="body" v-if="open">
         <div class="wk-sched-mask" @click.stop="close"></div>
         <div class="wk-sched-pop" :style="{ top: pop.top + 'px', left: pop.left + 'px' }">
-          <div class="wk-sched-h">安排到{{ offLabel(curOff) }}的某天</div>
-          <div class="wk-sched-days">
-            <button v-for="d in days" :key="d.ds" @click.stop="pickDay(d.ds)">{{ d.label }}<span class="wk-sched-date">{{ d.ds.slice(5) }}</span></button>
-          </div>
-          <div class="wk-sched-acts">
-            <button @click.stop="postpone(1)">⏩ 推迟到{{ offLabel(curOff + 1) }}</button>
-            <button @click.stop="postpone(2)">⏩ 推迟到{{ offLabel(curOff + 2) }}</button>
-          </div>
+          <template v-if="isSpecWeek">
+            <div class="wk-sched-h">安排到{{ offLabel(curOff) }}的某天</div>
+            <div class="wk-sched-days">
+              <button v-for="d in days" :key="d.ds" @click.stop="pickDay(d.ds)">{{ d.label }}<span class="wk-sched-date">{{ d.ds.slice(5) }}</span></button>
+            </div>
+            <div class="wk-sched-acts">
+              <button @click.stop="postpone(1)">⏩ 推迟到{{ offLabel(curOff + 1) }}</button>
+              <button @click.stop="postpone(2)">⏩ 推迟到{{ offLabel(curOff + 2) }}</button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="wk-sched-h">安排到{{ offLabel(weekOffset) }}的某天</div>
+            <div class="wk-sched-days">
+              <button v-for="d in thisWeekDays" :key="d.ds" @click.stop="pickNoDateDay(d.ds)">{{ d.label }}<span class="wk-sched-date">{{ d.ds.slice(5) }}</span></button>
+            </div>
+            <div class="wk-sched-weeks">
+              <button v-for="w in noDateWeekTabs" :key="w.off" :class="{ on: weekOffset === w.off }" @click.stop="weekOffset = w.off">{{ w.label }}</button>
+            </div>
+          </template>
         </div>
       </Teleport>
     </span>`,
@@ -10121,6 +10244,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         progress_info: t.progress_info ? JSON.parse(JSON.stringify(t.progress_info)) : { enable: false, media_type: 'book', progress_value: '' },
         is_template: !!t.is_template,
         isEmergency: !!t.isEmergency,
+        showArrangeBtn: t.showArrangeBtn !== false,
       };
       this.snapshot = JSON.parse(JSON.stringify(t));
       // 浮层栈：作为弹窗登记 dismiss，系统返回优先关闭本弹窗（返回来源页，不改写路由）
@@ -10155,6 +10279,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             is_template: this.form.folderType === 'template',
             is_collection: this.form.folderType === 'collection',
             isEmergency: !!this.form.isEmergency,
+            showArrangeBtn: this.form.showArrangeBtn !== false,
           });
           this.$store.convertTaskToSubTask(this.taskId, this.form.level3Chain, fields);
           this.$emit('close');
@@ -10179,6 +10304,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           is_template: this.form.folderType === 'template',
           is_collection: this.form.folderType === 'collection',
           isEmergency: !!this.form.isEmergency,
+          showArrangeBtn: this.form.showArrangeBtn !== false,
         }));
         // 保存后兜底：若编辑了 cycle_end_date 且此时全部日期已打卡完成 → 立即触发自动归档
         const t = this.task;
@@ -10641,6 +10767,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     methods: {
       toggleCard() { this.cardOpen = !this.cardOpen; this.saveCard(); },
       saveCard() { try { localStorage.setItem('mindpocket:wishPool:vizDim', this._vizDim); } catch (e) {} },
+      // 兑换可视化（柱状/饼图）中把消耗积分格式化为「X 积分」；此前漏定义导致首次兑换后整块渲染抛错、模块消失
+      fmtH(m) { return (Number(m) || 0) + ' 积分'; },
       // 滑动兑换（全局互斥锁：动画与数据同步期间禁止重复触发）
       swipeDown(e, item) {
         if (!this.$store.swipeLock('wish_' + item._id)) return;
@@ -11720,16 +11848,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.$store.updateCategory(this.catId, n);
         this.$emit('close');
       },
-      // 排序：在同级（同 parent）内上移 / 下移
+      // 取某分类所属文件夹（与 addCategory 标记口径一致：is_collection/is_template/is_task 三选一）
+      catFolder(c) {
+        if (!c) return 'task';
+        if (c.is_collection) return 'collection';
+        if (c.is_template) return 'template';
+        return 'task';
+      },
+      // 排序：在「同级（同 parent）且同文件夹」内上移 / 下移。
+      // 关键：一级标签各文件夹共享 parent=null，若只按 parent 判断，移动会被看不见的
+      // 跨文件夹一级标签「插队」互换，导致在当前文件夹视图里看起来完全没动（即「不灵敏」）。
       move(up) {
         const cats = this.$store.state.categories;
         const ids = cats.map(c => c._id);
         const i = ids.indexOf(this.catId);
         if (i < 0) return;
         const myParent = cats[i].parent || null;
+        const myFolder = this.catFolder(cats[i]);
         let j = -1;
-        if (up) { for (let k = i - 1; k >= 0; k--) { if ((cats[k].parent || null) === myParent) { j = k; break; } } }
-        else { for (let k = i + 1; k < cats.length; k++) { if ((cats[k].parent || null) === myParent) { j = k; break; } } }
+        if (up) { for (let k = i - 1; k >= 0; k--) { if ((cats[k].parent || null) === myParent && this.catFolder(cats[k]) === myFolder) { j = k; break; } } }
+        else { for (let k = i + 1; k < cats.length; k++) { if ((cats[k].parent || null) === myParent && this.catFolder(cats[k]) === myFolder) { j = k; break; } } }
         if (j < 0) return;
         ids.splice(j, 0, ids.splice(i, 1)[0]);
         this.$store.setCategoriesOrder(ids);
@@ -12904,7 +13042,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
                   </div>
-                  <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(t, folderTasksOf(s._id), $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
+                  <WeekScheduleBtn :task="t" />
+              <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(t, folderTasksOf(s._id), $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
                 </div>
                 <!-- 三级标签：第三层嵌套（复用 .cat-sub-row / .cat-sub-body，不新增 CSS） -->
                 <div class="cat-sub-row" v-for="c3 in folderSubCatsOf(s._id)" :key="c3._id">
@@ -12923,6 +13062,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                           <div class="row-sub">{{ pt.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(pt)" :key="tg">{{ tg }}</span></div>
                           <div class="row-prog prog-sync" v-if="$progressSync(pt)">📊 {{ $progressSync(pt) }}</div>
                         </div>
+                        <WeekScheduleBtn :task="pt" />
                         <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(pt, folderTasksOf(c3._id), $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
                       </div>
                       <div class="row task-row swipeable" v-for="st in folderSubTasksOf(pt)" :key="st._id" @click="onSubEdit(st._id, pt._id)" :class="{hint: showHint(st), 'emergency-bg': st.isEmergency}">
@@ -12946,6 +13086,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
               </div>
+              <WeekScheduleBtn :task="t" />
               <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(t, folderTasksOf(c._id), $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
             </div>
             <p v-if="!folderSubCatsOf(c._id).length && !folderTasksOf(c._id).length" class="empty-tip">该分类下暂无内容</p>
@@ -12967,6 +13108,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
               </div>
+              <WeekScheduleBtn :task="t" />
               <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(t, folderUncatTasks, $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
             </div>
           </div>
@@ -14812,6 +14954,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 该子任务累计已花费时间
       totalSpent() { return this.sub ? this.$store.subSpentMin(this.sub) : 0; },
       totalSpentLabel() { return this.$store.fmtSpent(this.totalSpent); },
+      // 该子任务累计已完成量（跨全部填报留痕累加，单位取子任务实际单位）
+      totalActual() { return this.history.reduce((a, r) => a + (Number(r.actualNum) || 0), 0); },
       // 预计耗时（未设置为 0）与剩余可用时间提示
       estMin() { return this.sub ? (Number(this.sub.estMin) || 0) : 0; },
       estLabel() { return this.$store.fmtSpent(this.estMin); },
@@ -14937,6 +15081,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <p class="spent-sum">
             ⏱ 本次记为 <b>{{ spentInputLabel }}</b> · 该子任务累计已花费 <b>{{ totalSpentLabel }}</b>
             <template v-if="estMin > 0"> / 预计 {{ estLabel }}</template>
+            · 累计已完成 <b>{{ totalActual }} {{ unit }}</b>
           </p>
           <!-- 填报备注：可选，随填报留痕一并保存并在填报历史中展示 -->
           <label class="fld">备注（可选）
