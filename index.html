@@ -170,6 +170,7 @@ body {
 .tag.coll { background: #fdf3e3; color: #b07d21; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); }
 .tag.tpl { background: #eef0ff; color: #5b5bd6; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); }
 .tag.arch { background: #e6f7e6; color: #2e7d32; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); }
+.tag.overdue-unfinished { background: #fff3e3; color: #e8862b; font-weight: 600; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); flex: 0 0 auto; }
 /* .tag.parent-ref 已下线：父任务归属改为并入标签层级链末级（考研│专业课│母任务X） */
 /* 紧急任务红色角标：标题旁醒目标识（今日/周看板/项目/待归档/闲趣随机卡统一复用） */
 .tag.emergency { background: #ffe5e5; color: #e13c3c; font-weight: 700; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); flex: 0 0 auto; }
@@ -1426,7 +1427,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-row-tag.repeatable { background: #eef0ff; color: var(--primary); }
 .wp-row-tag.one_time { background: #f0f1f6; color: var(--sub); }
 .wp-row-tag.redeemed { background: #e8f6ee; color: #1f9d57; }
-.wp-row-caret { flex: none; color: var(--sub); font-size: 11px; cursor: pointer; padding: 4px; }
 .wp-toast { margin-top: 8px; font-size: 12px; color: var(--ok); background: #e8f6ee; border-radius: var(--radius-sm); padding: 8px 12px; text-align: center; cursor: pointer; touch-action: pan-y; user-select: none; }
 .wp-hist-section { margin-top: 12px; border-top: 1px dashed var(--line); padding-top: 10px; }
 .wp-hist-head { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); cursor: pointer; font-weight: 600; }
@@ -1790,7 +1790,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   .tb-stats { display: flex; gap: 14px; font-size: 13px; color: var(--sub); margin-bottom: 12px; }
   .tb-stats span { background: #f7f8fc; border-radius: var(--radius-sm); padding: 5px 10px; }
   .tb-list { display: flex; flex-direction: column; gap: 10px; }
-  .tb-item { background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; box-shadow: 0 2px 8px rgba(40,50,90,.04); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: pan-y; }
+  /* 任务表条目统一为「悬浮拖拉卡片」样式：与全站 .row.task-row 一致（白底/描边/圆角/内边距），
+     并启用 position:relative + will-change:transform 以支持按压悬浮与拖拽浮起，消除「固定卡位」观感 */
+  .tb-item { background: #fafbff; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; box-shadow: 0 1px 3px rgba(40,50,90,.06); user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: pan-y; position: relative; will-change: transform; transition: transform .15s ease, box-shadow .15s ease; }
+  /* 按压 / 拖拽时浮起：复用全站 swipe-card 的悬浮观感，统一所有完成条目的卡片交互 */
+  .tb-item:active { box-shadow: 0 6px 16px rgba(40,50,90,.16); transform: translateY(-1px); }
   .tb-item.done { opacity: .55; filter: grayscale(.8); }
   .tb-item-main { display: flex; align-items: flex-start; gap: 10px; }
   .tb-check { flex: 0 0 auto; margin-top: 2px; }
@@ -2269,6 +2273,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (!Array.isArray(state.career.resumes)) state.career.resumes = [];
       if (!Array.isArray(state.career.tags)) state.career.tags = [];
       ensureCareerPresets();
+      autoRollOverdueSpecified(); // 逾期「指定周/月」与单点/区间任务自动顺延到本周可见窗口并标记「逾期未完成」（先于 autoExtendOverdue，避免开关把已顺延日期覆盖到今天导致漏标/重复顺延）
       autoExtendOverdue(); // 过期任务自动延期（仅在开关开启时生效）
       autoArchiveExpiredCycles(); // 周期任务到期自动归档（母本归档，停止副本同步）
       autoArchiveCompletedCycles(); // 周期母本副本全完成批量校验（打开页面兜底，跨天场景补触发）
@@ -4457,6 +4462,62 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 设置「过期任务自动延期」开关
   function setAutoExtend(v) { state.settings.autoExtend = !!v; persist(); }
 
+  // 待归档看板：逾期任务/子任务，启动时自动顺延到「本周可见窗口」并打「逾期未完成」持久标记。
+  // - 指定周 / 指定月：time_mode==='week'/'month' 且冻结了绝对目标周/月 → 标记 overdueUnfinished 并 extendSpecified 顺延一窗口（周→下一周、月→下一月）；
+  // - 单点 / 区间（年月日任务）：date_mode==='single'/'range' 且截止日已过期未完成 → 标记 overdueUnfinished 并整体顺延到本周一（区间保持原跨度）；
+  // - 顺延后自然落入本周（周/月看板可见窗口），不再滞留过期窗口而「消失」；
+  // - 自愈：未过期窗口已完成（指定周/月副本完成、单点/区间 done_at 已置）则清除标记（任务已补完，恢复正常）。
+  function autoRollOverdueSpecified() {
+    const today = todayStr();
+    let changed = false;
+    const consider = (t, subId) => {
+      const obj = subId ? (t.sub_tasks || []).find(s => s._id === subId) : t;
+      if (!obj || obj.cycle) return;
+      // 指定周 / 指定月：窗口已过期且本窗口仍未完成 → 标记「逾期未完成」并顺延一个窗口（周→下一周、月→下一月）
+      if (obj.time_mode === 'week' || obj.time_mode === 'month') {
+        const win = specifiedWindowOf(obj);
+        if (!win) return;                                            // 无冻结目标周/月 → 不参与
+        if (win.we >= today) {                                       // 窗口未过：若之前被标记且当前窗口已完成，则清除标记
+          if (obj.overdueUnfinished && copyDoneForWindow(obj, win.ws, win.we)) { obj.overdueUnfinished = false; changed = true; }
+          return;
+        }
+        if (copyDoneForWindow(obj, win.ws, win.we)) return;          // 本窗口已完成 → 非逾期，跳过
+        if (!obj.overdueUnfinished) { obj.overdueUnfinished = true; changed = true; }
+        extendSpecified(t._id, subId || null);                        // 顺延一个窗口（周→下一周、月→下一月）
+        changed = true;
+        return;
+      }
+      // 单点 / 区间（年月日任务）：截止日已过期且未完成 → 标记「逾期未完成」并整体顺延到本周可见窗口
+      if (obj.date_mode === 'single' || obj.date_mode === 'range') {
+        const deadline = obj.date_mode === 'range' ? (obj.date_end || '') : (obj.execute_date || '');
+        if (!deadline) return;
+        if (deadline >= today) {                                      // 未过期：已完成则清除标记（自愈）
+          if (obj.overdueUnfinished && obj.done_at) { obj.overdueUnfinished = false; changed = true; }
+          return;
+        }
+        if (!obj.overdueUnfinished) { obj.overdueUnfinished = true; changed = true; }
+        const d0 = new Date(today + 'T00:00:00Z');
+        const cw = isoWeek(d0);
+        const cws = weekRange(cw.year, cw.week).start;
+        const ymd = dt => dt.getUTCFullYear() + '-' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dt.getUTCDate()).padStart(2, '0');
+        const wsd = ymd(cws);                                         // 本周一（周/月看板可见窗口起点）
+        if (obj.date_mode === 'range' && obj.date_start && obj.date_end) {
+          const span = dateDiffDays(obj.date_start, obj.date_end);
+          obj.date_start = wsd; obj.date_end = addDays(wsd, span); obj.execute_date = wsd;
+        } else {
+          obj.execute_date = wsd; obj.date_start = wsd; obj.date_end = wsd;
+        }
+        changed = true;
+      }
+    };
+    state.tasks.forEach(t => {
+      if (t.is_archived || t.is_template || t.cycle) return;
+      consider(t, null);
+      (t.sub_tasks || []).forEach(s => consider(t, s._id));
+    });
+    if (changed) persist();
+  }
+
   // 「指定周 / 指定月」任务的目标窗口（冻结的绝对周/月）：用于逾期判定与延期操作
   // 返回 { y, w?/m?, ws, we }；非指定周/月任务（无冻结目标周/月）返回 null
   function specifiedWindowOf(t) {
@@ -6528,8 +6589,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         txt = (['本周', '下周', '下下周'])[t.week_offset] || '';
       }
       if (!txt) return null;
-      return isCopy ? { kind: 'week', icon: CAP_ICO.week, text: remind ? '⏰' : '' }
-                    : { kind: 'week', icon: CAP_ICO.week, text: bell(txt) };
+      // 母本与副本统一展示「本周/下周/下下周」文字，避免副本只显图标的不一致（带提醒时前置 ⏰）
+      return { kind: 'week', icon: CAP_ICO.week, text: bell(txt) };
     }
     if (t.cycle) {
       if (t.cycle.type === 'week') {
@@ -9971,16 +10032,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     template: `
     <div class="row task-row subtask-copy swipeable" @click="onClick" :style="cardStyle"
-         :class="{ 'emergency-bg': sub.isEmergency, 'is-overdue': overdue }"
+         :class="{ 'emergency-bg': sub.isEmergency, 'is-overdue': overdue || sub.overdueUnfinished }"
          @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
       <div class="swipe-hint" :class="cardHintDir()" v-if="cardHintDir()">{{ cardHintText() }}</div>
       <button class="row-emg-btn" :class="{on:sub.isEmergency}" @click.stop="toggleEmg" :title="sub.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ sub.isEmergency ? '🚨' : '🚩' }}</button>
       <button v-if="overdue && !sub.cycle" class="row-ext" @click.stop="$emit('extend', sub._id, parentId)" title="推迟到下一周 / 下一月">⏩ 延期</button>
       <div class="row-main">
         <div class="row-title">
-          <span class="rt-text">{{ sub.title }}</span><span class="rt-badges"><span v-if="sub.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="hasCycle" class="tag cycle">🔁</span><span v-if="overdue" class="row-overdue">⚠ 已逾期</span><span v-if="capsule" class="cap" :class="'cap-'+capsule.kind"><span class="cap-ico">{{ capsule.icon }}</span><span class="cap-txt">{{ capsule.text }}</span></span></span>
+          <span class="rt-text">{{ sub.title }}</span><span class="rt-badges"><span v-if="sub.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="hasCycle" class="tag cycle">🔁</span><span v-if="capsule" class="cap" :class="'cap-'+capsule.kind"><span class="cap-ico">{{ capsule.icon }}</span><span class="cap-txt">{{ capsule.text }}</span></span></span>
         </div>
-        <div class="row-sub subtask-desc">{{ sub.desc || '无描述' }}<span class="tag cat" v-for="tg in catChips" :key="tg">{{ tg }}</span><span v-if="parentCap" class="cap" :class="'cap-'+parentCap.kind"><span class="cap-ico">{{ parentCap.icon }}</span><span class="cap-txt">{{ parentCap.text }}</span></span></div>
+        <div class="row-sub subtask-desc">{{ sub.desc || '无描述' }}<span v-if="sub.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in catChips" :key="tg">{{ tg }}</span><span v-if="parentCap" class="cap" :class="'cap-'+parentCap.kind"><span class="cap-ico">{{ parentCap.icon }}</span><span class="cap-txt">{{ parentCap.text }}</span></span></div>
         <div class="row-prog prog-sync" v-if="$progressSync(sub)">📊 {{ $progressSync(sub) }}</div>
       </div>
       <WeekScheduleBtn v-if="inWeek" :task="sub" :sub-id="sub._id" :parent-id="parentId" />
@@ -10664,7 +10725,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() { return {
       cardOpen: false,
       histOpen: false,
-      itemCollapsed: {},
       swipeId: null, swipeStartX: 0, swipeX: 0, swipeDragging: false, swipeMoved: false,
       pressId: null, pressStartX: 0, pressStartY: 0, pressTimer: null, pressLongFired: false, pressSuppress: false,
       dragFromId: null, dragOverId: null,
@@ -10840,8 +10900,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       openEdit(wishId) { const item = this.$store.state.wish_items.find(w => w._id === wishId); if (!item) return; this.editWishId = wishId; this.editName = item.name; this.editCost = String(item.cost); this.editCountType = item.count_type || 'one_time'; this.editValidity = item.validity_days ? String(item.validity_days) : ''; this.showEditModal = true; },
       closeEdit() { this.showEditModal = false; this.editWishId = null; },
       confirmEdit() { if (this.editExhausted) return; const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType, validity_days: this.editValidity }); this.$store.incrementEditCount(); this.closeEdit(); },
-      // 逐条折叠
-      toggleItem(wishId) { this.itemCollapsed = { ...this.itemCollapsed, [wishId]: !this.itemCollapsed[wishId] }; },
       toggleHist() { this.histOpen = !this.histOpen; this.saveCard(); },
       setVizDim(d) { this._vizDim = d; this.saveCard(); },
       // 核销 / 撤销兑换
@@ -10898,7 +10956,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <span class="wp-row-tag redeemed" v-if="item.count_type === 'repeatable' && item.repeat_count > 0">已兑{{ item.repeat_count }}次</span>
             </div>
           </div>
-          <span class="wp-row-caret" @click.stop="toggleItem(item._id)">{{ itemCollapsed[item._id] ? '▶' : '▼' }}</span>
         </div>
       </div>
     </div>
@@ -11272,11 +11329,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       capWin(t, win) { return this.$store.capsuleOf(t, { isCopy: true, windowStart: win.ws, windowEnd: win.we }); },
       // 是否配置了提醒时间（主/子任务双字段兼容）—— 今日待办 A/B 分区的唯一判定依据
       hasRemindTime(x) { return !!(x && (x.enable_remind || x.sub_remind)) && !!(x.remind_time || x.sub_remind_time); },
-      // 本周 / 本月区块排序：紧急置顶 → 提醒时间升序（无提醒后置） → 标题稳定序
+      // 本周 / 本月区块排序：紧急置顶 → 逾期未完成置顶（仅次于紧急） → 提醒时间升序（无提醒后置） → 标题稳定序
       sortPlanItems(list) {
         return list.slice().sort((a, b) => {
           const ea = a.data.isEmergency ? 0 : 1, eb = b.data.isEmergency ? 0 : 1;
           if (ea !== eb) return ea - eb;
+          const oa = a.data.overdueUnfinished ? 0 : 1, ob = b.data.overdueUnfinished ? 0 : 1;
+          if (oa !== ob) return oa - ob;
           const ra = this.$store.remindMinutes(a.data), rb = this.$store.remindMinutes(b.data);
           if (ra !== rb) return ra - rb;
           return String(a.data.title || '').localeCompare(String(b.data.title || ''));
@@ -11607,7 +11666,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                   <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（置顶展示，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
                   <div class="row-main">
                     <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capWin(it.data,b.win)" class="cap" :class="'cap-'+capWin(it.data,b.win).kind"><span class="cap-ico">{{ capWin(it.data,b.win).icon }}</span><span class="cap-txt">{{ capWin(it.data,b.win).text }}</span></span></span></div>
-                    <div class="row-sub">{{ it.data.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span></div>
+                    <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span></div>
                     <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
                   </div>
                   <WeekScheduleBtn v-if="it.data.time_mode==='week'" :task="it.data" />
@@ -12370,6 +12429,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               // 紧急置顶：紧急任务统一排到分组最前（无视日期/周期）；取消紧急后立即按原时间顺序复位
               const ea = a.isEmergency ? 0 : 1, eb = b.isEmergency ? 0 : 1;
               if (ea !== eb) return ea - eb;
+              // 逾期未完成：仅次紧急，排到分组最前（紧急之后、其余之前）
+              const oa = a.overdueUnfinished ? 0 : 1, ob = b.overdueUnfinished ? 0 : 1;
+              if (oa !== ob) return oa - ob;
               return (this.hasConcreteAnchor(a) ? 0 : 1) - (this.hasConcreteAnchor(b) ? 0 : 1);
             }),
           });
@@ -12416,6 +12478,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               // 紧急置顶：紧急任务统一排到分组最前（无视日期/周期）；取消紧急后立即按原时间顺序复位
               const ea = a.isEmergency ? 0 : 1, eb = b.isEmergency ? 0 : 1;
               if (ea !== eb) return ea - eb;
+              // 逾期未完成：仅次紧急，排到分组最前（紧急之后、其余之前）
+              const oa = a.overdueUnfinished ? 0 : 1, ob = b.overdueUnfinished ? 0 : 1;
+              if (oa !== ob) return oa - ob;
               // 仅指定周（本周/下周/下下周）：无精确日期，整体置后（已按绝对目标周归入对应周分组末尾）
               const ca = this.hasConcreteAnchor(a) ? 0 : 1;
               const cb = this.hasConcreteAnchor(b) ? 0 : 1;
@@ -12430,19 +12495,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         return gs;
       },
-      // 「逾期 / 待延期」任务集合（指定周 / 指定月）：冻结目标窗口已过去且本窗口仍未完成即逾期，
-      // 统一收口到看板底部的「逾期 / 待延期」分组，避免越过目标周/月后直接消失（提供延期机制）。
-      // 仅含 time_mode==='week' / 'month' 且冻结了绝对目标周/月的任务（旧版仅 week_offset 的相对任务按原逻辑不进入）。
-      boardWeekOverdue() { return this._overdueSpecified('week'); },
-      boardMonthOverdue() { return this._overdueSpecified('month'); },
-      // 看板分组（周/月）：常规固定窗口分组 + 底部「逾期 / 待延期」分组（仅在有逾期任务时出现）
+      // 看板分组（周/月）：常规固定窗口分组（逾期任务不再单列「逾期/待延期」模块，改为自动顺延到下一周/下一月并标记「逾期未完成」）
       boardGroups() {
         const base = (this.boardSub === 'month' ? this.boardMonthGroups : this.boardWeekGroups).slice();
-        const od = this.boardSub === 'month' ? this.boardMonthOverdue : this.boardWeekOverdue;
-        if (od && od.length) {
-          const today = this.$store.util.todayStr();
-          base.push({ key: 'overdue', label: '⚠ 逾期 / 待延期', overdue: true, ws: today, we: today, tasks: od, empty: '暂无逾期任务' });
-        }
         return base;
       },
       // —— 三文件夹视图：任务夹 / 收藏夹 / 模版夹 ——
@@ -12557,7 +12612,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         cur[now.getFullYear() + '-' + (now.getMonth() + 1)] = true;  // 本月分组默认展开（补开，不清除其余）
         const w = U.isoWeek(U.parseDate(U.todayStr()));
         cur[w.year + '-' + w.week] = true;                            // 本周分组默认展开（补开，不清除其余）
-        cur['overdue'] = true;                                        // 逾期分组默认展开（仅在有逾期任务时出现）
         this.boardOpen = Object.assign({}, cur);
       },
       // 看板默认展开态（覆盖式）：仅「本月 / 本周」分组展开，其余时间维度分组（下周 / 下下周 / 下月…）全部收起。
@@ -12639,21 +12693,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         else this.$store.extendSpecified(t._id);
       },
       onSubExtend(subId, parentId) { this.$store.extendSpecified(parentId, subId); },
-      // 「逾期 / 待延期」集合：收集「指定周 / 指定月」任务里冻结目标窗口已过去、且本窗口仍未完成者。
-      // 返回带 _od（目标窗口）的浅拷贝，供标记完成 / 延期时定位窗口。kind 取值 'week' / 'month'。
-      _overdueSpecified(kind) {
-        const U = this.$store.util, today = U.todayStr();
-        const timeMode = kind === 'month' ? 'month' : 'week';
-        return this.boardTasks.filter(t => {
-          if (this.$store.classifyMode(t) !== timeMode) return false;
-          if (t.time_mode !== timeMode) return false;
-          const win = this.$store.specifiedWindowOf(t);
-          if (!win) return false;                                  // 无冻结目标周/月 → 不参与逾期分组
-          if (t.cycle_end_date && win.ws > t.cycle_end_date) return false; // 已过期（结束日早于窗口）→ 排除
-          if (win.we < today) return !this.$store.copyDoneForWindow(t, win.ws, win.we); // 窗口已过且本窗口未完成 → 逾期
-          return false;
-        }).map(t => Object.assign({}, t, { _od: this.$store.specifiedWindowOf(t) })); // 附带目标窗口
-      },
+      // 「逾期 / 待延期」分组已移除：逾期的指定周/月任务改为启动时自动顺延到下一周/下一月并打「逾期未完成」标记（见 store.autoRollOverdueSpecified）
       // 一键「设紧急 / 取消紧急」：仅翻转 isEmergency 标记，原执行时间 / 周期 / 提醒配置全部保持不变；
       // 看板与今日列表会按该标记即时置顶或复位（响应式自动重排，时间数据零丢失）。
       toggleEmergency(t) { this.$store.toggleEmergency(t._id); },
@@ -13155,7 +13195,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <template v-for="g in boardGroups" :key="g.key">
           <div class="board-group" :class="{ 'grp-overdue': g.overdue }">
             <button class="grp-head" @click="boardOpen[g.key]=!boardOpen[g.key]">
-              <span>{{ g.label }} <span class="cnt">（{{ g.tasks.length }}）</span><span v-if="g.overdue" class="row-overdue">⚠ 已逾期</span><span class="caret">{{ boardOpen[g.key] ? '▼' : '▶' }}</span></span>
+              <span>{{ g.label }} <span class="cnt">（{{ g.tasks.length }}）</span><span class="caret">{{ boardOpen[g.key] ? '▼' : '▶' }}</span></span>
               <span v-if="!g.overdue" class="grp-add" title="在该时间下新建任务" @pointerdown.stop @click.stop="addTaskForWindow(g)">＋</span>
             </button>
             <div class="grp-body" v-if="boardOpen[g.key] === true">
@@ -13163,10 +13203,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <div class="row task-row swipeable" v-if="!t._isSub" @click="onRowClick(t)" :style="rowStyle(t)" :class="{ 'has-sub': $hasSub(t), 'emergency-bg': t.isEmergency }" @pointerdown="rowDown($event,t,g)" @pointermove="rowMove($event,t)" @pointerup="rowUp($event,t)" @pointercancel="rowUp($event,t)">
                   <div class="swipe-hint" :class="rowHintDir(t._id)" v-if="rowHintDir(t._id)">{{ rowHintText(t._id) }}</div>
                   <button class="row-emg-btn" :class="{on:t.isEmergency}" @click.stop="toggleEmergency(t)" :title="t.isEmergency ? '取消紧急置顶' : '设为紧急置顶（看板置顶，时间/周期不变）'">{{ t.isEmergency ? '🚨' : '🚩' }}</button>
-                  <button v-if="g.overdue" class="row-ext" @click.stop="extendSpecified(t)" title="推迟到下一周 / 下一月">⏩ 延期</button>
                   <div class="row-main">
-                    <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="g.overdue" class="row-overdue">⚠ 已逾期</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
-                    <div class="row-sub">{{ t.desc || '无描述' }}<span v-if="quickBadge(t)" class="mode-badge m-quick">📌临时</span><span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
+                    <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
+                    <div class="row-sub">{{ t.desc || '无描述' }}<span v-if="t.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span v-if="quickBadge(t)" class="mode-badge m-quick">📌临时</span><span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
                   </div>
                   <WeekScheduleBtn v-if="t.time_mode==='week'" :task="t" />
