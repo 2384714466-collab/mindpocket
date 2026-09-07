@@ -4327,6 +4327,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const ka = emergencyKey(a, d), kb = emergencyKey(b, d);
         if (ka !== kb) return ka < kb ? -1 : ka > kb ? 1 : 0;
       }
+      const oa = a.overdueUnfinished ? 0 : 1, ob = b.overdueUnfinished ? 0 : 1;
+      if (oa !== ob) return oa - ob;                // 逾期未完成：仅次紧急，置顶其余之前（与看板/本周本月区块同序）
       const ra = remindMinutes(a), rb = remindMinutes(b);
       if (ra !== rb) return ra - rb;
       const ka = copyDateKey(a, d), kb = copyDateKey(b, d);
@@ -4370,6 +4372,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const ea2 = emergencyKey(a, d), eb2 = emergencyKey(b, d);
         if (ea2 !== eb2) return ea2 < eb2 ? -1 : 1;
       }
+      const oa = a.overdueUnfinished ? 0 : 1, ob = b.overdueUnfinished ? 0 : 1;
+      if (oa !== ob) return oa - ob;                // 逾期未完成：仅次紧急，置顶其余之前（与看板/本周本月区块同序）
       const ra = remindMinutes(a), rb = remindMinutes(b);
       if (ra !== rb) return ra - rb;
       const ka = copyDateKey(a, d), kb = copyDateKey(b, d);
@@ -11618,7 +11622,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
                     <div class="row-main">
                       <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
-                      <div class="row-sub">{{ it.data.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data)">⚠ 延期未完成</span><span class="row-overdue deferred" v-else-if="isDeferred(it.data)">⏰ 已延期</span></div>
+                      <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data)">⚠ 延期未完成</span><span class="row-overdue deferred" v-else-if="isDeferred(it.data)">⏰ 已延期</span></div>
                       <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
                     </div>
                     <button v-if="canBackToWeek(it.data)" class="row-back-btn" @click.stop="backToWeek(it.data)" @pointerdown.stop @pointerup.stop @pointercancel.stop title="清除日期，退回本周计划">↩ 退回周</button>
@@ -11639,7 +11643,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
               <div class="row-main">
                 <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
-                <div class="row-sub">{{ it.data.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data)">⚠ 延期未完成</span><span class="row-overdue deferred" v-else-if="isDeferred(it.data)">⏰ 已延期</span></div>
+                <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data)">⚠ 延期未完成</span><span class="row-overdue deferred" v-else-if="isDeferred(it.data)">⏰ 已延期</span></div>
                 <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
               </div>
               <button v-if="canBackToWeek(it.data)" class="row-back-btn" @click.stop="backToWeek(it.data)" @pointerdown.stop @pointerup.stop @pointercancel.stop title="清除日期，退回本周计划">↩ 退回周</button>
