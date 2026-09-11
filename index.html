@@ -2928,6 +2928,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    *   'independent' 独立固定（机制3）：漏卡→仅标记「延期」，排期固定、互不影响
    */
   function cycleMode(t) { return (t && t.cycle_delay_mode) || ''; }
+  // 周期「延期机制」默认取值：按周期类型 + 结束方式推导
+  //   · 间隔（interval）→ 卡住重算（recount）：补卡后从完成日顺延往后算
+  //   · 周/月 + 结束方式=按次数（count）→ 补位扩展（extend）：漏卡整体后移一个周期、次数守恒
+  //   · 周/月 + 永久循环/按日期（'' / date）→ 独立固定（independent）：漏卡仅标记、排期固定互不影响
+  //   · 其它（none/day 等无周期）→ 兜底 recount
+  function defaultCycleDelayMode(type, endMode) {
+    if (type === 'interval') return 'recount';
+    if (type === 'week' || type === 'month') return (endMode === 'count') ? 'extend' : 'independent';
+    return 'recount';
+  }
   // 取周期内「下一个命中日」（严格晚于 fromExclusive；受 cycle_start_date 硬下界约束）
   function nextCycleHit(cycle, fromExclusive, lower) {
     let d = addDays(fromExclusive, 1), n = 0;
@@ -2960,13 +2970,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (isFloat && cycle._anchor) {
         const today = todayStr();
         let ds = cycle._anchor;
-        // 跳过已完成（含锚点自身，其真实完成日即归档日）直至首个 ≥ 今日 且未完成的发生日
-        while (ds < today || cycleArchivedToday(t, ds)) ds = addDays(ds, n);
+        // 从锚点起逐格推进，仅跳过「已完成」的发生日；首个「未完成」的发生日即当前应打卡日。
+        // 关键点：未完成的过去发生日（漏卡）绝不能跳过 —— 它正是「卡住」滞留点，须作为当前应打卡日返回；
+        // 否则会越过漏卡日，把"当前应打卡日"错判成更晚的未来日，导致延期任务既不滞留今日、完成时也无命中可记，
+        // 表现为「执行历史日期不更新」。漏卡日完成（补卡）后由 syncCycleAnchor 以真实完成日(_anchor)驱动未来段重算。
         let guard = 0;
-        while (ds && guard < 4000) {
-          if (!cycleArchivedToday(t, ds)) return ds;
-          ds = addDays(ds, n); guard++;
-        }
+        while (cycleArchivedToday(t, ds) && guard < 4000) { ds = addDays(ds, n); guard++; }
+        if (ds && !cycleArchivedToday(t, ds)) return ds;
         return '';
       }
     }
@@ -3493,6 +3503,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (!s.cycle._base) s.cycle._base = todayStr(); // 周期锚定创建日（与主任务 addTask 一致），保证「每 N 天」投射正确
       // 开始时间早于创建锚点 → 用开始时间作为周期锚点，执行区间从开始日（含过去）起投射
       if (s.cycle_start_date && s.cycle_start_date < s.cycle._base) s.cycle._base = s.cycle_start_date;
+      // 子任务继承主任务周期「延期机制」；未显式指定时按子任务自身周期类型 + 结束方式推导默认
+      if (!s.cycle_delay_mode && t.cycle_delay_mode) s.cycle_delay_mode = t.cycle_delay_mode;
+      if (!s.cycle_delay_mode) s.cycle_delay_mode = defaultCycleDelayMode(s.cycle.type, s.cycle_end_mode || '');
     }
     t.sub_tasks.push(s);
     persist();
@@ -3797,6 +3810,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const dt = cycleDeferTarget(t);
         if (dt && !cycleArchivedToday(t, dt)) {
           const real = dt < today ? today : dt;
+          // 归档记录：延期补卡记在「原发生日 dt」（与正常命中路径、补位/固定机制同口径，落在排期网格上，
+          // 保证执行历史该出现日显示为已打卡、之前已完成的打卡日期不被覆盖）；真实完成日记在 real_done（=完成当日），
+          // 由 syncCycleAnchor 作为浮动锚点驱动未来排期从完成当日顺延重新计算（卡住重算语义）。
           t.cycle_history.push({ execute_date: dt, is_archived: true, overdue: dt < today, real_done: real });
           const delay = dt < today ? Math.max(0, dateDiffDays(dt, today)) : 0;
           const pts = Math.max(0, 12 - delay);
@@ -3952,6 +3968,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const dt = cycleDeferTarget(s);
         if (dt && !cycleArchivedToday(s, dt)) {
           const real = dt < today ? today : dt;
+          // 归档记录：子任务延期补卡同样记在原发生日 dt（落在排期网格上，执行历史显示已打卡、已完成的日期保留），
+          // 真实完成日记在 real_done 驱动未来从完成当日顺延（卡住重算）。
           s.cycle_history.push({ execute_date: dt, is_archived: true, overdue: dt < today, real_done: real });
           const delay = dt < today ? Math.max(0, dateDiffDays(dt, today)) : 0;
           const pts = Math.max(0, 12 - delay);
@@ -4742,8 +4760,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 任务 / 习惯归档时写入 archived_at（实际归档当日）；无归档日时回落计划执行日，最后回落创建日
   function archiveDateOf(t) {
     if (t.cycle && t.cycle_history && t.cycle_history.length) {
-      const arch = t.cycle_history.filter(h => h.is_archived).map(h => h.execute_date).sort();
-      if (arch.length) return arch[arch.length - 1];   // 周期任务：取最后一次已归档出现日
+      // 周期任务：取最后一次「已归档出现日」—— 延期条目归属到真实打卡当日（real_done），而非计划发生日 / 创建当时
+      const arch = t.cycle_history.filter(h => h.is_archived).map(h => (h.real_done || h.execute_date)).sort();
+      if (arch.length) return arch[arch.length - 1];
     }
     if (t.archived_at) return t.archived_at;            // 实际归档当日优先（任务 / 习惯）
     if (t.execute_date) return t.execute_date;         // 兜底：未记录归档日时按计划执行日
@@ -4754,10 +4773,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 归档条目的「归属日期集合」：
   // - 周期 / 自定义区间任务：逐日打卡，每个「已打卡日」都是一次独立归档同步，
   //   返回全部已打卡日期（去重升序），使全局归档仓库在每一天才打卡的日子都显示该任务条目；
+  //   延期条目归属到真实打卡当日（real_done），而非计划发生日 / 创建当时。
   // - 其余任务：仅返回单一归属日期（归档日 / 计划日 / 创建日），与原 archiveDateOf 一致。
   function archiveDatesOf(t) {
     if ((t.cycle || (t.date_mode === 'range' && t.date_start)) && t.cycle_history && t.cycle_history.length) {
-      const ds = t.cycle_history.filter(h => h.is_archived && h.execute_date).map(h => h.execute_date);
+      const ds = t.cycle_history.filter(h => h.is_archived && (h.real_done || h.execute_date)).map(h => (h.real_done || h.execute_date));
       if (ds.length) return Array.from(new Set(ds)).sort();
     }
     return [archiveDateOf(t)];
@@ -6877,7 +6897,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
     isCopyArchived, copyShouldRender, archiveMasterCopies, trimCycleCopiesAfterEnd,
     // 周期「延期机制」：模式分派与滚动链排期
-    cycleMode, cycleCurrentDue, cycleDueOnDate, cycleStuckOverdue, nextCycleHit, cycleRollAnchor, rollCycleOccurrences, computeCycleSchedule, annotateCycleDates,
+    cycleMode, defaultCycleDelayMode, cycleCurrentDue, cycleDueOnDate, cycleStuckOverdue, nextCycleHit, cycleRollAnchor, rollCycleOccurrences, computeCycleSchedule, annotateCycleDates,
     // 时间模式看板
     classifyMode, tasksByMode, assignMonth, assignWeek, assignDay, moveToCollection, backToUnplanned, backToWeek, collectionCatId, COLLECTION_CATS, isCollectionTask, isStudyWorkTask, formatTimeLabel, weekLabel, capsuleOf,
     // 闲趣随机卡
@@ -8465,9 +8485,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 'date' 保留已填的 cycle_end_date
         },
       },
-      // 周期「延期机制」：默认卡住重算（recount）
+      // 周期「延期机制」默认值：按周期类型 + 结束方式推导（间隔→卡住重算；周/月+次数→补位扩展；周/月+其它→独立固定）
+      // 用户未显式选择时（draft.cycle_delay_mode 为空）动态派生；一旦手动选择即固定为用户值
       cycleDelayMode: {
-        get() { return this.draft.cycle_delay_mode || 'recount'; },
+        get() { return this.draft.cycle_delay_mode || this.$store.defaultCycleDelayMode(this.cycleType, this.cycleEndMode); },
         set(v) { this.draft.cycle_delay_mode = v; },
       },
       // 延期机制说明文案
@@ -8565,7 +8586,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.draft.date_start = ''; this.draft.date_end = ''; this.draft.cycle = null; this.draft.week_offset = null;
         // 「指定周」残留标识一并清除：time_mode / plan_year / plan_week（默认分支兜底清空，这里同步保证草稿自洽）
         this.draft.time_mode = null; this.draft.plan_year = null; this.draft.plan_week = null;
-        this.draft.cycle_start_date = ''; this.draft.cycle_end_date = ''; this.draft.cycle_end_mode = ''; this.draft.cycle_end_count = 0; this.draft.cycle_delay_mode = 'recount';
+        this.draft.cycle_start_date = ''; this.draft.cycle_end_date = ''; this.draft.cycle_end_mode = ''; this.draft.cycle_end_count = 0; this.draft.cycle_delay_mode = '';
         // 彻底清空提醒时刻（remind_time 置空）+ 取消提醒复选框（v-model 双向绑定随之取消勾选）
         this.draft.remind_time = ''; this.draft.enable_remind = false;
         this.draft.sub_remind_time = ''; this.draft.sub_remind = false;
@@ -8909,8 +8930,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           execute_date: this.defaultDate || '', date_start: '', date_end: '',
           week_offset: this.defaultWeek != null ? this.defaultWeek : null, cycle_end_date: '',
           cycle_end_mode: '', cycle_end_count: 0, cycle_start_date: '',
-          // 周期「延期机制」默认=卡住重算（recount）
-          cycle_delay_mode: 'recount',
+          // 周期「延期机制」默认按类型/结束方式推导（由 cycleDelayMode getter 动态计算，初值留空以便派生）
+          cycle_delay_mode: '',
           enable_remind: false, remind_time: '09:00',
           cycle: null,
           progress_info: { enable: false, media_type: 'book', progress_value: '' },
@@ -8926,6 +8947,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     beforeUnmount() {
       if (this._overlayDismiss) { this.$root.popOverlay(this._overlayDismiss); this._overlayDismiss = null; }
+    },
+    mounted() {
+      // 「创建任务 / 添加新任务」入口：打开即聚焦首个输入框（标题），方便直接键入；
+      // 其余入口（编辑 / 长按 / 填报）默认不聚焦，由各自组件控制
+      this.$nextTick(() => {
+        const el = this.$el.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled])');
+        if (el) { try { el.focus({ preventScroll: true }); } catch (e) {} }
+      });
     },
     methods: {
       save() {
@@ -8959,7 +8988,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle_start_date: this.draft.cycle_start_date || '',
           cycle_end_mode: this.draft.cycle_end_mode || '',
           cycle_end_count: Number(this.draft.cycle_end_count) || 0,
-          cycle_delay_mode: this.draft.cycle_delay_mode || 'recount',
+          cycle_delay_mode: this.draft.cycle_delay_mode || this.$store.defaultCycleDelayMode(this.cycleType, this.cycleEndMode),
           progress_info: this.draft.progress_info,
           isEmergency: !!this.draft.isEmergency,
           showArrangeBtn: this.draft.showArrangeBtn !== false,
@@ -9046,10 +9075,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return [];
         }
         const hist = s.cycle_history || [];
+        // 完成判定同时匹配 execute_date 与原发生日（与 annotateCycleDates / 主任务 execHistory 一致）
         return dates.map(ds => ({
           execute_date: ds,
-          is_archived: hist.some(h => h.execute_date === ds && h.is_archived),
-          overdue: hist.some(h => h.execute_date === ds && h.overdue),
+          is_archived: hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds)),
+          overdue: hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
         }));
       },
       // 执行历史「撤销打卡」确认提示：当前条目已打卡且子任务母本为「副本全完成自动归档」态时，
@@ -9952,6 +9982,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     computed: {
       hasCycle() { return !!(this.sub && this.sub.cycle); },
       parentId() { return this.parent ? this.parent._id : (this.sub ? this.sub._parentId : null); },
+      // 父任务本身已逾期未完成（非周期或周期 recount/independent 滞留）→ 本子任务副本不再重复显示「逾期未完成」标签
+      parentOverdue() {
+        if (!this.parent) return false;
+        if (this.parent.overdueUnfinished) return true;
+        if (this.parent.cycle) {
+          const mode = this.$store.cycleMode(this.parent);
+          if ((mode === 'recount' || mode === 'independent') && this.$store.cycleStuckOverdue(this.parent)) return true;
+        }
+        return false;
+      },
+      // 本子任务副本「逾期未完成」标识：任意机制（recount / independent / extend）只要存在过去未完成发生日即挂「逾期未完成」，
+      // 与今日 tab 主任务行口径一致，不另显示「已延期」，一直同步到今日完成为止
+      cycleOverdueUnfinished() {
+        if (!this.sub || !this.sub.cycle) return false;
+        return this.$store.cycleStuckOverdue(this.sub);
+      },
       // 母本任务对应时间标签（沿用现有胶囊 UI）：展示母本自身排期（单点日期 / 周期）
       parentCap() { return this.parent ? this.$store.capsuleOf(this.parent, { isCopy: false }) : null; },
       capsule() { return this.$store.capsuleOf(this.sub, { isCopy: this.isCopy, windowStart: this.winStart || undefined, windowEnd: this.winEnd || undefined, inWeek: this.inWeek }); },
@@ -10036,7 +10082,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     template: `
     <div class="row task-row subtask-copy swipeable" @click="onClick" :style="cardStyle"
-         :class="{ 'emergency-bg': sub.isEmergency, 'is-overdue': overdue || sub.overdueUnfinished }"
+         :class="{ 'emergency-bg': sub.isEmergency, 'is-overdue': overdue || sub.overdueUnfinished || cycleOverdueUnfinished }"
          @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
       <div class="swipe-hint" :class="cardHintDir()" v-if="cardHintDir()">{{ cardHintText() }}</div>
       <button class="row-emg-btn" :class="{on:sub.isEmergency}" @click.stop="toggleEmg" :title="sub.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ sub.isEmergency ? '🚨' : '🚩' }}</button>
@@ -10045,7 +10091,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="row-title">
           <span class="rt-text">{{ sub.title }}</span><span class="rt-badges"><span v-if="sub.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="hasCycle" class="tag cycle">🔁</span><span v-if="capsule" class="cap" :class="'cap-'+capsule.kind"><span class="cap-ico">{{ capsule.icon }}</span><span class="cap-txt">{{ capsule.text }}</span></span></span>
         </div>
-        <div class="row-sub subtask-desc">{{ sub.desc || '无描述' }}<span v-if="sub.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in catChips" :key="tg">{{ tg }}</span><span v-if="parentCap" class="cap" :class="'cap-'+parentCap.kind"><span class="cap-ico">{{ parentCap.icon }}</span><span class="cap-txt">{{ parentCap.text }}</span></span></div>
+        <div class="row-sub subtask-desc">{{ sub.desc || '无描述' }}<span v-if="(sub.overdueUnfinished || cycleOverdueUnfinished) && !parentOverdue" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in catChips" :key="tg">{{ tg }}</span><span v-if="parentCap" class="cap" :class="'cap-'+parentCap.kind"><span class="cap-ico">{{ parentCap.icon }}</span><span class="cap-txt">{{ parentCap.text }}</span></span></div>
         <div class="row-prog prog-sync" v-if="$progressSync(sub)">📊 {{ $progressSync(sub) }}</div>
       </div>
       <WeekScheduleBtn v-if="inWeek" :task="sub" :sub-id="sub._id" :parent-id="parentId" />
@@ -10260,10 +10306,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return [];
         }
         const hist = t.cycle_history || [];
+        // 完成判定同时匹配 execute_date 与原发生日（保持与 annotateCycleDates 一致）：
+        // 延期补卡记录记在原发生日 dt，故网格该日显示为已打卡；real_done 仅用于锚点重算。
         return dates.map(ds => ({
           date: ds,
-          done: hist.some(h => h.execute_date === ds && h.is_archived),
-          overdue: hist.some(h => h.execute_date === ds && h.overdue),
+          done: hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds)),
+          overdue: hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
         }));
       },
       // 执行历史「撤销打卡」确认弹窗提示：当前条目为已打卡、且母本为「副本全完成自动归档」态时，
@@ -11543,8 +11591,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         return false;
       },
-      // 漏卡滞留「已延期」标识：周期任务（含子任务副本）存在过去未完成发生日 → 今日页滞留且可补卡（延期到今日）
-      isDeferred(t) {
+      // 周期副本「逾期未完成」标识：任意机制（卡住重算 recount / 独立固定 independent / 补位扩展 extend）
+      // 只要存在过去未完成发生日即挂「逾期未完成」，统一口径、不另显示「已延期」，一直同步到今日完成为止（补卡后 cycleStuckOverdue 转 false）
+      cycleOverdueUnfinished(t) {
         if (!t || !t.cycle) return false;
         return this.$store.cycleStuckOverdue(t);
       },
@@ -11616,13 +11665,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               </div>
               <div class="list" style="flex:1;min-width:0;align-self:flex-start;">
                 <template v-for="it in g.items" :key="it._key">
-                  <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="isDeferred(it.data)" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
+                  <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="cycleOverdueUnfinished(it.data)" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
                   <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data), 'emergency-bg': it.data.isEmergency }" @pointerdown="rowDown($event,it.data)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
                     <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
                     <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
                     <div class="row-main">
                       <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
-                      <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data)">⚠ 延期未完成</span><span class="row-overdue deferred" v-else-if="isDeferred(it.data)">⏰ 已延期</span></div>
+                      <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished || cycleOverdueUnfinished(it.data)" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data) && !it.data.overdueUnfinished && !cycleOverdueUnfinished(it.data)">⚠ 延期未完成</span></div>
                       <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
                     </div>
                     <button v-if="canBackToWeek(it.data)" class="row-back-btn" @click.stop="backToWeek(it.data)" @pointerdown.stop @pointerup.stop @pointercancel.stop title="清除日期，退回本周计划">↩ 退回周</button>
@@ -11637,13 +11686,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="tl-head" v-if="timedGroups.length && untimedItems.length" style="margin:12px 0 8px;">📋 未设提醒（{{ untimedItems.length }} 条）</div>
         <div class="list" v-if="untimedItems.length">
           <template v-for="it in untimedItems" :key="it._key">
-            <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="isDeferred(it.data)" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
+            <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="cycleOverdueUnfinished(it.data)" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
             <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data), 'emergency-bg': it.data.isEmergency }" @pointerdown="rowDown($event,it.data)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
               <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
               <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
               <div class="row-main">
                 <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
-                <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data)">⚠ 延期未完成</span><span class="row-overdue deferred" v-else-if="isDeferred(it.data)">⏰ 已延期</span></div>
+                <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished || cycleOverdueUnfinished(it.data)" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data) && !it.data.overdueUnfinished && !cycleOverdueUnfinished(it.data)">⚠ 延期未完成</span></div>
                 <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
               </div>
               <button v-if="canBackToWeek(it.data)" class="row-back-btn" @click.stop="backToWeek(it.data)" @pointerdown.stop @pointerup.stop @pointercancel.stop title="清除日期，退回本周计划">↩ 退回周</button>
@@ -14685,6 +14734,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (p) { this.name = p.name || ''; this.deadline = p.deadline || ''; this.tags = (p.tags || []).slice(); this.importance = p.importance || 'normal'; }
       }
     },
+    mounted() {
+      // 「新建项目」入口：打开即聚焦首个输入框（项目名称）；编辑已有项目时不聚焦
+      if (this.pid) return;
+      this.$nextTick(() => {
+        const el = this.$el.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled])');
+        if (el) { try { el.focus({ preventScroll: true }); } catch (e) {} }
+      });
+    },
     methods: {
       commitTag() {
         const raw = (this.tagInput || '').trim();
@@ -14819,6 +14876,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       } else {
         this.title = this.seedTitle || '';
       }
+    },
+    mounted() {
+      // 「新增子任务」入口：打开即聚焦首个输入框（子任务名称）；编辑已有子任务时不聚焦
+      if (this.sid) return;
+      this.$nextTick(() => {
+        const el = this.$el.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled])');
+        if (el) { try { el.focus({ preventScroll: true }); } catch (e) {} }
+      });
     },
     methods: {
       save() {
@@ -19237,7 +19302,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     var FOCUSABLE = 'input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled])';
     var POP = '.modal-mask, .floating-modal, .quick-pop, .daily-confirm-mask, .fullnote-mask, .dp-mask, .chart-confirm, .undo-confirm, .idea-full-mask, [class*="modal"], [class*="mask"], [class*="pop"]';
 
-    // 1) 自动聚焦：弹窗插入 DOM 后聚焦首个输入框
+    // 1) 自动聚焦：默认不自动聚焦任何弹窗（避免编辑 / 长按 / 填报等入口误聚焦输入框）。
+    //    仅「创建任务 / 添加新任务」入口由各自组件显式聚焦（见 TaskAddModal.mounted / QuickEntry.open）；
+    //    此处保留开关：根节点带 data-autofocus 的弹窗仍会聚焦首个输入框，作为兜底（当前创建入口走组件内聚焦）。
     var af = new MutationObserver(function (muts) {
       muts.forEach(function (m) {
         m.addedNodes.forEach(function (node) {
@@ -19246,6 +19313,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           Array.prototype.forEach.call(boxes, function (box) {
             if (box.__afDone) return;
             box.__afDone = true;
+            if (!box.getAttribute('data-autofocus')) return;
             var el = box.querySelector(FOCUSABLE);
             if (el) requestAnimationFrame(function () { try { el.focus({ preventScroll: true }); } catch (e) {} });
           });
