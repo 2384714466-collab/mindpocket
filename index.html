@@ -847,6 +847,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* ============ 纵向时间线面板（统计页 · 全局已归档仓库） ============ */
 .tl-panel { margin: 4px 0 10px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px; }
 .tl-head { font-size: 13px; font-weight: 600; color: var(--sub); margin-bottom: 10px; }
+/* 今日 tab 内默认隐藏「日期标签（胶囊 .cap）」：作用于今日 tab 内的今日待办 + 本周/本月看板等
+   全部任务条目；「待归档」tab 与统计页为独立组件/页面，不在此作用域内，不受影响 */
+.today-page .cap { display: none; }
 .tl-list { position: relative; }
 .tl-item { display: flex; gap: 10px; align-items: stretch; cursor: pointer; padding: 4px 0; }
 .tl-axis { flex: 0 0 52px; display: flex; flex-direction: column; align-items: center; position: relative; }
@@ -856,7 +859,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   content: ''; position: absolute; top: 14px; bottom: -4px; width: 2px; background: #e6e8ef; left: 50%; transform: translateX(-50%);
 }
 .tl-time { font-size: 11px; color: var(--sub); margin-top: 2px; text-align: center; }
-.tl-card { flex: 1; background: #f7f8fc; border-radius: var(--radius-sm); padding: 8px 10px; border: 1px solid var(--line); }
+.tl-card { flex: 1; background: #fafbff; border-radius: var(--radius-md); padding: 8px 12px; border: 1px solid var(--line); box-shadow: 0 1px 3px rgba(40,50,90,.06); }
 .tl-item.tl-subtask .tl-card { background: #eef4ff; }
 .tl-item.tl-copy .tl-card { background: #e8f8ee; }
 .tl-item.tl-subtask .tl-dot { background: #3aa0ff; }
@@ -2411,7 +2414,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (prevStatus && prevStatus !== status) {
       reverseHabitDayPoints(h, date, prevStatus, status);
     } else if (isNew) {
-      // 新打卡 / 补卡：若该日此前已被结算（如漏完成 -5、破戒 -10），先回滚旧结算再按新状态重算；
+      // 新打卡 / 补卡：若该日此前已被结算（如漏完成 -5、破戒 -100），先回滚旧结算再按新状态重算；
       // 否则「已完成」会被幂等门挡住、旧的漏扣记录残留 → 已完成仍被记成漏完成、积分被错误扣减
       reverseHabitDayPoints(h, date, '', status);
     }
@@ -2494,7 +2497,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
       } else if (h.type === 'QUIT_HABIT') {
         if (rec && rec.status === 'fail') {
-          addPoints(-10, 'habit', '破戒: ' + h.name, refId);
+          addPoints(-100, 'habit', '破戒: ' + h.name, refId);
         }
         // QUIT_HABIT 未破戒（无记录或非 fail）= 不加分不扣分（默认成功）
       } else if (h.type === 'SOP_HABIT') {
@@ -4345,8 +4348,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const ka = emergencyKey(a, d), kb = emergencyKey(b, d);
         if (ka !== kb) return ka < kb ? -1 : ka > kb ? 1 : 0;
       }
-      const oa = a.overdueUnfinished ? 0 : 1, ob = b.overdueUnfinished ? 0 : 1;
-      if (oa !== ob) return oa - ob;                // 逾期未完成：仅次紧急，置顶其余之前（与看板/本周本月区块同序）
+      const oa = (a.overdueUnfinished || cycleStuckOverdue(a)) ? 0 : 1, ob = (b.overdueUnfinished || cycleStuckOverdue(b)) ? 0 : 1;
+      if (oa !== ob) return oa - ob;                // 逾期未完成（含周期漏卡滞留）：仅次紧急，置顶其余之前（与看板/本周本月区块同序）
       const ra = remindMinutes(a), rb = remindMinutes(b);
       if (ra !== rb) return ra - rb;
       const ka = copyDateKey(a, d), kb = copyDateKey(b, d);
@@ -4390,8 +4393,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const ea2 = emergencyKey(a, d), eb2 = emergencyKey(b, d);
         if (ea2 !== eb2) return ea2 < eb2 ? -1 : 1;
       }
-      const oa = a.overdueUnfinished ? 0 : 1, ob = b.overdueUnfinished ? 0 : 1;
-      if (oa !== ob) return oa - ob;                // 逾期未完成：仅次紧急，置顶其余之前（与看板/本周本月区块同序）
+      const oa = (a.overdueUnfinished || cycleStuckOverdue(a)) ? 0 : 1, ob = (b.overdueUnfinished || cycleStuckOverdue(b)) ? 0 : 1;
+      if (oa !== ob) return oa - ob;                // 逾期未完成（含周期漏卡滞留）：仅次紧急，置顶其余之前（与看板/本周本月区块同序）
       const ra = remindMinutes(a), rb = remindMinutes(b);
       if (ra !== rb) return ra - rb;
       const ka = copyDateKey(a, d), kb = copyDateKey(b, d);
@@ -11247,6 +11250,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             const ka = this.$store.emergencyKey(a.data, d), kb = this.$store.emergencyKey(b.data, d);
             if (ka !== kb) return ka < kb ? -1 : ka > kb ? 1 : 0;
           }
+          // 逾期未完成（含周期漏卡滞留）：紧随紧急置顶，避免今日看板遗漏
+          const oa = (a.data.overdueUnfinished || this.$store.cycleStuckOverdue(a.data)) ? 0 : 1;
+          const ob = (b.data.overdueUnfinished || this.$store.cycleStuckOverdue(b.data)) ? 0 : 1;
+          if (oa !== ob) return oa - ob;
           const ra = this.$store.remindMinutes(a.data), rb = this.$store.remindMinutes(b.data);
           if (ra !== rb) return ra - rb;
           const ka = this.$store.copyDateKey(a.data, d), kb = this.$store.copyDateKey(b.data, d);
@@ -11382,17 +11389,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 是否配置了提醒时间（主/子任务双字段兼容）—— 今日待办 A/B 分区的唯一判定依据
       hasRemindTime(x) { return !!(x && (x.enable_remind || x.sub_remind)) && !!(x.remind_time || x.sub_remind_time); },
       // 本周 / 本月区块排序：紧急置顶 → 逾期未完成置顶（仅次于紧急） → 提醒时间升序（无提醒后置） → 标题稳定序
-      sortPlanItems(list) {
-        return list.slice().sort((a, b) => {
-          const ea = a.data.isEmergency ? 0 : 1, eb = b.data.isEmergency ? 0 : 1;
-          if (ea !== eb) return ea - eb;
-          const oa = a.data.overdueUnfinished ? 0 : 1, ob = b.data.overdueUnfinished ? 0 : 1;
-          if (oa !== ob) return oa - ob;
-          const ra = this.$store.remindMinutes(a.data), rb = this.$store.remindMinutes(b.data);
-          if (ra !== rb) return ra - rb;
-          return String(a.data.title || '').localeCompare(String(b.data.title || ''));
-        });
-      },
+    sortPlanItems(list) {
+      return list.slice().sort((a, b) => {
+        const ea = a.data.isEmergency ? 0 : 1, eb = b.data.isEmergency ? 0 : 1;
+        if (ea !== eb) return ea - eb;
+        const oa = (a.data.overdueUnfinished || this.$store.cycleStuckOverdue(a.data)) ? 0 : 1;
+        const ob = (b.data.overdueUnfinished || this.$store.cycleStuckOverdue(b.data)) ? 0 : 1;
+        if (oa !== ob) return oa - ob;
+        const ra = this.$store.remindMinutes(a.data), rb = this.$store.remindMinutes(b.data);
+        if (ra !== rb) return ra - rb;
+        return String(a.data.title || '').localeCompare(String(b.data.title || ''));
+      });
+    },
       // 合并区块日期切换：上一日 / 下一日（仅刷新本区块任务）
       prevDay() { this.selectedDate = this.$store.util.addDays(this.selectedDate, -1); },
       nextDay() { this.selectedDate = this.$store.util.addDays(this.selectedDate, 1); },
@@ -11633,7 +11641,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       noDayTasks(v) { if (v) this.planOpen.week = true; },
     },
     template: `
-    <div class="page">
+    <div class="page today-page">
       <h2 class="page-title today-title">
         <span class="pt-date">今日 · {{ today }}</span>
         <span class="cd-row">
@@ -13534,11 +13542,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!this.archSelDate) return [];
         const sel = this.archSelDate, today = this.today, out = [];
         this.$store.state.tasks.forEach(t => {
-          if (!t || !t.is_archived) return;
-          if (this.$store.archiveDatesOf(t).indexOf(sel) >= 0 && this.hasRemind(t)) out.push(this.tlItemOf(t, 'task', null, today));
+          if (!t) return;
+          // 周期任务：以「已完成副本」逐日参与时间线（即使整体未归档）；非周期仅归档后参与
+          const tIn = t.cycle ? this.$store.archiveDatesOf(t).indexOf(sel) >= 0 : (t.is_archived && this.$store.archiveDatesOf(t).indexOf(sel) >= 0);
+          if (tIn && this.hasRemind(t)) out.push(this.tlItemOf(t, 'task', null, today));
           (t.sub_tasks || []).forEach(s => {
-            if (!s || !s.is_archived) return;
-            if (this.$store.archiveDatesOf(s).indexOf(sel) >= 0 && this.hasRemind(s)) out.push(this.tlItemOf(s, 'subtask', t, today));
+            if (!s) return;
+            const sIn = s.cycle ? this.$store.archiveDatesOf(s).indexOf(sel) >= 0 : (s.is_archived && this.$store.archiveDatesOf(s).indexOf(sel) >= 0);
+            if (sIn && this.hasRemind(s)) out.push(this.tlItemOf(s, 'subtask', t, today));
           });
         });
         out.sort((a, b) =>
@@ -19348,6 +19359,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 不参与「Enter 触发主按钮」逻辑；提交仍走「✨ AI 解析」按钮。
       if (e.target.classList.contains('ai-text')) return;
       if (e.shiftKey) return;                           // Shift+Enter 换行
+      // 多行文本域默认 Enter 即换行（符合 <textarea> 自然预期，如任务编辑「素材备注」）；
+      // 仅显式标注 .submit-on-enter 的文本域保留「Enter 触发主按钮提交」的原有行为
+      if (!e.target.classList.contains('submit-on-enter')) return;
       e.preventDefault();
       triggerSubmit(e.target);
     }, true);
