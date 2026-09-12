@@ -169,7 +169,7 @@ body {
 .tag.cycle { background: #fff3e0; color: #e08e0b; }
 .tag.coll { background: #fdf3e3; color: #b07d21; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); }
 .tag.tpl { background: #eef0ff; color: #5b5bd6; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); }
-.tag.arch { background: #e6f7e6; color: #2e7d32; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); }
+.tag.clip { background: #eef2f7; color: #5a6473; font-size: 11px; padding: 1px 6px; border-radius: var(--radius-sm); flex: 0 0 auto; cursor: default; } /* 📎 已填写素材备注 */
 .tag.overdue-unfinished { background: #fff3e3; color: #e8862b; font-weight: 600; font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); flex: 0 0 auto; }
 /* .tag.parent-ref 已下线：父任务归属改为并入标签层级链末级（考研│专业课│母任务X） */
 /* 紧急任务红色角标：标题旁醒目标识（今日/周看板/项目/待归档/闲趣随机卡统一复用） */
@@ -1483,13 +1483,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-detail-time { color: var(--sub); font-size: 11px; white-space: nowrap; }
 .wp-detail-rev { color: var(--sub); font-size: 10px; white-space: nowrap; background: #f0f1f6; padding: 1px 6px; border-radius: var(--radius-sm); }
 .wp-detail-focus { color: var(--sub); font-size: 10px; white-space: nowrap; }
-
-/* —— 娱乐愿望模板按钮 —— */
-.wp-templates { margin-bottom: 12px; }
-.wp-tpl-label { font-size: 11px; color: var(--sub); margin-bottom: 6px; }
-.wp-tpl-btns { display: flex; flex-direction: column; gap: 6px; }
-.wp-tpl-btn { width: 100%; text-align: left; background: #f0f3ff; color: var(--primary); border: 1px solid #dde4ff; border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
-.wp-tpl-btn:active { background: #e6ecff; }
 
 /* =========================================================================
  * P3 · 响应式：平板 / 横屏 / PC
@@ -9373,8 +9366,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <p class="tip">该日期已过期未完成，请选择本次打卡的归属方式：</p>
             <div class="modal-actions">
               <button class="btn ghost" @click="cancelSubMakeup">取消</button>
-              <button class="btn warn" @click="confirmSubDeferred">延期完成（归今日）</button>
-              <button class="btn primary" @click="confirmSubOnTime">按时完成（归原日期）</button>
+                <button class="btn warn" @click="confirmSubDeferred" title="归属打卡当日（今日），并按机制重算未来执行历史">延期完成</button>
+                <button class="btn primary" @click="confirmSubOnTime" title="归属原执行日期，不重算执行历史">按时完成</button>
             </div>
           </div>
         </div>
@@ -10156,7 +10149,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <button v-if="overdue && !sub.cycle" class="row-ext" @click.stop="$emit('extend', sub._id, parentId)" title="推迟到下一周 / 下一月">⏩ 延期</button>
       <div class="row-main">
         <div class="row-title">
-          <span class="rt-text">{{ sub.title }}</span><span class="rt-badges"><span v-if="sub.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="hasCycle" class="tag cycle">🔁</span><span v-if="capsule" class="cap" :class="'cap-'+capsule.kind"><span class="cap-ico">{{ capsule.icon }}</span><span class="cap-txt">{{ capsule.text }}</span></span></span>
+          <span class="rt-text">{{ sub.title }}</span><span class="rt-badges"><span v-if="sub.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="sub.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="hasCycle" class="tag cycle">🔁</span><span v-if="capsule" class="cap" :class="'cap-'+capsule.kind"><span class="cap-ico">{{ capsule.icon }}</span><span class="cap-txt">{{ capsule.text }}</span></span></span>
         </div>
         <div class="row-sub subtask-desc">{{ sub.desc || '无描述' }}<span v-if="(sub.overdueUnfinished || cycleOverdueUnfinished) && !parentOverdue" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in catChips" :key="tg">{{ tg }}</span><span v-if="parentCap" class="cap" :class="'cap-'+parentCap.kind"><span class="cap-ico">{{ parentCap.icon }}</span><span class="cap-txt">{{ parentCap.text }}</span></span></div>
         <div class="row-prog prog-sync" v-if="$progressSync(sub)">📊 {{ $progressSync(sub) }}</div>
@@ -10623,8 +10616,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <p class="tip">该日期已过期未完成，请选择本次打卡的归属方式：</p>
               <div class="modal-actions">
                 <button class="btn ghost" @click="cancelExecMakeup">取消</button>
-                <button class="btn warn" @click="confirmExecDeferred">延期完成（归今日）</button>
-                <button class="btn primary" @click="confirmExecOnTime">按时完成（归原日期）</button>
+                <button class="btn warn" @click="confirmExecDeferred" title="归属打卡当日（今日），并按机制重算未来执行历史">延期完成</button>
+                <button class="btn primary" @click="confirmExecOnTime" title="归属原执行日期，不重算执行历史">按时完成</button>
               </div>
             </div>
           </div>
@@ -11044,10 +11037,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       dragEnd() { if (this.dragFromId && this.dragOverId) { const from = this.$store.state.wish_items.find(w => w._id === this.dragFromId); const to = this.$store.state.wish_items.find(w => w._id === this.dragOverId); if (from && to) { const tmp = from.sort_order; from.sort_order = to.sort_order; to.sort_order = tmp; this.$store.persist(); } } this.dragFromId = null; this.dragOverId = null; },
       // 弹窗
       openDetail() { this.showDetailModal = true; }, closeDetail() { this.showDetailModal = false; },
-      openAdd() { this.addName = ''; this.addCost = ''; this.addCountType = 'one_time'; this.addValidity = ''; this.showAddModal = true; },
+      openAdd() { this.addName = ''; this.addCost = ''; this.addCountType = 'one_time'; this.addValidity = ''; this.showAddModal = true; this.$nextTick(() => { if (this.$refs.addNameInp) this.$refs.addNameInp.focus(); }); }, // 默认聚焦第一个输入框（愿望名称）
       closeAdd() { this.showAddModal = false; },
       confirmAdd() { const name = (this.addName || '').trim(); const cost = parseInt(this.addCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.addWishItem({ name, cost, count_type: this.addCountType, validity_days: this.addValidity }); this.closeAdd(); },
-      fillTemplate(name, cost) { this.addName = name; this.addCost = String(cost); this.addCountType = 'repeatable'; },
       openEdit(wishId) { const item = this.$store.state.wish_items.find(w => w._id === wishId); if (!item) return; this.editWishId = wishId; this.editName = item.name; this.editCost = String(item.cost); this.editCountType = item.count_type || 'one_time'; this.editValidity = item.validity_days ? String(item.validity_days) : ''; this.showEditModal = true; },
       closeEdit() { this.showEditModal = false; this.editWishId = null; },
       confirmEdit() { if (this.editExhausted) return; const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType, validity_days: this.editValidity }); this.$store.incrementEditCount(); this.closeEdit(); },
@@ -11189,15 +11181,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 <div class="modal-mask" v-if="showAddModal" @click.self="closeAdd">
   <div class="modal"><div class="modal-head"><h3>添加愿望</h3><button class="x" @click="closeAdd">✕</button></div>
     <div class="modal-body">
-      <div class="wp-templates">
-        <div class="wp-tpl-label">娱乐愿望模板（点击快速填充）</div>
-        <div class="wp-tpl-btns">
-          <button class="wp-tpl-btn" @click="fillTemplate('单人奶茶/外卖加餐', 35)">🥤 单人奶茶/外卖加餐 35分</button>
-          <button class="wp-tpl-btn" @click="fillTemplate('好友聚餐/半日短途出行', 120)">🍽️ 好友聚餐/半日短途出行 120分</button>
-          <button class="wp-tpl-btn" @click="fillTemplate('1-2天短途旅游', 680)">✈️ 1-2天短途旅游 680分</button>
-        </div>
-      </div>
-      <div class="fld"><label>愿望名称</label><input v-model="addName" placeholder="例如：买一本新书" @keyup.enter="confirmAdd" /></div>
+      <div class="fld"><label>愿望名称</label><input ref="addNameInp" v-model="addName" placeholder="例如：买一本新书" @keyup.enter="confirmAdd" /></div>
       <div class="fld"><label>所需积分（正整数）</label><input v-model="addCost" type="number" placeholder="例如：100" min="1" @keyup.enter="confirmAdd" /></div>
       <div class="fld"><label>愿望类型</label>
         <select v-model="addCountType"><option value="one_time">一次性愿望（兑换后自动归档）</option><option value="repeatable">循环愿望（可重复兑换）</option></select>
@@ -11774,7 +11758,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
                     <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
                     <div class="row-main">
-                      <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
+                      <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
                       <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished || cycleOverdueUnfinished(it.data)" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data) && !it.data.overdueUnfinished && !cycleOverdueUnfinished(it.data)">⚠ 延期未完成</span></div>
                       <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
                     </div>
@@ -11795,7 +11779,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
               <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
               <div class="row-main">
-                <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
+                <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
                 <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished || cycleOverdueUnfinished(it.data)" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data) && !it.data.overdueUnfinished && !cycleOverdueUnfinished(it.data)">⚠ 延期未完成</span></div>
                 <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
               </div>
@@ -11822,7 +11806,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                   <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
                   <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（置顶展示，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
                   <div class="row-main">
-                    <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capWin(it.data,b.win)" class="cap" :class="'cap-'+capWin(it.data,b.win).kind"><span class="cap-ico">{{ capWin(it.data,b.win).icon }}</span><span class="cap-txt">{{ capWin(it.data,b.win).text }}</span></span></span></div>
+                    <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="it.data.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capWin(it.data,b.win)" class="cap" :class="'cap-'+capWin(it.data,b.win).kind"><span class="cap-ico">{{ capWin(it.data,b.win).icon }}</span><span class="cap-txt">{{ capWin(it.data,b.win).text }}</span></span></span></div>
                     <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span></div>
                     <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
                   </div>
@@ -11844,7 +11828,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="swipe-hint" :class="rowHintDir(t._id)" v-if="rowHintDir(t._id)">{{ rowHintText(t._id) }}</div>
             <button class="row-emg-btn" :class="{on:t.isEmergency}" @click.stop="toggleEmergency(t)" :title="t.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ t.isEmergency ? '🚨' : '🚩' }}</button>
             <div class="row-main">
-              <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
+              <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
               <div class="row-sub"><span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
             </div>
@@ -13182,7 +13166,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="row-title">
                 <span class="rt-text"><template v-if="r.isSub">↳ {{ r.sub.title }}</template><template v-else>{{ r.task.title }}</template></span>
                 <span class="rt-badges">
-                <span v-if="r.isSub ? r.sub.isEmergency : r.task.isEmergency" class="tag emergency">🚨 紧急</span>
+                <span v-if="r.isSub ? r.sub.isEmergency : r.task.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="r.isSub ? r.sub.material_notes : r.task.material_notes" class="tag clip" title="已填写素材备注">📎</span>
                 <span v-if="r.isSub ? (r.sub.cycle && !isCollTask(r.sub)) : (r.task.cycle && !isCollTask(r.task))" class="tag cycle">🔁</span>
                 <span v-if="r.isSub ? isCollTask(r.sub) : isCollTask(r.task)" class="tag coll">📦</span>
                 <span v-if="!r.isSub && r.task.is_template" class="tag tpl">📋</span>
@@ -13235,7 +13219,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                   <div class="swipe-hint" :class="rowHintDir(t._id)" v-if="rowHintDir(t._id)">{{ rowHintText(t._id) }}</div>
               <button class="row-emg-btn" :class="{on:t.isEmergency}" @click.stop="toggleEmergency(t)" :title="t.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ t.isEmergency ? '🚨' : '🚩' }}</button>
                   <div class="row-main">
-                    <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
+                    <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
                     <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
                   </div>
@@ -13255,7 +13239,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                         <div class="swipe-hint" :class="rowHintDir(pt._id)" v-if="rowHintDir(pt._id)">{{ rowHintText(pt._id) }}</div>
                         <button class="row-emg-btn" :class="{on:pt.isEmergency}" @click.stop="toggleEmergency(pt)" :title="pt.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ pt.isEmergency ? '🚨' : '🚩' }}</button>
                         <div class="row-main">
-                          <div class="row-title"><span class="rt-text">{{ pt.title }}</span><span class="rt-badges"><span v-if="pt.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="pt.cycle && !isCollTask(pt)" class="tag cycle">🔁</span><span v-if="isCollTask(pt)" class="tag coll">📦</span><span v-if="!isCollTask(pt) && cap(pt)" class="cap" :class="'cap-'+cap(pt).kind"><span class="cap-ico">{{ cap(pt).icon }}</span><span class="cap-txt">{{ cap(pt).text }}</span></span></span></div>
+                          <div class="row-title"><span class="rt-text">{{ pt.title }}</span><span class="rt-badges"><span v-if="pt.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="pt.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="pt.cycle && !isCollTask(pt)" class="tag cycle">🔁</span><span v-if="isCollTask(pt)" class="tag coll">📦</span><span v-if="!isCollTask(pt) && cap(pt)" class="cap" :class="'cap-'+cap(pt).kind"><span class="cap-ico">{{ cap(pt).icon }}</span><span class="cap-txt">{{ cap(pt).text }}</span></span></span></div>
                           <div class="row-sub">{{ pt.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(pt)" :key="tg">{{ tg }}</span></div>
                           <div class="row-prog prog-sync" v-if="$progressSync(pt)">📊 {{ $progressSync(pt) }}</div>
                         </div>
@@ -13264,7 +13248,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                       </div>
                       <div class="row task-row swipeable" v-for="st in folderSubTasksOf(pt)" :key="st._id" @click="onSubEdit(st._id, pt._id)" :class="{hint: showHint(st), 'emergency-bg': st.isEmergency}">
                         <div class="row-main">
-                          <div class="row-title"><span class="rt-text">↳ {{ st.title }}</span><span class="rt-badges"><span v-if="st.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="st.cycle && !isCollTask(st)" class="tag cycle">🔁</span></span></div>
+                          <div class="row-title"><span class="rt-text">↳ {{ st.title }}</span><span class="rt-badges"><span v-if="st.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="st.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="st.cycle && !isCollTask(st)" class="tag cycle">🔁</span></span></div>
                           <div class="row-sub">{{ st.desc || '无描述' }}</div>
                           <div class="row-prog prog-sync" v-if="$progressSync(st)">📊 {{ $progressSync(st) }}</div>
                         </div>
@@ -13279,7 +13263,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="swipe-hint" :class="rowHintDir(t._id)" v-if="rowHintDir(t._id)">{{ rowHintText(t._id) }}</div>
               <button class="row-emg-btn" :class="{on:t.isEmergency}" @click.stop="toggleEmergency(t)" :title="t.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ t.isEmergency ? '🚨' : '🚩' }}</button>
               <div class="row-main">
-                <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
+                <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
                 <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
               </div>
@@ -13301,7 +13285,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="swipe-hint" :class="rowHintDir(t._id)" v-if="rowHintDir(t._id)">{{ rowHintText(t._id) }}</div>
               <button class="row-emg-btn" :class="{on:t.isEmergency}" @click.stop="toggleEmergency(t)" :title="t.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ t.isEmergency ? '🚨' : '🚩' }}</button>
               <div class="row-main">
-                <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
+                <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
                 <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
               </div>
@@ -13318,7 +13302,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <!-- 主任务归档（带拖拽排序手柄） -->
             <div class="row task-row archived swipeable" v-for="t in folderArchived" :key="t._id" @click="onRowClick(t)" :style="rowDragStyle(t)" :class="{ 'has-sub': $hasSub(t) }" @pointerdown="rowDown($event,t)" @pointermove="rowMove($event,t)" @pointerup="rowUp($event,t)" @pointercancel="rowUp($event,t)">
               <div class="row-main">
-                <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
+                <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
                 <!-- 归档态标签：不展示 📌临时 徽标，标签去 #、层级│分隔、统一绿色胶囊 -->
                 <div class="row-sub"><span class="tag cat" v-for="tg in $archTagList(t)" :key="tg">{{ tg }}</span><span class="tag cat" v-if="!$archTagList(t).length">无分类</span></div>
                 <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
@@ -13361,7 +13345,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                   <div class="swipe-hint" :class="rowHintDir(t._id)" v-if="rowHintDir(t._id)">{{ rowHintText(t._id) }}</div>
                   <button class="row-emg-btn" :class="{on:t.isEmergency}" @click.stop="toggleEmergency(t)" :title="t.isEmergency ? '取消紧急置顶' : '设为紧急置顶（看板置顶，时间/周期不变）'">{{ t.isEmergency ? '🚨' : '🚩' }}</button>
                   <div class="row-main">
-                    <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
+                    <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
                     <div class="row-sub">{{ t.desc || '无描述' }}<span v-if="t.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span v-if="quickBadge(t)" class="mode-badge m-quick">📌临时</span><span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
                   </div>
@@ -14432,7 +14416,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                @pointercancel="onArchRowUp()">
             <div class="swipe-hint" :class="archHintDir(t._id)" v-if="archHintDir(t._id)">{{ archHintText(t._id) }}</div>
             <div class="row-main" :class="{dragging: archDragId===t._id && archMoved}" :style="{ transform: (archDragId===t._id ? 'translateX('+archX+'px)' : '') }" @click="onArchRowMainClick(t)">
-              <div class="row-title">{{ t._title }}</div>
+              <div class="row-title">{{ t._title }}<span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span></div>
               <div class="row-sub">
                 <span class="tag" :class="'t-'+t._type">{{ t._typeLabel }}</span>
                 <span class="tag" v-if="t._date">📅 {{ t._date }}</span>
@@ -16403,7 +16387,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="row-main">
               <div class="row-title">
                 <span class="rt-text"><span class="sub-prefix">↳</span>{{ r.s.title }}</span>
-                <span class="rt-badges"><span v-if="r.s.isEmergency" class="tag emergency">🚨 紧急</span></span>
+                <span class="rt-badges"><span v-if="r.s.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="r.s.material_notes" class="tag clip" title="已填写素材备注">📎</span></span>
               </div>
               <div class="row-sub">
                 <span class="sub-parent">📁 {{ r.p.name }}</span>
