@@ -2682,6 +2682,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // —— 紧急任务标记：勾选后无视所有日期/周期排序，强制置顶今日Tab，需优先完成 ——
       isEmergency: false,
     }, partial || {});
+    // 周期「延期机制」默认按类型 + 结束方式派生（间隔→卡住重算 / 周月(永久·按日期)→独立固定 / 周月(按次数)→补位扩展）
+    // 仅当调用方未显式指定时生效：上方对象字面量默认值为 'recount'，故不能只用 !t.cycle_delay_mode 判断
+    // （那会被 'recount' 占位短路），须以 partial 是否显式传入非空值为准。既有任务（load 还原）走独立路径不受影响。
+    const explicitDelay = !!(partial && partial.cycle_delay_mode);
+    if (t.cycle && !explicitDelay) {
+      t.cycle_delay_mode = defaultCycleDelayMode(t.cycle.type, t.cycle_end_mode || '');
+    }
     // 临时任务强制无时间：清除所有日期/周期/提醒字段，保持「无时间待归档」语义
     if (t.category_id === QUICK_VIEW_ID) {
       t.execute_date = null; t.cycle = null; t.enable_remind = false; t.remind_time = '';
@@ -3000,15 +3007,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (mode === '' || mode === 'independent') return cycleHits(t.cycle, d, t.cycle_start_date);
     return cycleCurrentDue(t) === d;
   }
-  // 延期目标日：最早的「过去未完成发生日」（独立固定/机制1·2 漏卡滞留今日 + 今日滑动补卡映射统一入口）。
-  // recount/extend 取滚动链首个未完成日；独立固定/legacy 从「实际排期」取最早过去未完成发生日。
+  // 延期目标日：最早的「过去未完成发生日」（独立固定 / recount 漏卡滞留今日 + 今日滑动补卡映射统一入口）。
+  // extend 恒返回 ''（漏卡不滞留今日看板）；recount 取滚动链首个未完成日；独立固定/legacy 从「实际排期」取最早过去未完成发生日。
   // 注意：独立固定必须复用 computeCycleSchedule 的排期口径（而非单独扫 cycleHits），
   // 否则周/月周期的「周几对齐」口径不一致会定位到错误日期（如落在起始日之前）。
   function cycleDeferTarget(t) {
     if (!t || !t.cycle) return '';
     const mode = cycleMode(t);
     const today = todayStr();
-    if (mode === 'recount' || mode === 'extend') {
+    // 补位扩展（extend）：漏卡不滞留今日看板、不挂「逾期未完成」标签；仅在执行历史补卡时扩展 +1 周期日期
+    if (mode === 'extend') return '';
+    // 卡住重算（recount）：漏卡滞留今日（未来段从「真实完成日」顺延重算）
+    if (mode === 'recount') {
       const due = cycleCurrentDue(t);
       return (due && due < today) ? due : '';
     }
@@ -3181,20 +3191,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // - 允许对「已归档母本」操作（满足：已归档母本仍可正常操作打卡记录）
   // - 全部日期完成 → 自动归档母本；撤销任一打卡使未全完成时 → 母本退回待归档
   // - 手动归档（archiveTaskFull）/到期归档（autoArchiveExpiredCycles）不受此撤销影响
-  function toggleOccurrence(id, date, done) {
+  function toggleOccurrence(id, date, done, onTime) {
     const t = findTask(id);
     if (!t) return;
     // 仅周期 / 自定义区间任务支持逐日打卡（单点任务走 doneDates）
     if (!t.cycle && !(t.date_mode === 'range' && t.date_start)) return;
     if (done) {
       if (!cycleArchivedToday(t, date)) {
-        const real = date < todayStr() ? todayStr() : date;   // 真实完成日：逾期则记今天，否则记出现日
-        t.cycle_history.push({ execute_date: date, is_archived: true, overdue: date < todayStr(), real_done: real });
+        // onTime（按时完成·补卡）：真实完成日记「原执行日期」、不挂延期、且不触发执行历史重算；
+        // 否则（延期完成 / 正常）：逾期则真实完成日记今天，由 syncCycleAnchor 驱动未来排期从完成当日顺延重算
+        const isPast = date < todayStr();
+        const real = onTime ? date : (isPast ? todayStr() : date);
+        const overdue = !onTime && isPast;
+        t.cycle_history.push({ execute_date: date, is_archived: true, overdue, real_done: real });
         // 积分联动：执行历史打卡路径补齐许愿池积分（与 markCopyDone 一致）。
         // 出现日级别 refId（taskId_日期），撤销一次仅回滚该次，不会清掉全部出现的积分。
-        const delay = date < todayStr() ? Math.max(0, dateDiffDays(date, todayStr())) : 0;
+        // 按时完成（onTime）不计延期衰减（delay=0），归因落原日期。
+        const delay = onTime ? 0 : (isPast ? Math.max(0, dateDiffDays(date, todayStr())) : 0);
         const pts = Math.max(0, 12 - delay);
-        addPoints(pts, 'cycle_task', (delay > 0 ? '延期完成(' + delay + '天): ' : '正常完成: ') + t.title, t._id + '_' + date);
+        addPoints(pts, 'cycle_task', (onTime ? '按时完成: ' : (delay > 0 ? '延期完成(' + delay + '天): ' : '正常完成: ')) + t.title, t._id + '_' + date);
       }
     } else {
       const idx = t.cycle_history.map(h => h.execute_date).lastIndexOf(date);
@@ -3202,7 +3217,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 积分联动：撤销执行历史打卡（出现日级 refId，精准回滚本次，不影响其他出现日）
       reversePoints(t._id + '_' + date, 'cycle_task');
     }
-    syncCycleAnchor(t);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算
+    if (!onTime) syncCycleAnchor(t);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算（按时完成·补卡不重算）
     // 全部完成 → 自动归档母本（模版任务禁用：仅手动按钮可归档母本）
     // 归档前先写【归档快照】：保存全部副本 + cycle_history，使撤销归档时能按历史打卡日期完整恢复（绿勾保留、未打卡变灰）
     if (allOccurrencesDone(t) && !t.is_archived && !t.is_template) { archiveMasterCopies(t); t.is_archived = true; t.archived_at = todayStr(); t.autoArchivedByCopies = true; }
@@ -3895,9 +3910,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const t = findTask(id);
     if (!t) return;
     // 积分联动：撤销任务完成（各类积分分别独立收回）
-    if (t.cycle || (t.date_mode === 'range' && t.date_start)) {
+    // 自定义区间（非周期）撤销 → cycle_task 按窗口起点 ws 回滚（与 markCopyDone 发放口径 ws 对齐）
+    if (t.date_mode === 'range' && t.date_start) {
       reversePoints(t._id + '_' + ws, 'cycle_task');
     }
+    // 周期任务 cycle_task 回滚见下方「循环 / 延期补卡兜底」：按出现日 ds / dt 精准回滚（与 markCopyDone 发放 refId 对齐）
     if (isStudyWorkTask(t)) {
       reversePoints(t._id, 'study_work');
     }
@@ -3912,7 +3929,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const ds = fmt(cur);
         if (cycleHits(t.cycle, ds, t.cycle_start_date)) {
           const idx = t.cycle_history.map(h => h.execute_date).lastIndexOf(ds);
-          if (idx >= 0) { t.cycle_history.splice(idx, 1); removed = true; }
+          if (idx >= 0) { t.cycle_history.splice(idx, 1); removed = true; reversePoints(t._id + '_' + ds, 'cycle_task'); }
         }
         cur = parseDate(addDays(fmt(cur), 1));
       }
@@ -3923,7 +3940,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (done.length) {
           const dt = done[0];
           const idx = t.cycle_history.map(h => h.execute_date).lastIndexOf(dt);
-          if (idx >= 0) { t.cycle_history.splice(idx, 1); removed = true; }
+          if (idx >= 0) { t.cycle_history.splice(idx, 1); removed = true; reversePoints(t._id + '_' + dt, 'cycle_task'); }
         }
       }
       if (t.autoArchivedByCopies && t.is_archived && !allOccurrencesDone(t) && !t.is_template) { t.is_archived = false; t.autoArchivedByCopies = false; }
@@ -5235,7 +5252,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       plan_month: f.plan_month != null ? f.plan_month : (t.plan_month || null),
       execute_date: f.execute_date || t.execute_date || null, date_start: f.date_start || t.date_start || '', date_end: f.date_end || t.date_end || '',
       cycle_end_date: f.cycle_end_date || t.cycle_end_date || '', cycle_end_mode: f.cycle_end_mode || t.cycle_end_mode || '',
-      cycle_end_count: f.cycle_end_count || t.cycle_end_count || 0, cycle_start_date: f.cycle_start_date || t.cycle_start_date || '', cycle_delay_mode: f.cycle_delay_mode || t.cycle_delay_mode || 'recount',
+      cycle_end_count: f.cycle_end_count || t.cycle_end_count || 0, cycle_start_date: f.cycle_start_date || t.cycle_start_date || '', cycle_delay_mode: f.cycle_delay_mode || t.cycle_delay_mode || this.$store.defaultCycleDelayMode((f.cycle || t.cycle) && (f.cycle || t.cycle).type, (f.cycle_end_mode || t.cycle_end_mode) || ''),
       isEmergency: !!(f.isEmergency || t.isEmergency), hasCheckbox: true,
     });
     // 迁移原任务的历史打卡与归档副本，保证「已打卡绿勾 / 周期副本」在新子任务下延续
@@ -7521,6 +7538,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const wmap = { '一':'1','二':'2','三':'3','四':'4','五':'5','六':'6','日':'0','天':'0' };
         const wm = t.match(/周\s*([一二三四五六日天])/); date = thisWeekday(wm ? wmap[wm[1]] : 1);
       }
+      else if (/(下\s*(?:下|一)?\s*个?\s*月)\s*(\d{1,2}|[一二两三四五六七八九十]+)\s*[日号]/.test(t)) {
+        // 下个月 / 下月 / 下一个月 + N号 → 次月 N 日（如 下个月1号 → 2026-10-01）；下下个月则进两月
+        const nm = t.match(/(下\s*(?:下|一)?\s*个?\s*月)\s*(\d{1,2}|[一二两三四五六七八九十]+)\s*[日号]/);
+        const step = /下\s*下/.test(nm[1]) ? 2 : 1;
+        const d0 = new Date(); d0.setDate(1); d0.setMonth(d0.getMonth() + step); // 先归 1 号再进月，避免 31 号跨月溢出
+        const maxD = new Date(d0.getFullYear(), d0.getMonth() + 1, 0).getDate();
+        const dd = Math.min(cnNum(nm[2]) || 1, maxD);                            // 31 号落在小月 → 取该月最后一天
+        date = d0.getFullYear() + '-' + pad2(d0.getMonth() + 1) + '-' + pad2(dd);
+      }
       else if (/下\s*个?\s*月/.test(t)) {
         const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + 1);
         result.date_mode = 'month'; result.plan_year = d.getFullYear(); result.plan_month = d.getFullYear() + '-' + pad2(d.getMonth() + 1);
@@ -7567,7 +7593,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       .replace(/每周\s*[一二三四五六日天]?|每星期|周初|周末/g, '')
       .replace(/(?:这周|本周|下周|下下周)\s*[一二三四五六日天]?/g, '')                     // 仅周 / 周几（含这周四、下周二、下下周一）
       .replace(/今天|今日|明天|明日|后天|大后天|起/g, '')                              // 相对日
-      .replace(/下\s*个?\s*月/g, '')                                                   // 下月
+      .replace(/下\s*(?:下|一)?\s*个?\s*月\s*(?:(?:\d{1,2}|[一二两三四五六七八九十]+)\s*[日号])?/g, '') // 下月 / 下下个月 / 下个月1号（带日期连剥，避免残留数字）
       .replace(/[一二三四五六七八九十]+\s*月(?!\s*[\d一二两三四五六七八九十])/g, '')       // 中文月（无日；避免误剥「X月Y日」中的月）
       .replace(/(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})[日号]?/g, '')
       .replace(/(\d{1,2}|[一二三四五六七八九十]+)\s*月\s*(\d{1,2}|[一二两三四五六七八九十]+)\s*[日号]?/g, '')   // 中文月日（含中文数字 / 无日后缀）
@@ -9044,6 +9070,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         execHistOpen: false,
         // 执行历史：打卡 / 撤销打卡 二次确认（防误触）
         confirmSubDate: null, confirmSubDone: false,
+        // 执行历史：补卡选择（延期完成 / 按时完成）弹窗
+        makeupSubDate: null,
       };
     },
     computed: {
@@ -9128,7 +9156,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle_end_mode: s.cycle_end_mode || (s.cycle_end_date ? 'date' : ''),
           cycle_end_count: s.cycle_end_count || 0,
           cycle_start_date: s.cycle_start_date || '',
-          cycle_delay_mode: s.cycle_delay_mode || 'recount',
+          cycle_delay_mode: s.cycle_delay_mode || this.$store.defaultCycleDelayMode(s.cycle && s.cycle.type, s.cycle_end_mode || ''),
         });
       } else {
         this.form = base;
@@ -9139,21 +9167,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     methods: {
       // 执行历史打卡/撤销核心逻辑（与主任务 toggleOccurrence 口径一致）
+      // onTime（按时完成·补卡）：真实完成日记原执行日期、不挂延期、不触发执行历史重算
       // 全部日期完成 → 自动归档子任务母本（先写归档快照，保证撤销可恢复）；撤销任一打卡 → 退回待归档
-      doSubOccurrence(date, done) {
+      doSubOccurrence(date, done, onTime) {
         const s = this.sub;
         if (!s) return;
         if (done) {
           if (!this.$store.cycleArchivedToday(s, date)) {
             const today = this.$store.util.todayStr();
-            const real = date < today ? today : date;   // 真实完成日：逾期则记今天，否则记出现日
-            s.cycle_history.push({ execute_date: date, is_archived: true, overdue: date < today, real_done: real });
+            const isPast = date < today;
+            const real = onTime ? date : (isPast ? today : date);   // 真实完成日：按时补卡记原日期，否则逾期记今天
+            const overdue = !onTime && isPast;
+            s.cycle_history.push({ execute_date: date, is_archived: true, overdue, real_done: real });
           }
         } else {
           const idx = s.cycle_history.map(h => h.execute_date).lastIndexOf(date);
           if (idx >= 0) s.cycle_history.splice(idx, 1);
         }
-        this.$store.syncCycleAnchor(s);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算
+        if (!onTime) this.$store.syncCycleAnchor(s);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算（按时完成·补卡不重算）
         // 全部完成 → 自动归档子任务母本（先写快照，保证撤销按历史打卡日期完整恢复）
         if (this.$store.allOccurrencesDone(s) && !s.is_archived) { this.$store.archiveMasterCopies(s); s.is_archived = true; s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; }
         // 撤销后未全完成 → 子任务母本退回待归档（仅自动归档情形）
@@ -9161,12 +9192,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.$store.persist();
       },
       // 执行历史：点击某日期 → 弹窗确认标记完成 / 撤销完成
-      onSubExecDateClick(h) { this.confirmSubDate = h.execute_date; this.confirmSubDone = h.is_archived; },
+      // 执行历史：点击某日期 → 已完成则弹「撤销确认」；未完成（过期）则弹「补卡选择」；未完成（今日/未来）直接打卡
+      onSubExecDateClick(h) {
+        if (h.is_archived) { this.confirmSubDate = h.execute_date; this.confirmSubDone = true; return; }
+        const today = this.$store.util.todayStr();
+        if (h.execute_date < today) { this.makeupSubDate = h.execute_date; }              // 过去未完成 → 补卡选择
+        else { this.doSubOccurrence(h.execute_date, true); }                                // 今日/未来 → 直接打卡
+      },
       cancelSubExecConfirm() { this.confirmSubDate = null; this.confirmSubDone = false; },
       confirmSubToggle() {
         if (!this.confirmSubDate) return;
         this.doSubOccurrence(this.confirmSubDate, !this.confirmSubDone);
         this.confirmSubDate = null; this.confirmSubDone = false;
+      },
+      // 补卡选择：延期完成（归今日、触发重算）/ 按时完成（归原日期、不重算）
+      cancelSubMakeup() { this.makeupSubDate = null; },
+      confirmSubDeferred() {
+        if (!this.makeupSubDate) return;
+        this.doSubOccurrence(this.makeupSubDate, true, false);
+        this.makeupSubDate = null;
+      },
+      confirmSubOnTime() {
+        if (!this.makeupSubDate) return;
+        this.doSubOccurrence(this.makeupSubDate, true, true);
+        this.makeupSubDate = null;
       },
       // 完整回写主任务时间体系字段（与主任务 addTask/updateTask 一致）
       extra() {
@@ -9202,7 +9251,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle_start_date: this.form.cycle_start_date || '',
           cycle_end_mode: this.form.cycle_end_mode || '',
           cycle_end_count: Number(this.form.cycle_end_count) || 0,
-          cycle_delay_mode: this.form.cycle_delay_mode || 'recount',
+          cycle_delay_mode: this.form.cycle_delay_mode || this.$store.defaultCycleDelayMode(this.form.cycle && this.form.cycle.type, this.form.cycle_end_mode || ''),
           sub_deadline: df.execute_date || null,
           isEmergency: !!this.form.isEmergency,
           hasCheckbox: !!this.form.hasCheckbox,
@@ -9313,6 +9362,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="modal-actions">
               <button class="btn ghost" @click="cancelSubExecConfirm">取消</button>
               <button class="btn primary" @click="confirmSubToggle">{{ confirmSubDone ? '确认撤销' : '确认打卡' }}</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 执行历史：补卡选择（过期未完成的日期点击触发） -->
+        <div class="chart-confirm" v-if="makeupSubDate" @click.self="cancelSubMakeup">
+          <div class="idea-choice-box" @click.stop>
+            <div class="idea-choice-title">补卡 · {{ makeupSubDate }}</div>
+            <p class="tip">该日期已过期未完成，请选择本次打卡的归属方式：</p>
+            <div class="modal-actions">
+              <button class="btn ghost" @click="cancelSubMakeup">取消</button>
+              <button class="btn warn" @click="confirmSubDeferred">延期完成（归今日）</button>
+              <button class="btn primary" @click="confirmSubOnTime">按时完成（归原日期）</button>
             </div>
           </div>
         </div>
@@ -10013,6 +10075,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!base.length) return [pt];
         return base.map(x => (x.split('│').indexOf(pt) >= 0 ? x : x + '│' + pt));
       },
+      // 拖拽时的卡片「悬浮」变换：整体随手指位移 + 方向底色（左滑绿/右滑橙），
+      // 与父任务行 rowStyle 口径一致；作为 computed 确保拖拽过程 transform 实时跟手
+      cardStyle() {
+        if (this.dragId !== this.sub._id) return {};
+        const dx = this.dx;
+        const TH = this.$store.SWIPE_TRIGGER_PX;
+        const bg = dx < -TH ? 'rgba(46,204,113,0.15)' : (dx > TH ? 'rgba(231,76,60,0.15)' : 'transparent');
+        return { transform: `translateX(${dx}px)`, transition: this.dragging ? 'none' : 'transform .18s ease', background: bg };
+      },
     },
     methods: {
       onDown(e) {
@@ -10044,9 +10115,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.longFired) { this.$store.swipeUnlock('subcopy_' + this.sub._id); return; }
         if (this.moved) this.suppressClick = true;
         const TH = this.$store.SWIPE_TRIGGER_PX;
-        if (dx <= -TH) {
+        if (dx < -TH) {
           this.$emit('archive', this.sub._id, this.parentId, this.winStart, this.winEnd);
-        } else if (dx >= TH) {
+        } else if (dx > TH) {
           this.$emit('unarchive', this.sub._id, this.parentId, this.winStart, this.winEnd);
         }
         this.$store.swipeUnlock('subcopy_' + this.sub._id);
@@ -10058,13 +10129,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 一键「设紧急 / 取消紧急」：仅翻转子任务 isEmergency 标记，绝不触碰任何日期/周期/提醒字段
       toggleEmg() {
         this.$store.toggleSubEmergency(this.parentId, this.sub._id);
-      },
-      cardStyle() {
-        if (this.dragId !== this.sub._id) return {};
-        const dx = this.dx;
-        const TH = this.$store.SWIPE_TRIGGER_PX;
-        const bg = dx < -TH ? 'rgba(46,204,113,0.15)' : (dx > TH ? 'rgba(231,76,60,0.12)' : 'transparent');
-        return { transform: `translateX(${dx}px)`, transition: this.dragging ? 'none' : 'transform .18s ease', background: bg };
       },
       // 滑动「完成 / 撤销」提示条方向：左滑→绿色「完成」(right)、右滑→橙色「撤销」(left)，
       // 与主任务行 rowHintDir/rowHintText 口径完全一致；仅在已开始横向拖动（moved）时显示，避免误触抖动
@@ -10088,7 +10152,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
          :class="{ 'emergency-bg': sub.isEmergency, 'is-overdue': overdue || sub.overdueUnfinished || cycleOverdueUnfinished }"
          @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
       <div class="swipe-hint" :class="cardHintDir()" v-if="cardHintDir()">{{ cardHintText() }}</div>
-      <button class="row-emg-btn" :class="{on:sub.isEmergency}" @click.stop="toggleEmg" :title="sub.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ sub.isEmergency ? '🚨' : '🚩' }}</button>
+      <button class="row-emg-btn" :class="{on:sub.isEmergency}" @click.stop="toggleEmg" @pointerdown.stop @pointerup.stop @pointercancel.stop :title="sub.isEmergency ? '取消紧急置顶' : '设为紧急置顶（时间/周期不变）'">{{ sub.isEmergency ? '🚨' : '🚩' }}</button>
       <button v-if="overdue && !sub.cycle" class="row-ext" @click.stop="$emit('extend', sub._id, parentId)" title="推迟到下一周 / 下一月">⏩ 延期</button>
       <div class="row-main">
         <div class="row-title">
@@ -10260,6 +10324,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // —— 执行历史：标记完成 / 撤销完成 确认弹窗（记录选中的 execute_date）——
         confirmDate: null,
         confirmDone: false,
+        // —— 执行历史：补卡选择（延期完成 / 按时完成）弹窗 ——
+        makeupDate: null,
         // —— 执行历史：展开 / 收起（仅本次会话临时生效，不做任何持久化）——
         // 刷新、切换页签、路由返回后弹窗组件会重建，data 重新求值 → 始终恢复为「折叠」。
         execHistOpen: false,
@@ -10356,7 +10422,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         cycle_start_date: t.cycle_start_date || '',
         cycle_end_mode: t.cycle_end_mode || (t.cycle_end_date ? 'date' : ''),
         cycle_end_count: t.cycle_end_count || 0,
-        cycle_delay_mode: t.cycle_delay_mode || 'recount',
+        cycle_delay_mode: t.cycle_delay_mode || this.$store.defaultCycleDelayMode(t.cycle && t.cycle.type, t.cycle_end_mode || ''),
         progress_info: t.progress_info ? JSON.parse(JSON.stringify(t.progress_info)) : { enable: false, media_type: 'book', progress_value: '' },
         is_template: !!t.is_template,
         isEmergency: !!t.isEmergency,
@@ -10390,7 +10456,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             cycle_start_date: this.form.cycle_start_date || '',
             cycle_end_mode: this.form.cycle_end_mode || '',
             cycle_end_count: Number(this.form.cycle_end_count) || 0,
-            cycle_delay_mode: this.form.cycle_delay_mode || 'recount',
+            cycle_delay_mode: this.form.cycle_delay_mode || this.$store.defaultCycleDelayMode(this.form.cycle && this.form.cycle.type, this.form.cycle_end_mode || ''),
             progress_info: this.form.progress_info,
             is_template: this.form.folderType === 'template',
             is_collection: this.form.folderType === 'collection',
@@ -10415,7 +10481,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle_start_date: this.form.cycle_start_date || '',
           cycle_end_mode: this.form.cycle_end_mode || '',
           cycle_end_count: Number(this.form.cycle_end_count) || 0,
-          cycle_delay_mode: this.form.cycle_delay_mode || 'recount',
+          cycle_delay_mode: this.form.cycle_delay_mode || this.$store.defaultCycleDelayMode(this.form.cycle && this.form.cycle.type, this.form.cycle_end_mode || ''),
           progress_info: this.form.progress_info,
           is_template: this.form.folderType === 'template',
           is_collection: this.form.folderType === 'collection',
@@ -10441,13 +10507,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       askDel() { this.showDelConfirm = true; },
       confirmDel() { this.$store.deleteTask(this.taskId); this.$emit('close'); },
-      // —— 执行历史：点击某日期 → 弹窗确认标记完成 / 撤销完成 ——
-      onExecDateClick(d) { this.confirmDate = d.date; this.confirmDone = d.done; },
+      // —— 执行历史：点击某日期 → 已完成则弹「撤销确认」；未完成（过期）则弹「补卡选择」；未完成（今日/未来）直接打卡 ——
+      onExecDateClick(d) {
+        if (d.done) { this.confirmDate = d.date; this.confirmDone = true; return; }
+        const today = this.$store.util.todayStr();
+        if (d.date < today) { this.makeupDate = d.date; }            // 过去未完成 → 补卡选择（延期完成 / 按时完成）
+        else { this.$store.toggleOccurrence(this.taskId, d.date, true); } // 今日/未来 → 直接打卡（无延期/按时之分）
+      },
       cancelExecConfirm() { this.confirmDate = null; this.confirmDone = false; },
       confirmExecToggle() {
         if (!this.confirmDate) return;
         this.$store.toggleOccurrence(this.taskId, this.confirmDate, !this.confirmDone);
         this.confirmDate = null; this.confirmDone = false;
+      },
+      // 补卡选择：延期完成（归今日、触发重算）/ 按时完成（归原日期、不重算）
+      cancelExecMakeup() { this.makeupDate = null; },
+      confirmExecDeferred() {
+        if (!this.makeupDate) return;
+        this.$store.toggleOccurrence(this.taskId, this.makeupDate, true, false);
+        this.makeupDate = null;
+      },
+      confirmExecOnTime() {
+        if (!this.makeupDate) return;
+        this.$store.toggleOccurrence(this.taskId, this.makeupDate, true, true);
+        this.makeupDate = null;
       },
       // 手动随时归档循环任务：母本直接归档，立即终止所有副本同步
       // —— 二次确认：先弹窗确认，避免误触（效果与待归档列表左滑周期母本完全一致）——
@@ -10529,6 +10612,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="modal-actions">
                 <button class="btn ghost" @click="cancelExecConfirm">取消</button>
                 <button class="btn primary" @click="confirmExecToggle">{{ confirmDone ? '确认撤销' : '确认打卡' }}</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 执行历史：补卡选择（过期未完成的日期点击触发） -->
+          <div class="chart-confirm" v-if="makeupDate" @click.self="cancelExecMakeup">
+            <div class="idea-choice-box" @click.stop>
+              <div class="idea-choice-title">补卡 · {{ makeupDate }}</div>
+              <p class="tip">该日期已过期未完成，请选择本次打卡的归属方式：</p>
+              <div class="modal-actions">
+                <button class="btn ghost" @click="cancelExecMakeup">取消</button>
+                <button class="btn warn" @click="confirmExecDeferred">延期完成（归今日）</button>
+                <button class="btn primary" @click="confirmExecOnTime">按时完成（归原日期）</button>
               </div>
             </div>
           </div>
@@ -11674,7 +11770,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="list" style="flex:1;min-width:0;align-self:flex-start;">
                 <template v-for="it in g.items" :key="it._key">
                   <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="cycleOverdueUnfinished(it.data)" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
-                  <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data), 'emergency-bg': it.data.isEmergency }" @pointerdown="rowDown($event,it.data)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
+                  <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data) && !it.data.cycle, 'emergency-bg': it.data.isEmergency, 'is-overdue': isOverdue(it.data) || it.data.overdueUnfinished || cycleOverdueUnfinished(it.data) }" @pointerdown="rowDown($event,it.data)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
                     <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
                     <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
                     <div class="row-main">
@@ -11695,7 +11791,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="list" v-if="untimedItems.length">
           <template v-for="it in untimedItems" :key="it._key">
             <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="cycleOverdueUnfinished(it.data)" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
-            <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data), 'emergency-bg': it.data.isEmergency }" @pointerdown="rowDown($event,it.data)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
+            <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data) && !it.data.cycle, 'emergency-bg': it.data.isEmergency, 'is-overdue': isOverdue(it.data) || it.data.overdueUnfinished || cycleOverdueUnfinished(it.data) }" @pointerdown="rowDown($event,it.data)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
               <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
               <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
               <div class="row-main">
@@ -11722,7 +11818,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="list" v-if="b.items.length">
               <template v-for="it in b.items" :key="it._key">
                 <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="b.win.ws" :win-end="b.win.we" :in-week="b.inWeek" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
-                <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data), 'emergency-bg': it.data.isEmergency }" @pointerdown="rowDown($event,it.data,b.win)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
+                <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data) && !it.data.cycle, 'emergency-bg': it.data.isEmergency }" @pointerdown="rowDown($event,it.data,b.win)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
                   <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
                   <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（置顶展示，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
                   <div class="row-main">
