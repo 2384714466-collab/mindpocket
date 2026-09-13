@@ -15155,6 +15155,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       totalSpentLabel() { return this.$store.fmtSpent(this.totalSpent); },
       // 该子任务累计已完成量（跨全部填报留痕累加，单位取子任务实际单位）
       totalActual() { return this.history.reduce((a, r) => a + (Number(r.actualNum) || 0), 0); },
+      // 累计打卡天数：按填报日期去重计数（同一天多笔填报记为 1 天）
+      totalDays() { return new Set(this.history.map(r => r.recordDate)).size; },
       // 预计耗时（未设置为 0）与剩余可用时间提示
       estMin() { return this.sub ? (Number(this.sub.estMin) || 0) : 0; },
       estLabel() { return this.$store.fmtSpent(this.estMin); },
@@ -15280,7 +15282,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <p class="spent-sum">
             ⏱ 本次记为 <b>{{ spentInputLabel }}</b> · 该子任务累计已花费 <b>{{ totalSpentLabel }}</b>
             <template v-if="estMin > 0"> / 预计 {{ estLabel }}</template>
-            · 累计已完成 <b>{{ totalActual }} {{ unit }}</b>
+            · 累计已完成 <b>{{ totalActual }} {{ unit }}</b> · 累计打卡 <b>{{ totalDays }}</b> 天
           </p>
           <!-- 填报备注：可选，随填报留痕一并保存并在填报历史中展示 -->
           <label class="fld">备注（可选）
@@ -15850,11 +15852,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       saveTab() {
         try { localStorage.setItem('mindpocket:projectsTab', this.tab); } catch (e) {}
         // 折叠状态不持久化（全局规则）；可视化维度由独立可视化页（ProjVizPage）自行记忆
+        // 标签筛选（filterTags）持久化：进入/退出可视化页后仍保持记忆（与 ProjVizPage 共用同一 localStorage 键）
+        try { localStorage.setItem('mindpocket:projFilterTags', JSON.stringify(this.filterTags || [])); } catch (e) {}
       },
       restoreTab() {
         // 折叠状态不持久化：每次进入页面默认折叠（全局规则）
         // tab 保留本地记忆（用户偏好，非折叠状态）；已移除的旧 tab 值（如 archive）忽略，回落编排表
         try { const t = localStorage.getItem('mindpocket:projectsTab'); if (t === 'running' || t === 'tb') this.tab = t; } catch (e) {}
+        // 标签筛选：从本地记忆恢复（进入/退出可视化页保持记忆）；标签可能已被删除，仅保留仍存在的
+        try {
+          const raw = localStorage.getItem('mindpocket:projFilterTags');
+          if (raw) {
+            const saved = JSON.parse(raw);
+            if (Array.isArray(saved) && saved.length) {
+              const valid = saved.filter(t => this.allTags.indexOf(t) >= 0);
+              if (valid.length) this.filterTags = valid;
+            }
+          }
+        } catch (e) {}
       },
       go(p) { location.hash = '#/project/' + p.pid; },
       // 可视化：跳转独立页面（专注时长可视化，不内嵌于编排表）
@@ -15989,8 +16004,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const i = this.filterTags.indexOf(t);
         if (i >= 0) this.filterTags.splice(i, 1);
         else this.filterTags.push(t);
+        this.saveTab();
       },
-      clearTag() { this.filterTags = []; },
+      clearTag() { this.filterTags = []; this.saveTab(); },
       // —— 文件夹 ——（展示文件夹内全部项目，不按 Tab 过滤，避免项目"消失"）
       folderProjects(f) {
         try {
@@ -16155,13 +16171,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <button class="icon-btn" :class="{on: filterTags.length > 0}" @click="toggleTagMenu" title="标签筛选（多选）" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">🏷️</button>
         <button class="icon-btn" :class="{on: importanceSort}" @click="toggleSortMenu" title="排序方式" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">⚖️</button>
         <button class="icon-btn" @click="goViz" title="专注时长可视化" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">📊</button>
+        <!-- 点空白关闭：标签/排序弹窗的透明遮罩（点击其它区域即收起菜单） -->
+        <div class="tag-menu-backdrop" v-if="showTagMenu || showSortMenu" @click="showTagMenu=false; showSortMenu=false" style="position:fixed;inset:0;z-index:var(--z-pop);background:transparent;"></div>
         <!-- 标签筛选下拉：多选（点击切换选中，不关菜单）；与排序菜单互斥 -->
-        <div class="sort-menu" v-if="showTagMenu && allTags.length" style="position:absolute;right:0;top:100%;z-index: var(--z-pop);background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:180px;max-height:280px;overflow-y:auto;">
+        <div class="sort-menu" v-if="showTagMenu && allTags.length" style="position:absolute;right:0;top:100%;z-index: calc(var(--z-pop) + 1);background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:180px;max-height:280px;overflow-y:auto;">
           <div class="sort-item" :class="{on: filterTags.indexOf(t) >= 0}" v-for="t in allTags" :key="t" @click="pickTag(t)" style="padding:9px 12px;font-size:13px;border-radius:var(--radius-sm);cursor:pointer;color:var(--text);">{{ filterTags.indexOf(t) >= 0 ? '✅ ' : '▫️ ' }}{{ t }}</div>
           <div class="sort-item" v-if="filterTags.length" @click="clearTag" style="padding:9px 12px;font-size:13px;border-radius:var(--radius-sm);cursor:pointer;color:var(--no);border-top:1px solid var(--line);margin-top:2px;">✕ 清除筛选（已选 {{ filterTags.length }}）</div>
           <p v-if="!allTags.length" style="padding:10px 12px;font-size:12px;color:var(--sub);">暂无标签</p>
         </div>
-        <div class="sort-menu" v-if="showSortMenu" style="position:absolute;right:0;top:100%;z-index: var(--z-pop);background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:140px;">
+        <div class="sort-menu" v-if="showSortMenu" style="position:absolute;right:0;top:100%;z-index: calc(var(--z-pop) + 1);background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:140px;">
           <div class="sort-item" :class="{on: !importanceSort}" @click="selectSort('default')" style="padding:9px 12px;font-size:13px;border-radius:var(--radius-sm);cursor:pointer;color:var(--text);">📋 默认排序</div>
           <div class="sort-item" :class="{on: importanceSort}" @click="selectSort('importance')" style="padding:9px 12px;font-size:13px;border-radius:var(--radius-sm);cursor:pointer;color:var(--text);">🔥 按重要等级</div>
         </div>
@@ -19211,7 +19229,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       return { vizDim: dim, vizOffset: 0, toast: '', toastTimer: null };
     },
     computed: {
-      records() { return (this.$store.state.project_records || []).filter(r => !r.deleted_at); },
+      // 当前生效的标签筛选：与编排表（ProjectsPage）共用 localStorage 键，进入/退出可视化页保持记忆
+      filterTags() {
+        try { const raw = localStorage.getItem('mindpocket:projFilterTags'); const a = raw ? JSON.parse(raw) : []; return Array.isArray(a) ? a : []; } catch (e) { return []; }
+      },
+      // 命中筛选标签的项目 pid 集合（OR 语义，与编排表 list 一致）
+      filterPids() {
+        const tags = this.filterTags;
+        if (!tags.length) return null;
+        return (this.$store.state.projects || [])
+          .filter(p => (p.tags || []).some(t => tags.indexOf(t) >= 0))
+          .map(p => p.pid);
+      },
+      records() {
+        let recs = (this.$store.state.project_records || []).filter(r => !r.deleted_at);
+        const pids = this.filterPids;
+        if (pids) {
+          const sidSet = {};
+          pids.forEach(pid => {
+            const subs = (this.$store.getSubs ? this.$store.getSubs(pid) : (p.sub_tasks || [])) || [];
+            subs.forEach(s => { if (s && s.sid) sidSet[s.sid] = true; });
+          });
+          recs = recs.filter(r => sidSet[r.sid]);
+        }
+        return recs;
+      },
       // sid → 所属项目名称 映射（用于饼图按项目分布）
       subProjName() {
         const map = {};
@@ -19334,6 +19376,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
           <button :class="{on: vizDim==='year'}" @click="setVizDim('year')">年</button>
         </div>
+        <div class="viz-filter-note" v-if="filterTags.length" style="font-size:12px;color:var(--primary);background:#eef0ff;border:1px solid #dfe3ff;border-radius:8px;padding:7px 10px;margin-bottom:10px;">🏷️ 已按编排表标签筛选：{{ filterTags.join(' · ') }}（在「编排表」🏷️ 可调整/清除）</div>
         <div class="viz-period-nav">
           <button class="icon-btn" @click="prev" title="更早时段">‹</button>
           <span class="viz-period-label">{{ vizWindow.title }} · {{ vizWindow.label }}</span>
