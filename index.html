@@ -12791,24 +12791,43 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       restoreUiState() {
         try {
           const raw = localStorage.getItem('mindpocket:inboxUi');
-          if (!raw) return;
-          const s = JSON.parse(raw);
-          if (s.folderView) this.folderView = s.folderView;
-          if (s.pageTab) this.pageTab = s.pageTab;
-          if (s.boardSub) this.boardSub = s.boardSub;
-          if (s.modeFilter) this.modeFilter = s.modeFilter;
-          if (typeof s.activeCat === 'string') this.activeCat = s.activeCat;
-          // 一级/二级标签展开树：持久化以支持「进入子任务页 → 返回」原路还原展开视图
-          if (typeof s.catOpen === 'boolean') this.catOpen = s.catOpen;
-          if (typeof s.uncatOpen === 'boolean') this.uncatOpen = s.uncatOpen;
-          if (s.catExpand && typeof s.catExpand === 'object') this.catExpand = s.catExpand;
-          if (s.subExpand && typeof s.subExpand === 'object') this.subExpand = s.subExpand;
-          // 看板时间分组展开态：与标签树一致，进入子任务页再返回时原路还原；
-          // ensureBoardDefaults 仍会强制补开「本周/本月」锚点，故仅补开、不清除其余已展开分组
-          if (s.boardOpen && typeof s.boardOpen === 'object') this.boardOpen = s.boardOpen;
+          if (raw) {
+            const s = JSON.parse(raw);
+            if (s.folderView) this.folderView = s.folderView;
+            if (s.pageTab) this.pageTab = s.pageTab;
+            if (s.boardSub) this.boardSub = s.boardSub;
+            if (s.modeFilter) this.modeFilter = s.modeFilter;
+            if (typeof s.activeCat === 'string') this.activeCat = s.activeCat;
+            // 一级/二级标签展开树：持久化以支持「进入子任务页 → 返回」原路还原展开视图
+            if (typeof s.catOpen === 'boolean') this.catOpen = s.catOpen;
+            if (typeof s.uncatOpen === 'boolean') this.uncatOpen = s.uncatOpen;
+            if (s.catExpand && typeof s.catExpand === 'object') this.catExpand = s.catExpand;
+            if (s.subExpand && typeof s.subExpand === 'object') this.subExpand = s.subExpand;
+            // 看板时间分组展开态：与标签树一致，进入子任务页再返回时原路还原；
+            // ensureBoardDefaults 仍会强制补开「本周/本月」锚点，故仅补开、不清除其余已展开分组
+            if (s.boardOpen && typeof s.boardOpen === 'object') this.boardOpen = s.boardOpen;
+          }
         } catch (e) {}
         // 看板「本周 / 本月」分组：进入看板页面强制恢复默认展开（仅补开锚点，不清除其余已展开分组）
         this.ensureBoardDefaults();
+        // 从其它主 Tab（今日/项目/财务/职业/统计）切回待归档 → 默认落到「看板」页；
+        // 内部子页面（子任务/项目详情）返回 → 原路还原上次所在页（list/board），不受影响。
+        if (this._cameFromOtherTab()) {
+          this.pageTab = 'board';
+          this.resetBoardDefaults();
+        }
+      },
+      // 是否「从其它主 Tab 切回」待归档：用于决定默认看板页。
+      // 返回键原路返回（进子任务/项目详情页再返回）时 prevRoute 为内部路由，不算「其它主 Tab」，保持原视图。
+      _cameFromOtherTab() {
+        const p = (this.$root && this.$root.prevRoute) || '';
+        if (p.indexOf('/subtask/') === 0) return false; // 子任务全屏页返回
+        if (p.indexOf('/project/') === 0) return false; // 项目详情返回
+        if (p.indexOf('/projviz') === 0) return false;   // 项目可视化页返回
+        if (p === '/inbox') return false;                // 自身路由 / 无明确来源（保留默认或已还原）
+        const mainTabs = ['/today', '/projects', '/stats', '/finance', '/career'];
+        if (mainTabs.indexOf(p) >= 0) return true;       // 今日/项目/统计/财务/职业 等其它主 Tab
+        return true;                                      // 深链 / 首次等未知来源：统一默认看板
       },
       // 看板「本周 / 本月」锚点：仅确保这两个关键分组处于展开态（补开，不清除用户已手动展开的其余分组）。
       // merge 语义：用于「进入子任务页 → 返回看板」（路由重建，created→restoreUiState 调用），
@@ -19772,7 +19791,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <span class="viz-leg-pct">{{ p.total }}</span>
             </div>
           </div>
-          <p class="viz-checkin-tip">标题看「打卡了几天」，图形看「完成了多少」：柱形高度 = 该时段完成量合计，按项目分色堆积；打卡天数仍按「当日有填报即记 1 天」统计（见上方覆盖率）。</p>
         </div>
         <button class="btn ghost" style="margin-top:14px;width:100%;" @click="exportViz">⬇ 导出可视化数据</button>
       </div>
