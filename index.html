@@ -1195,6 +1195,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .bar-val { font-size: 10px; color: var(--sub); margin-bottom: 2px; white-space: nowrap; height: 12px; }
 .bar-col { width: 60%; background: linear-gradient(180deg, #6a7bff, #8a5bff); border-radius: var(--radius-sm) var(--radius-sm) 0 0; min-height: 2px; transition: height .25s ease; }
 .bar-label { font-size: 10px; color: var(--sub); margin-top: 4px; white-space: nowrap; }
+/* 打卡完成量堆积柱形图：柱高=时段完成量合计，按项目分色堆积 */
+.bar-stack { width: 60%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: var(--radius-sm) var(--radius-sm) 0 0; overflow: hidden; min-height: 2px; transition: height .25s ease; background: #eef0f5; }
+.bar-seg { width: 100%; min-height: 1px; transition: height .25s ease; }
+.viz-checkin-sub { font-size: 12px; color: var(--sub); margin: 6px 0 0; }
 .chart-sum { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .sum-item { font-size: 13px; background: #f7f8fc; border-radius: var(--radius-sm); padding: 9px 12px; }
 .sum-item b { color: var(--primary); }
@@ -1947,11 +1951,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   ];
 
   // 备份模块注册表：每个模块映射到若干顶层 state 字段，供「选择性备份 / 恢复」按 Tab 拆份
+  // special 模块（archive / inbox）不直接映射 state 字段，而是由 _buildXxxExport 派生导出、_restoreXxxImport 按 _id 安全合并，
+  // 绝不整体覆盖 state 数组（避免导入归档子集时误删活动数据）。
   const BACKUP_MODULES = [
     { key: 'core', label: '今日', fields: ['tasks', 'habits', 'categories', 'progressUnits'] },
-    { key: 'projects', label: '项目', fields: ['projects', 'project_subs', 'project_records', 'project_ideas', 'project_folders', 'sub_custom_statuses'] },
+    { key: 'projects', label: '项目', fields: ['projects', 'project_subs', 'project_records', 'project_ideas', 'project_folders', 'sub_custom_statuses', 'taskBoard'] },
     { key: 'finance', label: '财务', fields: ['finance'] },
     { key: 'career', label: '职业', fields: ['career'] },
+    { key: 'archive', label: '归档', special: 'archive' },   // 📦 全局已归档仓库（导出复盘视图，含逐日归属日期）
+    { key: 'inbox', label: '待归档', special: 'inbox' },       // 待归档 tab 原始数据（任务 / 分类 / 任务表 / 子任务）
   ];
 
   /* ----------------------------- 工具函数 ----------------------------- */
@@ -3649,6 +3657,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!t) return;
     const s = t.sub_tasks.find(s => s._id === subId);
     if (s) {
+      // 积分联动：撤销归档 = 子任务以「全新活跃态」重生（is_done/finishHistory/cycle_history/doneDates 全部清空），
+      // 故其名下全部完成积分（sub_task +3 / study_work / cycle_task，refId = taskId_subId 族，含周期按发生日的后缀）
+      // 须按净额一次回滚，避免「已完成被清零却仍计分 / 之后重新完成又加分」造成的积分重复累加。
+      // collectEntityPointRecords 已跳过 reversed/rolledBack 项，幂等安全；与 deleteTask 对子任务的回滚口径一致。
+      rollbackEntityPoints([t._id + '_' + subId], 'subtask', s.title);
       s.is_archived = false;
       s.archived_at = '';
       s.is_done = false;
@@ -4038,8 +4051,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const s = t.sub_tasks.find(x => x._id === subId);
     if (!s) return;
     // 积分联动：撤销子任务完成
+    //   学习工作类子任务 → study_work（refId = taskId_subId）；其余 → sub_task 基础分 +3（同 refId）
+    //   二者均按子任务 refId 族整族回滚，与 subCopyDone 发放口径对称，避免「已撤销完成却仍计分」的重复累加
     if (isStudyWorkTask(s) || isStudyWorkTask(t)) {
       reversePoints(t._id + '_' + subId, 'study_work');
+    } else {
+      reversePoints(t._id + '_' + subId, 'sub_task');
     }
     if (s.cycle) {
       let cur = parseDate(ws), end = parseDate(we);
@@ -7156,13 +7173,47 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const out = { app: 'MindPocket', kind: 'partial', version: 1, exportedAt: new Date().toISOString(), modules: [] };
       BACKUP_MODULES.forEach(m => {
         if (!keys || keys.indexOf(m.key) < 0) return;
-        const part = {};
-        m.fields.forEach(f => { part[f] = state[f]; });
+        let part;
+        if (m.special === 'archive') part = this._buildArchiveExport();      // 📦 全局已归档仓库（派生视图）
+        else if (m.special === 'inbox') part = this._buildInboxExport();      // 待归档 tab 原始数据
+        else {
+          part = {};
+          m.fields.forEach(f => { part[f] = state[f]; });
+        }
         out[m.key] = part;
         out.modules.push(m.key);
       });
       if (!out.modules.length) throw new Error('请至少选择一个模块');
       return JSON.stringify(out);
+    },
+    // 派生导出：📦 全局已归档仓库（统计页归档仓库所见即所得）
+    // - raw：各类型已归档原始对象（供导入时按 _id 安全合并）；
+    // - items：扁平化逐日归属清单（type/title/date），便于按周/月/年复盘时直接 grep 扫描。
+    _buildArchiveExport() {
+      const tasks = state.tasks.filter(t => t.is_archived || isArchiveRelevant(t));
+      const habits = state.habits.filter(h => h.is_archived);
+      const projects = (state.projects || []).filter(p => p.status === 'archive' && !p.deleted_at);
+      const items = [];
+      const pushItems = (arr, type) => arr.forEach(o => {
+        const dates = archiveDatesOf(o);
+        const title = type === 'project' ? (o.name || '') : (o.title || '');
+        const id = o._id || o.pid;
+        if (dates.length > 1) dates.forEach(d => items.push({ type, title, date: d, id }));
+        else items.push({ type, title, date: (dates[0] || o.archived_at || ''), id });
+      });
+      pushItems(tasks, 'task');
+      pushItems(habits, 'habit');
+      pushItems(projects, 'project');
+      return { tasks, habits, projects, items };
+    },
+    // 派生导出：待归档 tab 原始数据（待归档页读自这些 state 字段）
+    _buildInboxExport() {
+      return {
+        tasks: state.tasks,
+        categories: state.categories,
+        taskBoard: state.taskBoard,
+        project_subs: state.project_subs,
+      };
     },
     // 选择性恢复：仅覆盖文件中「被勾选」且「文件里确实存在」的模块；其余模块与当前数据互不影响
     importPartial(raw, keys, mode) {
@@ -7170,10 +7221,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (!o || typeof o !== 'object') throw new Error('备份文件格式无效');
       let count = 0;
       BACKUP_MODULES.forEach(m => {
-        if (!m.fields.length) return;
-        if (!keys || keys.indexOf(m.key) < 0) return;                 // 本次未勾选该模块
         const part = (o[m.key] && typeof o[m.key] === 'object') ? o[m.key] : null;
+        if (!keys || keys.indexOf(m.key) < 0) return;                 // 本次未勾选该模块
         if (!part) return;                                            // 文件里没有该模块，跳过（不报错）
+        if (m.special === 'archive') { this._restoreArchiveImport(part); count++; return; } // 特殊模块：仅按 _id 合并，绝不整体覆盖
+        if (m.special === 'inbox') { this._restoreInboxImport(part); count++; return; }
+        if (!m.fields.length) return;
         m.fields.forEach(f => {
           const v = part[f];
           if (v === undefined || v === null) return;
@@ -7191,6 +7244,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
       persist(); // 落盘 + 广播全局刷新（revision++），各页面自动重载
       return count;
+    },
+    // 归档模块导入：仅按 _id 合并到对应 state 数组，绝不整体替换（避免导入归档子集时误删活动数据）
+    _restoreArchiveImport(part) {
+      if (Array.isArray(part.tasks)) state.tasks = this._mergeArr(state.tasks, part.tasks);
+      if (Array.isArray(part.habits)) state.habits = this._mergeArr(state.habits, part.habits);
+      if (Array.isArray(part.projects)) state.projects = this._mergeArr(state.projects, part.projects);
+    },
+    // 待归档模块导入：仅按 _id 合并到对应 state 字段（与正常模块同语义，安全合并不丢本地）
+    _restoreInboxImport(part) {
+      if (Array.isArray(part.tasks)) state.tasks = this._mergeArr(state.tasks, part.tasks);
+      if (Array.isArray(part.categories)) state.categories = this._mergeArr(state.categories, part.categories);
+      if (part.taskBoard && Array.isArray(part.taskBoard.instances)) state.taskBoard = { instances: this._mergeArr(state.taskBoard.instances || [], part.taskBoard.instances) };
+      if (Array.isArray(part.project_subs)) state.project_subs = this._mergeArr(state.project_subs, part.project_subs);
     },
     // 模块清单（仅 key + 中文标签），供 UI 渲染勾选框；列表与 BACKUP_MODULES 保持一致
     backupModules: BACKUP_MODULES.map(m => ({ key: m.key, label: m.label })),
@@ -13537,7 +13603,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         relayStatus: { enabled: false, count: 0, lastRun: 0, lastError: '', backendError: '' },
         relayToken: '', relayVaultId: '',
         // —— 选择性备份 / 恢复：导出勾选 + 导入勾选 ——
-        backupSel: { core: true, projects: true, wish: true, finance: true, career: true, settings: false },
+        backupSel: { core: true, projects: true, wish: true, finance: true, career: true, settings: false, archive: false, inbox: false },
         importFileRaw: '',            // 已读取的导入文件原文
         importFileName: '',
         importModules: [],            // 文件中实际存在的模块 key
@@ -15604,6 +15670,178 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     </div>`,
   };
 
+  /* -------- ProjectCheckinViz —— 项目级「打卡天数 / 完成量」可视化（与甘特图、标签耗时饼图并列） --------
+   * 维度：日 / 周 / 年，可上/下翻时段；
+   * 标题看「打卡了几天」（已打卡 X 天 / 共 Y 天 · 覆盖率 Z%）；
+   * 图形看「完成了多少」：堆积柱形图按【子任务】分色堆积完成量(actualNum)；
+   * 打卡天数按「当日有填报即记 1 天」统计（与编排表全局可视化口径一致）；仅做只读可视化。 */
+  C.ProjectCheckinViz = {
+    name: 'ProjectCheckinViz',
+    props: { pid: { type: String, required: true } },
+    data() {
+      let dim = 'week';
+      try { const d = localStorage.getItem('mindpocket:pcvDim'); if (d === 'day' || d === 'week' || d === 'year') dim = d; } catch (e) {}
+      return { vizDim: dim, vizOffset: 0 };
+    },
+    computed: {
+      subs() { return this.$store.getSubsOrdered(this.pid); },
+      // sid → 子任务标题，用于完成量按子任务堆积的图例与明细
+      subTitle() {
+        const map = {};
+        this.subs.forEach(s => { if (s && s.sid) map[s.sid] = s.title || '未命名'; });
+        return map;
+      },
+      // 本项目所有子任务的填报记录
+      records() {
+        const set = {};
+        this.subs.forEach(s => { if (s && s.sid) set[s.sid] = true; });
+        return (this.$store.state.project_records || []).filter(r => !r.deleted_at && set[r.sid]);
+      },
+      vizWindow() {
+        const dim = this.vizDim, off = this.vizOffset || 0;
+        const pad = n => String(n).padStart(2, '0');
+        const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        const todayStr = this.$store.util.todayStr();
+        if (dim === 'year') {
+          const y = new Date().getFullYear() - off;
+          const keys = []; for (let m = 1; m <= 12; m++) keys.push(y + '-' + pad(m));
+          return { dim, label: y + '年', title: '打卡天数 / 完成量', keys };
+        }
+        if (dim === 'week') {
+          const d = this.$store.util.parseDate(todayStr);
+          const wd = (d.getDay() + 6) % 7;
+          const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - wd - off * 7);
+          const keys = []; for (let i = 0; i < 7; i++) { const dd = new Date(mon); dd.setDate(mon.getDate() + i); keys.push(fmt(dd)); }
+          return { dim, label: '本周' + (off ? ' · ' + off + '周前' : ''), title: '打卡天数 / 完成量', keys };
+        }
+        const d = this.$store.util.parseDate(todayStr);
+        d.setDate(d.getDate() - off);
+        const k = fmt(d);
+        return { dim, label: k, title: '打卡天数 / 完成量', keys: [k] };
+      },
+      // 打卡天数：按窗口统计「有填报记录」的日期（当日有填报即记 1 天）
+      checkinBuckets() {
+        const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = {});
+        this.records.forEach(r => {
+          const d = r.recordDate || '';
+          if (!d) return;
+          const k = win.dim === 'year' ? d.slice(0, 7) : d;
+          if (win.keys.indexOf(k) < 0) return;
+          map[k][d] = true;
+        });
+        if (win.dim === 'day') {
+          const k = win.keys[0];
+          const days = Object.keys(map[k]).length;
+          return [{ key: k, label: k.slice(5, 7) + '/' + k.slice(8, 10), days, pct: days > 0 ? 100 : 0 }];
+        }
+        if (win.dim === 'week') {
+          const wd = ['一', '二', '三', '四', '五', '六', '日'];
+          return win.keys.map(k => {
+            const days = Object.keys(map[k]).length;
+            return { key: k, label: wd[this._weekday(k)] || k.slice(8), days, pct: days > 0 ? 100 : 0 };
+          });
+        }
+        const max = Math.max.apply(null, win.keys.map(k => Object.keys(map[k]).length).concat([1]));
+        return win.keys.map(k => {
+          const days = Object.keys(map[k]).length;
+          return { key: k, label: k.slice(5) + '月', days, pct: max > 0 ? Math.round(days / max * 100) : 0 };
+        });
+      },
+      checkinTotal() {
+        if (this.vizDim === 'year') return this.checkinBuckets.reduce((a, b) => a + b.days, 0);
+        return this.checkinBuckets.filter(b => b.days > 0).length;
+      },
+      checkinDenominator() {
+        if (this.vizDim === 'day') return 1;
+        if (this.vizDim === 'week') return 7;
+        const y = new Date().getFullYear() - (this.vizOffset || 0);
+        return (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 366 : 365;
+      },
+      checkinPct() { const den = this.checkinDenominator; return den > 0 ? Math.round(this.checkinTotal / den * 100) : 0; },
+      hasCheckinData() { return this.checkinTotal > 0; },
+      // 完成量堆积柱形图：各时段完成量(actualNum)按【子任务】分色堆积（单项目维度下按子任务分解）
+      checkinAmountBuckets() {
+        const win = this.vizWindow;
+        const cell = {}; win.keys.forEach(k => { cell[k] = {}; });
+        const subTotals = {};
+        this.records.forEach(r => {
+          const d = r.recordDate || '';
+          if (!d) return;
+          const k = win.dim === 'year' ? d.slice(0, 7) : d;
+          if (win.keys.indexOf(k) < 0) return;
+          const amt = Number(r.actualNum) || 0;
+          if (amt <= 0) return;
+          const name = this.subTitle[r.sid] || '未命名子任务';
+          cell[k][name] = (cell[k][name] || 0) + amt;
+          subTotals[name] = (subTotals[name] || 0) + amt;
+        });
+        const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
+        const subNames = Object.keys(subTotals).sort((a, b) => subTotals[b] - subTotals[a]);
+        const subColor = {}; subNames.forEach((n, i) => { subColor[n] = palette[i % palette.length]; });
+        const CHART_H = 108;
+        const maxTotal = Math.max.apply(null, win.keys.map(k => { let s = 0; for (const n in cell[k]) s += cell[k][n]; return s; }).concat([0]));
+        const dayMap = {}; this.checkinBuckets.forEach(b => { dayMap[b.key] = b.days; });
+        const buckets = win.keys.map(k => {
+          const segs = subNames.filter(n => cell[k][n]).map(n => ({ name: n, amount: cell[k][n], color: subColor[n] }));
+          const total = segs.reduce((a, s) => a + s.amount, 0);
+          segs.sort((a, b) => b.amount - a.amount);
+          const stackPx = maxTotal > 0 ? Math.round(total / maxTotal * CHART_H) : 0;
+          segs.forEach(s => { s.segPx = total > 0 ? Math.round(s.amount / total * stackPx) : 0; });
+          const label = win.dim === 'year' ? k.slice(5) + '月' : k.slice(5) + '/' + k.slice(8);
+          return { key: k, label, total, stackPx, segs, days: dayMap[k] || 0 };
+        });
+        return {
+          maxTotal,
+          palette: subNames.map((n, i) => ({ name: n, color: palette[i % palette.length], total: subTotals[n] })),
+          buckets,
+        };
+      },
+      hasCheckinAmountData() { return this.checkinAmountBuckets.buckets.some(b => b.total > 0); },
+    },
+    methods: {
+      _weekday(k) { const d = this.$store.util.parseDate(k); return (d.getDay() + 6) % 7; },
+      setVizDim(d) { this.vizDim = d; try { localStorage.setItem('mindpocket:pcvDim', d); } catch (e) {} },
+      prev() { this.vizOffset = this.vizOffset + 1; },
+      next() { this.vizOffset = Math.max(0, this.vizOffset - 1); },
+    },
+    template: `
+    <div class="pcv">
+      <div class="view-toggle">
+        <button :class="{on: vizDim==='day'}" @click="setVizDim('day')">日</button>
+        <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
+        <button :class="{on: vizDim==='year'}" @click="setVizDim('year')">年</button>
+      </div>
+      <div class="viz-period-nav">
+        <button class="icon-btn" @click="prev" title="更早时段">‹</button>
+        <span class="viz-period-label">{{ vizWindow.title }} · {{ vizWindow.label }}</span>
+        <button class="icon-btn" :disabled="vizOffset===0" @click="next" title="更近时段">›</button>
+      </div>
+      <div class="viz-checkin-wrap" style="margin-top:10px;">
+        <div class="viz-sec-title">📅 打卡天数 / 完成量（{{ vizWindow.label }}）</div>
+        <p class="viz-checkin-summary">已打卡 <b>{{ checkinTotal }}</b> 天 / 共 {{ checkinDenominator }} 天 · 覆盖率 <b>{{ checkinPct }}%</b></p>
+        <p class="viz-checkin-sub">各时段完成量（按子任务堆积，鼠标悬停看明细）</p>
+        <div class="chart-bars" v-if="hasCheckinAmountData" style="height:140px;margin-top:6px;">
+          <div class="chart-bar" v-for="b in checkinAmountBuckets.buckets" :key="b.key"
+               :title="b.total > 0 ? ('完成量 ' + b.total + ' · 已打卡 ' + b.days + ' 天') : ('已打卡 ' + b.days + ' 天 · 无完成量')">
+            <div class="bar-val">{{ b.total > 0 ? b.total : (b.days > 0 ? '✓' : '–') }}</div>
+            <div class="bar-stack" :style="{ height: b.stackPx + 'px' }">
+              <div class="bar-seg" v-for="s in b.segs" :key="s.name" :style="{ height: s.segPx + 'px', background: s.color }" :title="s.name + '：' + s.amount"></div>
+            </div>
+            <div class="bar-label">{{ b.label }}</div>
+          </div>
+        </div>
+        <p class="empty-tip" v-else>当前时段暂无完成量记录</p>
+        <div class="viz-legend" v-if="checkinAmountBuckets.palette.length" style="margin-top:10px;">
+          <div class="viz-leg-item" v-for="p in checkinAmountBuckets.palette" :key="p.name">
+            <span class="viz-dot" :style="{background: p.color}"></span>
+            <span class="viz-leg-name">{{ p.name }}</span>
+            <span class="viz-leg-pct">{{ p.total }}</span>
+          </div>
+        </div>
+      </div>
+    </div>`,
+  };
+
   /* -------- ProjectGantt —— 项目子任务甘特图（只读可视化，不修改任何数据） -------- */
   C.ProjectGantt = {
     name: 'ProjectGantt',
@@ -15856,20 +16094,37 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         try { localStorage.setItem('mindpocket:projFilterTags', JSON.stringify(this.filterTags || [])); } catch (e) {}
       },
       restoreTab() {
-        // 折叠状态不持久化：每次进入页面默认折叠（全局规则）
-        // tab 保留本地记忆（用户偏好，非折叠状态）；已移除的旧 tab 值（如 archive）忽略，回落编排表
-        try { const t = localStorage.getItem('mindpocket:projectsTab'); if (t === 'running' || t === 'tb') this.tab = t; } catch (e) {}
-        // 标签筛选：从本地记忆恢复（进入/退出可视化页保持记忆）；标签可能已被删除，仅保留仍存在的
+        // 进入来源判定：
+        // - 来自项目内部页（项目详情 / 子任务 / 可视化 / 项目页自身）→ 还原上次所在子 Tab（编排表 / 任务表），
+        //   保证「进入子页面再返回」回到原视图，而非一直落到默认任务表；
+        // - 来自其他主 Tab（今日 / 待归档 / 财务 / 职业 / 统计）→ 默认落到「任务表」，满足「切换 Tab 回到项目默认看任务表」。
+        const fromInternal = this._cameFromInternal();
+        try {
+          const t = localStorage.getItem('mindpocket:projectsTab');
+          if (fromInternal) {
+            if (t === 'running' || t === 'tb') this.tab = t;   // 内部返回：还原上次子视图
+          } else {
+            this.tab = 'tb';                                    // 主 Tab 切回：默认任务表
+          }
+        } catch (e) {}
+        // 标签筛选：从本地记忆恢复（进入/退出子页面保持记忆）；标签可能已被删除，仅保留仍存在的。
+        // 校验取「进行中 + 已归档」全部项目标签的并集，避免依赖当前子 Tab 的 baseList（tab 未恢复时误丢弃筛选）
         try {
           const raw = localStorage.getItem('mindpocket:projFilterTags');
           if (raw) {
             const saved = JSON.parse(raw);
             if (Array.isArray(saved) && saved.length) {
-              const valid = saved.filter(t => this.allTags.indexOf(t) >= 0);
+              const allProj = (this.running || []).concat(this.archived || []);
+              const valid = saved.filter(t => t && allProj.some(p => (p.tags || []).indexOf(t) >= 0));
               if (valid.length) this.filterTags = valid;
             }
           }
         } catch (e) {}
+      },
+      // 本次进入「项目 Tab」是否来自项目内部页（而非其他主 Tab）：用于决定「还原上次子 Tab」还是「默认任务表」
+      _cameFromInternal() {
+        const p = (this.$root && this.$root.prevRoute) || '';
+        return p === '/projects' || p.indexOf('/project/') === 0 || p.indexOf('/subtask/') === 0 || p === '/projviz';
       },
       go(p) { location.hash = '#/project/' + p.pid; },
       // 可视化：跳转独立页面（专注时长可视化，不内嵌于编排表）
@@ -16498,7 +16753,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectDetailPage = {
     name: 'ProjectDetailPage',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
-    components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie },
+    components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie, ProjectCheckinViz: C.ProjectCheckinViz },
     props: { pid: { type: String, required: true }, ideaId: { type: String, default: '' }, subId: { type: String, default: '' } },
     data() {
       return {
@@ -16668,7 +16923,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       onSubMainClick(s) {
         if (this.subMoved) return;
-        if (!this.subSuppress) this.openSubEdit(s);
+        if (!this.subSuppress) this.openRecord(s);
       },
       setSubDone(s, val) {
         const done = this.isSubComplete(s);
@@ -16879,6 +17134,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div v-show="tab==='sub' && view==='gantt'">
         <ProjectGantt :pid="pid" :filter-tag="filterTags" @open-sub="openSubEditById" />
         <ProjectTagPie :pid="pid" @open-sub="openSubEditById" />
+        <ProjectCheckinViz :pid="pid" />
       </div>
 
       <div v-if="tab==='idea'" class="idea-list2">
@@ -18981,7 +19237,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       onItemClickCapture(e) {
         if (this.lpSuppress) { e.stopPropagation(); e.preventDefault(); }
       },
-      onTitleClick(it) { if (!this.lpMoved && !this.lpSuppress) this.openEdit(it); },
+      onTitleClick(it) { if (!this.lpMoved && !this.lpSuppress) this.openRecord(it); },
       pieCum(rows, i) {
         if (i < 0) return 0;
         const total = rows.reduce((s, r) => s + r.value, 0) || 1;
@@ -19329,8 +19585,91 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       hasData() { return this.records.length > 0 && this.barBuckets.some(b => b.min > 0); },
       totalMin() { return this.barBuckets.reduce((a, b) => a + b.min, 0); },
+      // 打卡天数：按窗口统计「有填报记录」的日期——只要当日有填报（无论是否填写专注时长）即记为打卡 1 天
+      checkinBuckets() {
+        const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = {});
+        this.records.forEach(r => {
+          const d = r.recordDate || '';
+          if (!d) return;
+          const k = win.dim === 'year' ? d.slice(0, 7) : d;
+          if (win.keys.indexOf(k) < 0) return;
+          map[k][d] = true; // 以自然日去重，避免同日多笔填报重复计数
+        });
+        if (win.dim === 'day') {
+          const k = win.keys[0];
+          const days = Object.keys(map[k]).length;
+          return [{ key: k, label: k.slice(5, 7) + '/' + k.slice(8, 10), days, pct: days > 0 ? 100 : 0 }];
+        }
+        if (win.dim === 'week') {
+          const wd = ['一', '二', '三', '四', '五', '六', '日'];
+          return win.keys.map(k => {
+            const days = Object.keys(map[k]).length;
+            return { key: k, label: wd[this._weekday(k)] || k.slice(8), days, pct: days > 0 ? 100 : 0 };
+          });
+        }
+        // year：各月打卡天数，按当月峰值归一化便于横向比较
+        const max = Math.max.apply(null, win.keys.map(k => Object.keys(map[k]).length).concat([1]));
+        return win.keys.map(k => {
+          const days = Object.keys(map[k]).length;
+          return { key: k, label: k.slice(5) + '月', days, pct: max > 0 ? Math.round(days / max * 100) : 0 };
+        });
+      },
+      // 窗口内打卡天数合计：日/周=「有打卡的日期数」；年=各月去重天数之和（月份互斥=全年打卡天数）
+      checkinTotal() {
+        if (this.vizDim === 'year') return this.checkinBuckets.reduce((a, b) => a + b.days, 0);
+        return this.checkinBuckets.filter(b => b.days > 0).length;
+      },
+      // 窗口内日历总天数：日=1；周=7；年=当年实际天数
+      checkinDenominator() {
+        if (this.vizDim === 'day') return 1;
+        if (this.vizDim === 'week') return 7;
+        const y = new Date().getFullYear() - (this.vizOffset || 0);
+        return (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 366 : 365;
+      },
+      checkinPct() { const den = this.checkinDenominator; return den > 0 ? Math.round(this.checkinTotal / den * 100) : 0; },
+      hasCheckinData() { return this.checkinTotal > 0; },
+      // 打卡完成量堆叠柱形图：各时段「完成量(actualNum)」按项目堆积——标题看打卡天数、图形看完成多少
+      checkinAmountBuckets() {
+        const win = this.vizWindow;
+        const cell = {}; win.keys.forEach(k => { cell[k] = {}; });
+        const projTotals = {};
+        this.records.forEach(r => {
+          const d = r.recordDate || '';
+          if (!d) return;
+          const k = win.dim === 'year' ? d.slice(0, 7) : d;
+          if (win.keys.indexOf(k) < 0) return;
+          const amt = Number(r.actualNum) || 0;
+          if (amt <= 0) return;
+          const name = this.subProjName[r.sid] || '未关联项目';
+          cell[k][name] = (cell[k][name] || 0) + amt;
+          projTotals[name] = (projTotals[name] || 0) + amt;
+        });
+        const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
+        const projNames = Object.keys(projTotals).sort((a, b) => projTotals[b] - projTotals[a]);
+        const projColor = {}; projNames.forEach((n, i) => { projColor[n] = palette[i % palette.length]; });
+        const CHART_H = 108; // 堆积柱形图固定像素高度，避免百分比高度在弹性容器内无法解析（留出顶部数值与底部标签空间）
+        const maxTotal = Math.max.apply(null, win.keys.map(k => { let s = 0; for (const n in cell[k]) s += cell[k][n]; return s; }).concat([0]));
+        const dayMap = {}; this.checkinBuckets.forEach(b => { dayMap[b.key] = b.days; });
+        const buckets = win.keys.map(k => {
+          const segs = projNames.filter(n => cell[k][n]).map(n => ({ name: n, amount: cell[k][n], color: projColor[n] }));
+          const total = segs.reduce((a, s) => a + s.amount, 0);
+          segs.sort((a, b) => b.amount - a.amount);
+          const stackPx = maxTotal > 0 ? Math.round(total / maxTotal * CHART_H) : 0;
+          segs.forEach(s => { s.segPx = total > 0 ? Math.round(s.amount / total * stackPx) : 0; });
+          const label = win.dim === 'year' ? k.slice(5) + '月' : k.slice(5) + '/' + k.slice(8);
+          return { key: k, label, total, stackPx, segs, days: dayMap[k] || 0 };
+        });
+        return {
+          maxTotal,
+          palette: projNames.map((n, i) => ({ name: n, color: palette[i % palette.length], total: projTotals[n] })),
+          buckets,
+        };
+      },
+      hasCheckinAmountData() { return this.checkinAmountBuckets.buckets.some(b => b.total > 0); },
     },
     methods: {
+      // 周一=0 … 周日=6（用于周视图条形标签；必须是 method 才能带参调用，不能放 computed）
+      _weekday(k) { const d = this.$store.util.parseDate(k); return (d.getDay() + 6) % 7; },
       back() { if (window.history.length > 1) history.back(); else location.hash = '#/projects'; },
       setVizDim(d) { this.vizDim = d; try { localStorage.setItem('mindpocket:projVizDim', d); } catch (e) {} },
       prev() { this.vizOffset = this.vizOffset + 1; },
@@ -19351,6 +19690,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           period: { label: win.label, title: win.title, offset: this.vizOffset, dates: win.keys },
           barChart: this.barBuckets.map(b => ({ key: b.key, label: b.label, minutes: b.min, display: this.fmtH(b.min), percent: b.pct })),
           pieChart: this.pieData.map(s => ({ name: s.name, minutes: s.min, display: this.fmtH(s.min), percent: s.pct })),
+          checkinDays: {
+            total: this.checkinTotal,
+            denominator: this.checkinDenominator,
+            coveragePercent: this.checkinPct,
+            byPeriod: this.checkinBuckets.map(b => ({ key: b.key, label: b.label, days: b.days })),
+          },
+          checkinAmount: {
+            maxTotal: this.checkinAmountBuckets.maxTotal,
+            byProject: this.checkinAmountBuckets.palette.map(p => ({ name: p.name, total: p.total })),
+            byPeriod: this.checkinAmountBuckets.buckets.map(b => ({ key: b.key, label: b.label, total: b.total, days: b.days, segs: b.segs.map(s => ({ name: s.name, amount: s.amount })) })),
+          },
           totalMinutes: this.totalMin, totalDisplay: this.fmtH(this.totalMin),
         };
         try {
@@ -19400,9 +19750,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
           </div>
         </div>
+        <div class="viz-checkin-wrap" style="margin-top:18px;border-top:1px dashed var(--line);padding-top:14px;">
+          <div class="viz-sec-title">📅 打卡天数 / 完成量（{{ vizWindow.label }}）</div>
+          <p class="viz-checkin-summary">已打卡 <b>{{ checkinTotal }}</b> 天 / 共 {{ checkinDenominator }} 天 · 覆盖率 <b>{{ checkinPct }}%</b></p>
+          <p class="viz-checkin-sub">各时段完成量（按项目堆积，鼠标悬停看明细）</p>
+          <div class="chart-bars" v-if="hasCheckinAmountData" style="height:140px;margin-top:6px;">
+            <div class="chart-bar" v-for="b in checkinAmountBuckets.buckets" :key="b.key"
+                 :title="b.total > 0 ? ('完成量 ' + b.total + ' · 已打卡 ' + b.days + ' 天') : ('已打卡 ' + b.days + ' 天 · 无完成量')">
+              <div class="bar-val">{{ b.total > 0 ? b.total : (b.days > 0 ? '✓' : '–') }}</div>
+              <div class="bar-stack" :style="{ height: b.stackPx + 'px' }">
+                <div class="bar-seg" v-for="s in b.segs" :key="s.name" :style="{ height: s.segPx + 'px', background: s.color }" :title="s.name + '：' + s.amount"></div>
+              </div>
+              <div class="bar-label">{{ b.label }}</div>
+            </div>
+          </div>
+          <p class="empty-tip" v-else>当前时段暂无完成量记录</p>
+          <div class="viz-legend" v-if="checkinAmountBuckets.palette.length" style="margin-top:10px;">
+            <div class="viz-leg-item" v-for="p in checkinAmountBuckets.palette" :key="p.name">
+              <span class="viz-dot" :style="{background: p.color}"></span>
+              <span class="viz-leg-name">{{ p.name }}</span>
+              <span class="viz-leg-pct">{{ p.total }}</span>
+            </div>
+          </div>
+          <p class="viz-checkin-tip">标题看「打卡了几天」，图形看「完成了多少」：柱形高度 = 该时段完成量合计，按项目分色堆积；打卡天数仍按「当日有填报即记 1 天」统计（见上方覆盖率）。</p>
+        </div>
         <button class="btn ghost" style="margin-top:14px;width:100%;" @click="exportViz">⬇ 导出可视化数据</button>
       </div>
-      <p class="viz-tip">统计基于各项目子任务的「填报专注时长」，仅计入当前所选时段（日 / 周 / 年）。</p>
+      <p class="viz-tip">统计基于各项目子任务的「填报专注时长」与「填报打卡天数」，仅计入当前所选时段（日 / 周 / 年）。</p>
       <div class="wp-toast" v-if="toast">{{ toast }}</div>
     </div>`,
   };
@@ -19416,6 +19790,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   app.component('ProjectsPage', C.ProjectsPage);
   app.component('ProjVizPage', C.ProjVizPage);
   app.component('ProjectDetailPage', C.ProjectDetailPage);
+  app.component('ProjectCheckinViz', C.ProjectCheckinViz);
   app.component('InboxSubPage', C.InboxSubPage);
   app.component('QuickEntry', C.QuickEntry);
   app.component('WishPool', C.WishPool);
