@@ -76,6 +76,12 @@ body {
   .app-shell { min-height: calc(var(--vh, 1vh) * 100); }
 }
 .app-main { flex: 1; padding: 16px 16px 90px; }
+/* 顶部「可撤销一步」提示：悬浮小药丸（fixed 不占位，避免布局抖动），淡雅配色，滚动后始终可见，1 秒无操作自动消失 */
+.undo-banner { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 60; display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: rgba(248,249,251,.96); color: #5b6470; border: 1px solid rgba(0,0,0,.06); border-radius: 999px; box-shadow: 0 2px 8px rgba(20,30,60,.08); font-size: 13px; cursor: pointer; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.undo-banner .undo-ico { font-size: 14px; color: #9aa3b0; }
+.undo-banner .undo-msg { font-weight: 500; }
+.undo-banner .undo-action { background: rgba(45,108,255,.10); color: #2d6cff; border-radius: 999px; padding: 2px 10px; font-weight: 600; }
+.undo-banner:active { opacity: .85; }
 .boot { padding: 40px; text-align: center; color: var(--sub); }
 
 .page-title { font-size: 22px; font-weight: 700; margin: 4px 0 10px; }
@@ -239,6 +245,9 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .hn-arrow { background: #eef0f5; color: var(--text); width: 30px; height: 30px; font-size: 16px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
 .hn-arrow:disabled { opacity: .4; }
 .hn-ind { color: var(--sub); font-size: 12px; min-width: 40px; text-align: center; }
+/* 「回到今日」与日期上下堆叠，置于左右切换箭头中间 */
+.hn-mid { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
+.hn-mid .hn-back { padding: 3px 8px; font-size: 11px; white-space: nowrap; }
 .hn-actions { display: flex; align-items: center; gap: 8px; }
 .hc-btn { background: #f0f1f6; color: var(--text); font-size: 12px; min-height: 30px; padding: 6px 12px; border-radius: var(--radius-sm); line-height: 1.3; }
 .hc-btn:active { background: #e6e8ef; }
@@ -835,6 +844,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* 待归档全局搜索（复用 .arch-filter 输入框样式；仅补充搜索区与清除按钮布局） */
 .inbox-search { margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line); }
 .inbox-search .search-clear { flex: none; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0 12px; font-size: 15px; cursor: pointer; }
+/* 统计页归档仓库搜索：清除按钮与待归档全局搜索同款 */
+.arch-filter .search-clear { flex: none; align-self: stretch; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0 12px; font-size: 15px; cursor: pointer; }
+.arch-filter .search-clear:hover { background: #e7eaf3; }
 .search-count { font-size: 12px; color: var(--sub); margin: 10px 2px 4px; }
 /* 项目搜索结果：子任务条目显示其归属项目作为上下文 */
 .sub-prefix { color: var(--sub); margin-right: 2px; }
@@ -1035,11 +1047,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
 .detail-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
 .detail-head .back { background: #f0f1f6; color: var(--sub); padding: 6px 12px; border-radius: var(--radius-sm); font-size: 14px; flex: none; }
-.detail-title-group { flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.detail-title-group { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .detail-title { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; min-width: 0; }
 .detail-acts { display: flex; gap: 6px; flex: none; margin-left: auto; }
+/* —— 待归档子任务页头部：文本流布局（仅本页生效） ——
+   返回键左浮动、一键清空右浮动，标题文本在两者之间流动：
+   首行从返回键右侧起排；折行后的后续行回落到屏幕最左侧（不被返回键占位顶住）；
+   日期标签内联紧随标题其后；一键清空始终贴屏幕右侧（与末行同排） */
+.sub-head { display: block; }
+.sub-head-flow { min-width: 0; }
+.sub-head-flow::after { content: ''; display: block; clear: both; }
+.sub-head .back { float: left; margin-right: 8px; height: 32px; line-height: 32px; padding: 0 12px; display: inline-flex; align-items: center; }
+.sub-head .detail-title { display: inline; line-height: 32px; }
+.sub-head .cap { margin-left: 6px; }
 .tpl-reset-btn { background: #fff; color: #2d6cff; border: 1px solid #c9d8ff; border-radius: var(--radius-pill); padding: 5px 11px; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer; }
 .tpl-reset-btn:active { background: #eaf1ff; }
+/* 图标态（仅保留 🔄）：浮动到右侧，标题文字绕其排版；短标题时与标题同排右侧，长标题时落在末行右端；高度与首行字/返回键统一 */
+.tpl-reset-btn.icon-only { float: right; margin: 0 0 0 8px; border-radius: var(--radius-sm); padding: 0 9px; font-size: 16px; height: 32px; line-height: 32px; display: inline-flex; align-items: center; }
 .proj-meta { background: var(--card); border-radius: var(--radius-md); padding: 12px 14px; box-shadow: var(--shadow); margin-bottom: 14px; }
 .meta-cd { font-size: 14px; margin-bottom: 8px; }
 .meta-prog { display: flex; align-items: center; gap: 8px; }
@@ -2143,7 +2167,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     wish_items: [], wish_records: [],
     progressUnits: DEFAULT_PROGRESS_UNITS.map(u => ({ ...u })),
     finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] },
-    career: { categories: [], entries: [], jds: [], resumes: [], tags: [] } });
+    career: { categories: [], entries: [], jds: [], resumes: [], tags: [] }, undoHint: null });
 
   /* ----------------------------- 持久化 ----------------------------- */
   // 防抖落盘：高频调用（连续打卡、滑动、批量编辑）合并为一次 localStorage 写入，避免卡顿。
@@ -2177,6 +2201,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     writeStorageNow();
   }
   function persist() {
+    recordSnapshot(); // 在变更落盘前，把「本次变更前的旧数据」存为可撤销快照（单步）
     notifyChange(); // 数据变更即广播全局刷新（revision++），所有监听页面立即重载（同步、不防抖，保证 UI 实时）
     // 提醒钩子：若已启用手机提醒推送，本地变更后重新安排 ntfy 延迟推送（P2，同步即时）
     if (window.MPNotify && window.MPNotify.onChange) { try { window.MPNotify.onChange(); } catch (_) {} }
@@ -2206,6 +2231,54 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   // 全局刷新通知：自增响应式版本号，供各页面 watch 监听后主动重载数据
   function notifyChange() { state.revision = (state.revision || 0) + 1; }
+
+  /* ============ 全局「撤销一步」快照栈 ============
+   * 通用单步撤销：不针对每种操作写逆函数，而是「整体回滚数据」。
+   * 机制：每次用户数据变更（persist）在落盘前，把 localStorage 里「本次变更前的旧数据」存为可撤销快照。
+   *   —— 因为 persist 的写盘是防抖的（350ms 后才真正写入），persist() 执行时磁盘仍是旧版本，正好可捕获。
+   * 撤销（undoLast）：把快照整体写回 state + 落盘 + 广播刷新（积分作为派生数据随之重算，无需单独回滚）。
+   * 单步：_undoSnapshot 仅保留最新一步（覆盖式），符合「撤销一步」语义。
+   * 启动阶段（含 load 内的自动归档扫描）不弹顶部提示，避免程序化变更误弹，初始化完成后才启用 UI 提示。
+   */
+  var _undoSnapshot = null;   // 上一步完整数据 JSON（null = 无可撤销）
+  var _undoSeq = 0;           // 自增序号，通知 UI 刷新提示
+  var _uiHintEnabled = false; // 启动阶段不弹提示，初始化完成后置 true
+  function recordSnapshot() {
+    try {
+      const prev = localStorage.getItem(STORAGE_KEY); // 磁盘仍是「本次变更前」旧数据（新数据防抖后才写盘）
+      if (prev) { _undoSnapshot = prev; _undoSeq++; }  // 覆盖式保留最新一步
+    } catch (e) {}
+    if (_uiHintEnabled) state.undoHint = { seq: _undoSeq, ts: Date.now() };
+  }
+  function clearUndo() { _undoSnapshot = null; if (_uiHintEnabled) state.undoHint = null; }
+  function undoLast() {
+    if (!_undoSnapshot) return false;
+    try {
+      const o = JSON.parse(_undoSnapshot);
+      state.habits = o.habits || [];
+      state.tasks = o.tasks || [];
+      state.categories = o.categories || [];
+      state.settings = o.settings || {};
+      state.projects = o.projects || [];
+      state.project_subs = o.project_subs || [];
+      state.project_records = o.project_records || [];
+      state.project_ideas = o.project_ideas || [];
+      state.project_folders = o.project_folders || [];
+      state.sub_custom_statuses = o.sub_custom_statuses || [];
+      state.taskBoard = o.taskBoard || { instances: [] };
+      state.wish_items = o.wish_items || [];
+      state.wish_records = o.wish_records || [];
+      state.progressUnits = o.progressUnits || [];
+      state.finance = o.finance || {};
+      state.career = o.career || {};
+    } catch (e) { console.error('[MP] undo failed', e); return false; }
+    _undoSnapshot = null;       // 撤销后清空，避免重复撤销同一步
+    if (_uiHintEnabled) state.undoHint = null;
+    flushPersist();             // 写回磁盘（绕过 persist 的 recordSnapshot，避免自循环压栈）
+    notifyChange();             // 广播刷新，各页面 watch 重载
+    return true;
+  }
+  function canUndo() { return !!_undoSnapshot; }
 
   // —— 全局滑动操作互斥锁 ——
   // 所有滑动卡片（任务/子任务/许愿池/闲趣）共用同一把锁，防止动画与数据同步期间重复触发。
@@ -2634,11 +2707,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function getArchivedHabits(keyword) {
     let list = state.habits.filter(h => h.is_archived);
     if (keyword) {
-      const k = keyword.toLowerCase();
-      list = list.filter(h => (h.name || '').toLowerCase().includes(k)
+      // 「#」多条件（与财务页同原理）：keyword 可为字符串或字符串数组；数组时每个关键词都需命中（AND）
+      const kws = (Array.isArray(keyword) ? keyword : [keyword]).map(k => String(k || '').trim().toLowerCase()).filter(Boolean);
+      if (kws.length) list = list.filter(h => kws.every(k => (h.name || '').toLowerCase().includes(k)
         || (h.desc || '').toLowerCase().includes(k)
         || (h.notes || '').toLowerCase().includes(k)
-        || (Array.isArray(h.tags) && h.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k))));
+        || (Array.isArray(h.tags) && h.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k)))));
     }
     return list.map(h => Object.assign({}, h, { isHabit: true, title: h.name, category_id: null }));
   }
@@ -4662,6 +4736,29 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     else updateTask(id, patch);
     persist();
   }
+  // 无日期任务「指定周」快捷安排：冻结绝对目标周（off=0 本周 / 1 下周 / 2 下下周…），time_mode='week' 进入周看板，不绑定具体日期
+  // subId 非空时操作该父任务下的子任务；与 scheduleTaskToDate 双击/单击分工：单击选日 → 单点执行日；双击周标签 → 指定整周
+  function assignWeekByOffset(id, subId, off) {
+    const t = findTask(id);
+    if (!t) return;
+    const obj = subId ? (t.sub_tasks || []).find(s => s._id === subId) : t;
+    if (!obj) return;
+    const cur = isoWeek(parseDate(todayStr()));
+    const baseStart = weekRange(cur.year, cur.week).start;
+    const start = new Date(baseStart);
+    start.setUTCDate(start.getUTCDate() + (off || 0) * 7);
+    const iw = isoWeek(start);
+    const patch = {
+      time_mode: 'week',
+      plan_year: iw.year, plan_week: iw.week,
+      week_offset: (off || 0),
+      plan_month: null, execute_date: null, date_start: '', date_end: '',
+      cycle: null,
+    };
+    if (subId) updateSubTask(id, subId, patch);
+    else updateTask(id, patch);
+    persist();
+  }
 
   // 周期任务到期自动归档：cycle_end_date 非空且早于今天 → 母本归档，停止生成所有副本（永久终止同步）
   function autoArchiveExpiredCycles() {
@@ -4756,22 +4853,27 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function getArchivedTasks(categoryId, keyword) {
     let list = state.tasks.filter(t => t.is_archived || isArchiveRelevant(t));
     if (categoryId && categoryId !== '__all__') list = list.filter(t => matchCategory(t, categoryId));
-    if (keyword) list = list.filter(t => taskMatchesKeyword(t, keyword));
+    // 「#」多条件（与财务页同原理）：keyword 可为字符串或字符串数组；数组时每个关键词都需命中（AND）
+    if (keyword) {
+      const kws = (Array.isArray(keyword) ? keyword : [keyword]).map(k => String(k || '').trim().toLowerCase()).filter(Boolean);
+      if (kws.length) list = list.filter(t => kws.every(k => taskMatchesKeyword(t, k)));
+    }
     return list;
   }
 
   // 全局已归档仓库：扁平化所有「已归档子任务」（嵌套在 task.sub_tasks 内），统一聚合展示
   function getArchivedSubTasks(categoryId, keyword) {
     const out = [];
-    const k = (keyword || '').trim().toLowerCase();
+    // 「#」多条件（与财务页同原理）：keyword 可为字符串或字符串数组；数组时每个关键词都需命中（AND）
+    const kws = (Array.isArray(keyword) ? keyword : [keyword]).map(k => String(k || '').trim().toLowerCase()).filter(Boolean);
     state.tasks.forEach(t => {
       (t.sub_tasks || []).forEach(s => {
         if (!s.is_archived && !isArchiveRelevant(s)) return;
         // 子任务沿用父任务分类参与筛选
         if (categoryId && categoryId !== '__all__' && !matchCategory(t, categoryId)) return;
         // 关键词筛选：子任务自身字段（标题/描述/素材/一级·二级标签）命中即保留；否则沿用父任务标题参与筛选
-        if (k) {
-          const hit = taskMatchesKeyword(s, keyword) || (t.title || '').toLowerCase().includes(k);
+        if (kws.length) {
+          const hit = kws.every(k => taskMatchesKeyword(s, k) || (t.title || '').toLowerCase().includes(k));
           if (!hit) return;
         }
         out.push(Object.assign({}, s, {
@@ -6434,6 +6536,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   if (!load()) { seed(); }
   migrate();
   ensureQuickView();
+  // 启动阶段（含 load 内自动归档扫描）不弹「可撤销」提示；初始化完成后才启用，避免程序化变更误弹
+  setTimeout(function () { _uiHintEnabled = true; }, 800);
 
   /* ============================ 时间模式（月 / 周 / 日 / 收藏）看板支持 ============================ */
   // 计算某日期所属 ISO 周（周一为一周起点），返回 { year, week }
@@ -6923,7 +7027,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
     isCopyArchived, copyShouldRender, archiveMasterCopies, trimCycleCopiesAfterEnd,
     // 周期「延期机制」：模式分派与滚动链排期
@@ -6956,6 +7060,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     addPoints, reversePoints,
     rollbackEntityPoints, collectEntityPointRecords, POINT_ROLLBACK_CAT,
     swipeLock, swipeUnlock, swipeCleanup,
+    // 全局「撤销一步」快照栈
+    undoLast, canUndo, clearUndo,
     SWIPE_ACTIVATE_PX, SWIPE_TRIGGER_PX,
     // 财务复盘（独立 Tab，数据隔离）
     ensureFinancePresets, addFinanceModule, updateFinanceModule, removeFinanceModule, setFinanceModulesOrder,
@@ -7842,10 +7948,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* =====================================================================
    * MaterialLinkMixin —— 素材链接识别模块（APP 唯一实现，全局复用）
    * 原实现内联于 TaskFormCore（待归档任务素材链接），此处原样抽出为共享 mixin，
-   * 解析规则 / 跳转行为一字未改，供以下位置共用，确保四处表现完全一致：
+   * 解析规则 / 跳转行为一字未改，供以下位置共用，确保表现完全一致：
    *   - TaskFormCore        待归档任务（含子任务编辑）素材链接【原实现】
-   *   - ProjectIdeaEditModal / TaskIdeaEditModal   灵感素材编辑框
-   *   - ProjectDetailPage   / TaskIdeaModal        灵感素材预览区
+   *   - ProjectIdeaEditModal   项目灵感素材编辑框（统计 Tab · 项目详情页）
    * ===================================================================== */
   C.MaterialLinkMixin = {
     methods: {
@@ -9442,226 +9547,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   };
 
   /* =====================================================================
-   * TaskIdeaEditModal —— 任务灵感库：灵感素材编辑（镜像 ProjectIdeaEditModal）
-   * 区别：以 taskId 维度存储（复用 project_ideas 表，写 task_id）
-   * ===================================================================== */
-  C.TaskIdeaEditModal = {
-    name: 'TaskIdeaEditModal',
-    mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
-    props: { taskId: { type: String, required: true }, ideaId: { type: String, default: '' } },
-    data() { return { title: '', content: '', link: '', showFull: false, fullDraft: '', showDelConfirm: false }; },
-    created() {
-      if (this.ideaId) {
-        const o = this.$store.state.project_ideas.find(x => x.idea_id === this.ideaId);
-        if (o) { this.title = o.title || ''; this.content = o.content || ''; this.link = o.link || ''; }
-      }
-      // 浮层栈：作为弹窗登记 dismiss，系统返回优先关闭本弹窗（返回来源页，不改写路由）
-      this._overlayDismiss = () => this.$emit('close');
-      this.$root.pushOverlay(this._overlayDismiss);
-    },
-    methods: {
-      save() {
-        const title = this.title.trim();
-        if (!title) { alert('请填写素材标题'); return; }
-        const link = (this.link || '').trim();
-        if (this.ideaId) this.$store.updateIdea(this.ideaId, { title, content: this.content, link });
-        else this.$store.addTaskIdea(this.taskId, { title, content: this.content, link });
-        this.$emit('close');
-      },
-      openFull() { this.fullDraft = this.content; this.showFull = true; },
-      confirmFull() { this.content = this.fullDraft; this.showFull = false; },
-      cancelFull() { this.showFull = false; this.fullDraft = ''; },
-      // 删除素材：复用 APP 通用二次确认弹窗（与项目 / 习惯删除一致）
-      del() { this.showDelConfirm = true; },
-      confirmDelete() {
-        this.$store.removeIdea(this.ideaId);
-        this.showDelConfirm = false;
-        this.$emit('close');
-      },
-    },
-    watch: {
-      // 全屏输入：打开压栈、关闭弹栈；系统返回优先关闭全屏、回到本素材编辑页
-      showFull(v) {
-        if (v) { this._fullDismiss = () => { this.showFull = false; this.fullDraft = ''; }; this.$root.pushOverlay(this._fullDismiss); }
-        else if (this._fullDismiss) { this.$root.popOverlay(this._fullDismiss); this._fullDismiss = null; }
-      },
-    },
-    beforeUnmount() {
-      if (this._fullDismiss) { this.$root.popOverlay(this._fullDismiss); this._fullDismiss = null; }
-      if (this._overlayDismiss) { this.$root.popOverlay(this._overlayDismiss); this._overlayDismiss = null; }
-    },
-    template: `
-    <div class="modal-mask" @click.self="$emit('close')">
-      <div class="modal">
-        <div class="modal-head"><h3>{{ ideaId ? '编辑灵感素材' : '新增灵感素材' }}</h3><button class="x" @click="$emit('close')">✕</button></div>
-        <div class="modal-body">
-          <label class="fld">标题<input v-model="title" @keyup.enter="save" placeholder="选题 / 想法标题" /></label>
-          <div class="fld">
-            <div class="fld-note-head"><span>详细笔记（支持换行）</span><button class="fs-note-btn" @click="openFull">⛶ 全屏输入</button></div>
-            <textarea v-model="content" placeholder="如：可参考 XX 方法论；要点…"></textarea>
-          </div>
-
-          <!-- 素材外部链接：复用通用输入框；有效时渲染跳转按钮，格式异常沿用现有提示样式 -->
-          <label class="fld">素材链接
-            <input v-model.trim="link" placeholder="https://example.com" :class="{invalid: link && !isValidMaterialLink(link)}" />
-          </label>
-          <p class="tip" v-if="link && !isValidMaterialLink(link)">链接格式有误，请以 http(s):// 开头</p>
-          <button class="block-note" v-if="isValidMaterialLink(link)" @click="openMaterialLink(link)">
-            <span>🔗 打开素材链接</span>
-          </button>
-
-          <div class="modal-actions">
-            <button class="btn ghost" @click="$emit('close')">取消</button>
-            <button class="btn primary" @click="save">保存</button>
-          </div>
-          <!-- 删除素材（仅编辑已有素材时出现；与常规编辑分隔，区隔高危操作） -->
-          <div class="del-zone" v-if="ideaId">
-            <button class="btn danger-soft" style="width:100%" @click="del">删除素材</button>
-          </div>
-        </div>
-        <!-- 删除素材二次确认（复用 APP 通用弹窗：圆角/阴影/配色一致；取消 + 确定删除 并排） -->
-        <div class="chart-confirm" v-if="showDelConfirm" @click.self="showDelConfirm=false">
-          <div class="idea-choice-box" @click.stop>
-            <div class="idea-choice-title">确定要删除该灵感素材？</div>
-            <p style="font-size:13px;color:var(--sub);line-height:1.5;margin:0 0 14px">删除后该素材无法恢复，确认要删除此素材吗？</p>
-            <div class="modal-actions">
-              <button class="btn ghost" @click="showDelConfirm=false">取消</button>
-              <button class="btn danger" @click="confirmDelete">确定删除</button>
-            </div>
-          </div>
-        </div>
-        <div class="fullnote-mask" v-if="showFull">
-          <div class="fullnote-head">
-            <h3>详细笔记 · 全屏编辑</h3>
-            <div class="fullnote-acts">
-              <button class="btn ghost" @click="cancelFull">取消</button>
-              <button class="btn primary" @click="confirmFull">确认</button>
-            </div>
-          </div>
-          <textarea v-model="fullDraft" placeholder="全屏书写详细笔记，确认后回填…" autofocus></textarea>
-        </div>
-      </div>
-    </div>`,
-  };
-
-  /* =====================================================================
-   * TaskIdeaModal —— 任务灵感库悬浮窗（列表 + 新增 + 长按编辑 + 左滑领用）
-   * 领用差异：仅「生成为子任务（自动加 #素材）」，无「生成新项目」选项
-   * ===================================================================== */
-  C.TaskIdeaModal = {
-    name: 'TaskIdeaModal',
-    mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
-    props: { taskId: { type: String, required: true }, registerOverlay: { type: Boolean, default: true } },
-    components: { TaskIdeaEditModal: C.TaskIdeaEditModal },
-    data() {
-      return {
-        showEdit: false, editIdeaId: '',
-        ideaDragId: null, ideaStartX: 0, ideaX: 0, ideaMoved: false, ideaSuppress: false, ideaLongTimer: null,
-        ideaChoiceId: null,
-      };
-    },
-    // 浮层栈：registerOverlay 为真时登记 dismiss，系统返回优先关闭本弹窗（返回任务来源页，不改写路由）
-    // —— 当灵感库为「默认自动展开」（父组件传入 registerOverlay=false）时，不登记浮层栈，
-    //    使关闭 / 系统返回等同于页面级返回，可一步直达父任务所在列表
-    created() {
-      if (this.registerOverlay) { this._overlayDismiss = () => this.$emit('close'); this.$root.pushOverlay(this._overlayDismiss); }
-    },
-    beforeUnmount() {
-      if (this._overlayDismiss) { this.$root.popOverlay(this._overlayDismiss); this._overlayDismiss = null; }
-    },
-    computed: {
-      task() { return this.$store.findTask(this.taskId); },
-      ideas() { return this.$store.getTaskIdeas(this.taskId); },
-      ideaChoiceTitle() { const i = this.ideas.find(x => x.idea_id === this.ideaChoiceId); return i ? i.title : ''; },
-    },
-    methods: {
-      openNew() { this.editIdeaId = ''; this.showEdit = true; },
-      openEdit(i) { this.editIdeaId = i.idea_id; this.showEdit = true; },
-      onIdeaDown(i, ev) {
-        this.ideaDragId = i.idea_id; this.ideaStartX = ev.clientX; this.ideaX = 0; this.ideaMoved = false; this.ideaSuppress = false;
-        try { ev.currentTarget.setPointerCapture(ev.pointerId); } catch (_) {}
-        if (this.ideaLongTimer) clearTimeout(this.ideaLongTimer);
-        this.ideaLongTimer = setTimeout(() => { this.ideaSuppress = true; this.openEdit(i); }, 450);
-      },
-      onIdeaMove(ev) {
-        if (this.ideaDragId == null) return;
-        const dx = ev.clientX - this.ideaStartX;
-        if (Math.abs(dx) > 8) { if (this.ideaLongTimer) { clearTimeout(this.ideaLongTimer); this.ideaLongTimer = null; } this.ideaMoved = true; this.ideaX = Math.max(-150, Math.min(0, dx)); }
-      },
-      onIdeaUp() {
-        if (this.ideaLongTimer) { clearTimeout(this.ideaLongTimer); this.ideaLongTimer = null; }
-        if (this.ideaDragId == null) return;
-        const dx = this.ideaX;
-        if (dx <= -40) this.ideaChoiceId = this.ideaDragId;
-        this.ideaX = 0; this.ideaDragId = null;
-        if (this.ideaSuppress) setTimeout(() => { this.ideaSuppress = false; }, 0);
-      },
-      onIdeaMainClick(i) { if (this.ideaMoved) return; if (!this.ideaSuppress) this.openEdit(i); },
-      // 领用：仅生成「同任务下的子任务」（无「生成新项目」选项），并标记已领用
-      claimToSub() {
-        const i = this.ideas.find(x => x.idea_id === this.ideaChoiceId);
-        this.ideaChoiceId = null;
-        if (!i) return;
-        this.$store.addSubTask(this.taskId, i.title, null);
-        this.$store.pickIdea(i.idea_id);
-      },
-      cancelChoice() { this.ideaChoiceId = null; },
-    },
-    template: `
-    <div class="modal-mask idea-full-mask" @click.self="$emit('close')">
-      <div class="modal idea-full-modal">
-        <div class="modal-head"><h3>灵感库 · {{ task ? task.title : '' }}</h3><div class="head-acts"><button class="head-btn" @click="$emit('toSub')">📋 子任务</button><button class="x" @click="$emit('close')">✕</button></div></div>
-        <div class="modal-body">
-          <button class="btn primary block-new" @click="openNew">＋ 新增灵感素材</button>
-          <div class="idea-list2">
-            <div class="pidea swipe-card" v-for="i in ideas" :key="i.idea_id"
-                 :style="{ transform: 'translateX(' + (ideaDragId===i.idea_id ? ideaX : 0) + 'px)' }"
-                 :class="{ dragging: ideaDragId===i.idea_id && ideaMoved }"
-                 @pointerdown="onIdeaDown(i,$event)" @pointermove="onIdeaMove($event)"
-                 @pointerup="onIdeaUp()" @pointercancel="onIdeaUp()">
-              <div class="pidea-top" @click="onIdeaMainClick(i)">
-                <div class="pidea-title">{{ i.title }}</div>
-                <span class="idea-badge" :class="i.is_picked ? 'picked' : 'todo'">{{ i.is_picked ? '已领取' : '备选' }}</span>
-              </div>
-              <pre class="pidea-content" v-if="i.content">{{ i.content }}</pre>
-              <!-- 素材链接：识别规则 / 交互样式 / 跳转行为与待归档任务素材链接完全一致；阻断卡片滑动与长按手势 -->
-              <button class="block-note" v-if="isValidMaterialLink(i.link)" style="margin:0"
-                      @pointerdown.stop @click.stop="openMaterialLink(i.link)">
-                <span>🔗 打开素材链接</span>
-              </button>
-            </div>
-            <p v-if="!ideas.length" class="empty-tip">灵感库为空，记录选题 / 学习笔记 / 想法吧</p>
-          </div>
-        </div>
-        <TaskIdeaEditModal v-if="showEdit" :task-id="taskId" :idea-id="editIdeaId" @close="showEdit=false" />
-        <!-- 领用选择（任务版：仅生成子任务，无新项目选项） -->
-        <div class="chart-confirm" v-if="ideaChoiceId" @click.self="cancelChoice">
-          <div class="idea-choice-box">
-            <div class="idea-choice-title">将素材「{{ ideaChoiceTitle }}」转换为？</div>
-            <div class="modal-actions">
-              <button class="btn ghost" @click="cancelChoice">取消</button>
-              <button class="btn primary" @click="claimToSub">生成为子任务（自动加 #素材）</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>`,
-  };
-
-  /* =====================================================================
    * InboxSubPage —— 待归档父任务的子任务「全屏页面」（替代原悬浮弹窗）
    * 路由：#/subtask/<taskId>，整体复用「项目页 → 子任务」的 .page + .detail-head 架构
    *  - 单击待归档父任务条目 → 路由跳转至本页；长按 / 滑动仍走 InboxPage 原手势（不变）
    *  - 返回：左上角「‹ 返回」按钮按路由栈原路返回进入本页的上一级页面（今日 / 待归档）；深链无历史兜底回待归档
-   *  - 子任务内部功能（新增 / 编辑 / 勾选 / 删除 / 灵感库入口 / 周期配置 / 看板同步）全部保留
+   *  - 子任务内部功能（新增 / 编辑 / 勾选 / 删除 / 周期配置 / 看板同步）全部保留
    * ===================================================================== */
   C.InboxSubPage = {
     name: 'InboxSubPage',
     props: { tid: { type: String, required: true } },
-    components: { SubTaskEditModal: C.SubTaskEditModal, TaskIdeaModal: C.TaskIdeaModal },
+    components: { SubTaskEditModal: C.SubTaskEditModal },
     data() {
       return {
-        showEdit: false, editSubId: '', showIdea: false, delSub: null, ideaAutoOpened: false,
+        showEdit: false, editSubId: '', delSub: null,
         // 顶部常驻快捷创建输入框（进度条下方；仅名称；时间默认空白）
         quickTitle: '',
         // 子任务卡片手势（与「项目页 → 子任务」一致：长按=编辑；左滑=直接归档；右滑=撤销归档）
@@ -9695,22 +9593,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 母本任务对应时间标签（沿用现有胶囊 UI）：展示母本自身排期（单点日期 / 周期）
       taskCap() { return this.task ? this.$store.capsuleOf(this.task, { isCopy: false }) : null; },
     },
-    created() {
-      // 默认进入「有记录的页面」：任务含灵感素材时自动打开灵感库；否则停留子任务页
-      const ideas = this.task ? this.$store.getTaskIdeas(this.tid) : [];
-      if (ideas && ideas.length) { this.showIdea = true; this.ideaAutoOpened = true; } // ideaAutoOpened：标记本灵感库为「默认进入态」，关闭时一步回父列表
-    },
     methods: {
       // 子任务自身时间标签：同一 capsuleOf 同时兼容主任务 / 子任务数据结构（含旧字段 sub_deadline 兜底），沿用现有 .cap 胶囊样式
       subTimeCap(s) { return s ? this.$store.capsuleOf(s, { isCopy: false }) : null; },
       // 返回键：按路由栈原路返回上一级页面（进入路径），由根组件 back() 统一处理
       back() { this.$root.back(); },
-      // 手动点开灵感库（子任务页内）：常规浮层，关闭时回到子任务页（非默认进入态）
-      openIdeaManual() { this.ideaAutoOpened = false; this.showIdea = true; },
-      // 关闭灵感库：默认自动展开（进入即灵感库）时，返回一步直达父任务所在列表；常规打开时仅收起、回子任务页
-      closeIdea() { if (this.ideaAutoOpened) this.back(); else { this.showIdea = false; this.ideaAutoOpened = false; } },
-      // 从灵感库切换到子任务页：收起灵感库、停留在子任务页（便于新增子任务），并复位默认进入态
-      toSubPage() { this.ideaAutoOpened = false; this.showIdea = false; },
       // 模板循环复用：一键清空/恢复打卡（清空子任务 + 重置母本时间，= 同步清空父任务时间）
       resetTemplate() {
         if (!this.task || !this.task.is_template) return;
@@ -9848,15 +9735,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     template: `
     <div class="page inbox-sub-page">
-      <div class="detail-head">
-        <button class="back" @click="back">‹ 返回</button>
-        <div class="detail-title-group">
-          <div class="detail-title">{{ task ? task.title : '子任务' }}</div>
-          <span v-if="taskCap" class="cap" :class="'cap-'+taskCap.kind"><span class="cap-ico">{{ taskCap.icon }}</span><span class="cap-txt">{{ taskCap.text }}</span></span>
-        </div>
-        <div class="detail-acts">
-          <button class="icon-btn" title="灵感库" @click="openIdeaManual">💡</button>
-          <button class="tpl-reset-btn" v-if="task && task.is_template" @click="resetTemplate">🔄 一键清空/恢复打卡</button>
+      <div class="detail-head sub-head">
+        <div class="sub-head-flow">
+          <button class="back" @click="back">‹ 返回</button>
+          <span class="detail-title">{{ task ? task.title : '子任务' }}</span><span v-if="taskCap" class="cap" :class="'cap-'+taskCap.kind"><span class="cap-ico">{{ taskCap.icon }}</span><span class="cap-txt">{{ taskCap.text }}</span></span><button class="tpl-reset-btn icon-only" v-if="task && task.is_template" @click="resetTemplate" title="一键清空/恢复打卡">🔄</button>
         </div>
       </div>
 
@@ -9907,7 +9789,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </div>
 
       <SubTaskEditModal v-if="showEdit" :task-id="tid" :sub-id="editSubId" @close="showEdit=false" />
-      <TaskIdeaModal v-if="showIdea" :task-id="tid" :register-overlay="!ideaAutoOpened" @close="closeIdea" @to-sub="toSubPage" />
 
       <!-- 删除子任务二次确认 -->
       <div class="chart-confirm" v-if="delSub" @click.self="delSub=null">
@@ -9957,8 +9838,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // 是否展现「安排」按钮（按任务级开关，默认展现）
       showArrange() { return this.task ? (this.task.showArrangeBtn !== false) : false; },
-      // 仅当「指定周」或「无日期」且允许展现时才显示按钮
-      visible() { return (this.isSpecWeek || this.noDate) && this.showArrange; },
+      // 临时任务（速看标签）强制无时间，不提供「安排」按钮
+      isQuickView() { return !!(this.task && this.task.category_id === 'cat_quickview'); },
+      // 仅当「指定周」或「无日期」且允许展现、且非临时任务时才显示按钮
+      visible() { return (this.isSpecWeek || this.noDate) && this.showArrange && !this.isQuickView; },
       // 目标周（冻结的绝对 ISO 周）→ { y, w, start(Date) }
       targetWeek() {
         const t = this.task;
@@ -10031,8 +9914,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.pop = { top: Math.round(top), left: Math.min(Math.round(r.left), W - 248) };
         this.weekOffset = 0; // 每次打开无日期安排面板都从「本周」开始
         this.open = true;
+        this.bindDismiss();
       },
-      close() { this.open = false; },
+      // 弹层打开期间：点别处（含遮罩） / 滚动 / 滑动 / 按键盘 都自动收起；排除弹层自身内部点击
+      bindDismiss() {
+        if (this._dismissHandler) return;
+        const self = this;
+        const h = function (ev) {
+          if (ev.target && ev.target.closest && ev.target.closest('.wk-sched-pop')) return;
+          self.close();
+        };
+        this._dismissHandler = h;
+        // 延迟一帧再绑定，避免本次触发点击（openPop 自身由 click 触发）立即把刚打开的弹层关掉
+        this.$nextTick(function () {
+          ['scroll', 'wheel', 'touchstart', 'touchmove', 'keydown', 'click'].forEach(function (t) {
+            document.addEventListener(t, h, true);
+          });
+        });
+      },
+      close() {
+        this.open = false;
+        if (this._dismissHandler) {
+          ['scroll', 'wheel', 'touchstart', 'touchmove', 'keydown', 'click'].forEach(function (t) {
+            document.removeEventListener(t, this._dismissHandler, true);
+          }, this);
+          this._dismissHandler = null;
+        }
+      },
       pickDay(ds) {
         const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
         this.$store.scheduleSpecifiedToDate(pid, this.subId || null, ds);
@@ -10041,6 +9949,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       pickNoDateDay(ds) {
         const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
         this.$store.scheduleTaskToDate(pid, this.subId || null, ds);
+        this.open = false;
+      },
+      // 双击周标签：将无日期任务「指定」到该整周（本/下周/下下周），不绑定具体日期
+      assignSpecWeek(off) {
+        const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
+        this.$store.assignWeekByOffset(pid, this.subId || null, off);
         this.open = false;
       },
       postpone(n) {
@@ -10071,7 +9985,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button v-for="d in thisWeekDays" :key="d.ds" @click.stop="pickNoDateDay(d.ds)">{{ d.label }}<span class="wk-sched-date">{{ d.ds.slice(5) }}</span></button>
             </div>
             <div class="wk-sched-weeks">
-              <button v-for="w in noDateWeekTabs" :key="w.off" :class="{ on: weekOffset === w.off }" @click.stop="weekOffset = w.off">{{ w.label }}</button>
+              <button v-for="w in noDateWeekTabs" :key="w.off" :class="{ on: weekOffset === w.off }" @click.stop="weekOffset = w.off" @dblclick.stop="assignSpecWeek(w.off)" title="单击切换周；双击直接指定该整周">{{ w.label }}</button>
             </div>
           </template>
         </div>
@@ -11800,9 +11714,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <h3 class="block-title">
           <span>今日待办（{{ dateTaskCount }}）</span>
           <span class="hn-page">
-            <button class="btn-mini" v-if="!isTodayView" @click="backToToday">回&nbsp;到&nbsp;今&nbsp;日</button>
             <button class="hn-arrow" @click="prevDay" aria-label="切换昨日">←</button>
-            <span class="hn-ind">{{ selDateLabel }}</span>
+            <span class="hn-mid">
+              <span class="hn-ind">{{ selDateLabel }}</span>
+              <button class="btn-mini hn-back" v-if="!isTodayView" @click="backToToday">回&nbsp;到&nbsp;今&nbsp;日</button>
+            </span>
             <button class="hn-arrow" @click="nextDay" aria-label="切换次日">→</button>
             <button class="btn-mini" @click="openTaskAdd">＋添加</button>
           </span>
@@ -11810,7 +11726,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <!-- A 区（带提醒时间）：复用统计页纵向时间线组件（.tl-panel/.tl-list/.tl-item/.tl-axis/.tl-dot/.tl-time），
              以各提醒时刻为轴节点，同一节点下堆叠该时刻的全部父/子任务条目（条目样式与交互沿用原有任务行） -->
         <div class="tl-panel" v-if="timedGroups.length">
-          <div class="tl-head">🕒 定时待办（{{ timedItems.length }} 条 · 按提醒时间升序）</div>
+          <div class="tl-head">🕒 定时待办（{{ timedItems.length }} 条）</div>
           <div class="tl-list">
             <div class="tl-item" v-for="g in timedGroups" :key="g.time" style="cursor:default;">
               <div class="tl-axis" style="justify-content:flex-start;">
@@ -12240,7 +12156,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     //   识别 = 1 条 → 复用 TaskFormCore 弹出完整可编辑详情（含全部高级设置），AI 解析标题/描述/标签/时间/地点，无法识别默认空白
     //   识别 > 1 条 → 简化批量编辑视图：列表[复选框 + 任务文字 + 删除叉号]；下方新增任务输入 + 归属标签输入
     //               批量任务统一存入待归档 Tab（顶层任务），按归属标签打标；所有高级设置默认空白，后续可在待归档长按编辑
-    props: { items: { type: Array, required: true }, truncated: { type: Boolean, default: false } },
+    props: { items: { type: Array, required: true }, truncated: { type: Boolean, default: false }, fromFab: { type: Boolean, default: false } },
     components: { TaskFormCore: C.TaskFormCore },
     data() {
       // 单条 AI 任务默认归入「任务夹」；多条（>1）默认归入「收藏夹」（需求规则）
@@ -12295,6 +12211,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           isEmergency: !!it.isEmergency, // 紧急标记：默认不勾选
         };
       });
+      // 悬浮球创建：未解析出标签的条目默认归入「临时任务」，并同步清空时间字段
+      // （与临时任务「无时间待归档」语义一致，预览表单所见即所得；用户手动改选其他标签则不受影响）
+      if (this.fromFab) {
+        const QV = window.MPStore.getQuickViewCatId();
+        drafts.forEach((d) => {
+          if (!d.category_id) {
+            d.category_id = QV;
+            d.date_mode = ''; d.plan_month = ''; d.execute_date = '';
+            d.date_start = ''; d.date_end = '';
+            d.enable_remind = false; d.remind_time = '';
+            d.cycle = null;
+          }
+        });
+      }
       const checked = drafts.map(() => true);
       return { drafts, checked, folderType: defFolder, newTitle: '', batchTagInput: '', batchParsedTags: [], batchLevel3Chain: null };
     },
@@ -12347,7 +12277,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           desc: d.desc || '',
           material_notes: d.material_notes || '',
           material_link: d.material_link || '',
-          category_id: d.category_id || null,
+          // 从悬浮球创建且未手动选标签时，默认归入「临时任务」（与悬浮球简单录入语义一致），避免产出非临时任务而带出「安排」按钮
+          category_id: d.category_id || (this.fromFab ? this.$store.getQuickViewCatId() : null),
           parent_category: d.parent_category || '',
           is_template: d.folderType === 'template',
           is_collection: d.folderType === 'collection',
@@ -12396,7 +12327,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             desc: '',
             material_notes: '',
             material_link: '',
-            category_id: batchCat || null,
+            // 从悬浮球创建且未手动选归属标签时，默认归入「临时任务」（与悬浮球简单录入语义一致）
+            category_id: batchCat || (this.fromFab ? this.$store.getQuickViewCatId() : null),
             parent_category: batchParent || '',
             is_template: this.folderType === 'template',
             is_collection: this.folderType === 'collection',
@@ -12748,16 +12680,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // （标题 / 描述 / 素材备注 / 灵感素材 / 一级#标签 / 二级##标签）；标签关键词直接命中带该标签的任务；
       //  子任务命中则展示该子任务条目。搜索状态不持久化（data 初始化为空、切Tab清空、不写入 saveUiState）。
       searchResults() {
-        let kw = (this.searchKeyword || '').trim().toLowerCase().replace(/^#+/, '');
-        if (!kw) return [];
+        // 「#」多条件（与财务页同原理）：以 # 分隔的多个关键词需全部命中（AND）
+        const segs = (this.searchKeyword || '').split('#').map(s => s.trim()).filter(Boolean);
+        if (!segs.length) return [];
+        // 状态词识别：任一段含「已归档」→ 仅命中已归档条目（父任务/子任务）；该词剥离后不参与文本匹配
+        const onlyArchived = segs.some(sg => sg.indexOf('已归档') >= 0);
+        const kws = [];
+        segs.forEach(sg => {
+          const rest = sg.split('已归档').join(' ').trim().toLowerCase();
+          if (rest) kws.push(rest);
+        });
         const out = [];
         const folders = ['task', 'collection', 'template'];
         folders.forEach(fv => {
           const tasks = this.scopeTasksOf(fv);
           tasks.forEach(t => {
-            if (this.taskMatches(t, kw)) out.push({ isSub: false, task: t, folder: fv });
+            if (onlyArchived && !t.is_archived) return;   // 「已归档」筛选：父任务仅保留已归档
+            if (this.taskMatches(t, kws)) out.push({ isSub: false, task: t, folder: fv });
             (t.sub_tasks || []).forEach(s => {
-              if (this.subMatches(t, s, kw)) out.push({ isSub: true, sub: s, parent: t, folder: fv });
+              if (onlyArchived && !s.is_archived) return; // 「已归档」筛选：子任务仅保留已归档
+              if (this.subMatches(t, s, kws)) out.push({ isSub: true, sub: s, parent: t, folder: fv });
             });
           });
         });
@@ -12957,7 +12899,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         });
       },
       // 父任务命中判定：标题 / 描述 / 素材备注 / 素材链接 / 灵感素材 / 一级#二级##标签
-      taskMatches(t, kw) {
+      // kws 为「#」拆分后的关键词数组：每个关键词都需命中（AND，与财务页同原理）；
+      // kws 为空视为命中（配合纯「已归档」状态词筛选时列出全部已归档条目）
+      taskMatches(t, kws) {
         const hay = [ t.title || '', t.desc || '', t.material_notes || '', t.material_link || '' ];
         // 灵感素材（project_ideas 表，以 task_id 维度隔离；与任务灵感库共用同一份实现）
         const ideas = (this.$store.getTaskIdeas
@@ -12967,12 +12911,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 标签：根→叶（一级 / 二级 …），直接命中带该标签的任务
         const chain = (this.$store.categoryChainNames ? this.$store.categoryChainNames(t) : []);
         chain.forEach(n => hay.push(n || ''));
-        return hay.join(' ').toLowerCase().indexOf(kw) >= 0;
+        const text = hay.join(' ').toLowerCase();
+        return kws.every(k => text.indexOf(k) >= 0);
       },
       // 子任务命中判定：子任务自身文本字段（标题 / 描述 / 素材备注 / 素材链接）
-      subMatches(parent, s, kw) {
-        const hay = [ s.title || '', s.desc || '', s.material_notes || '', s.material_link || '' ];
-        return hay.join(' ').toLowerCase().indexOf(kw) >= 0;
+      subMatches(parent, s, kws) {
+        const text = [ s.title || '', s.desc || '', s.material_notes || '', s.material_link || '' ].join(' ').toLowerCase();
+        return kws.every(k => text.indexOf(k) >= 0);
       },
       // —— 标签手势：长按=编辑，轻点=折叠/展开 ——
       // 展开/折叠交由表头原生 @click 处理（不再在 pointerup 里 toggle），
@@ -13233,7 +13178,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <!-- 全局搜索（切换按钮下方，选项卡上方；跨任务夹/收藏夹/模版夹全量检索，含已归档；不持久化，刷新/切Tab自动清空） -->
       <div class="inbox-search">
         <div class="arch-filter">
-          <input v-model="searchKeyword" placeholder="搜索标题/描述/素材备注/灵感素材/标签…" />
+          <input v-model="searchKeyword" placeholder="搜索标题/描述/素材备注/灵感素材/标签…（用 # 分隔多关键词，需同时满足；输入「已归档」筛已归档）" />
           <button v-if="searchKeyword" class="search-clear" @click="searchKeyword=''" title="清空搜索">✕</button>
         </div>
         <template v-if="searchKeyword.trim()">
@@ -13685,12 +13630,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
 
       // 已归档项目（底层独立表，仅在此 UI 聚合展示；搜索关键词同时匹配项目名称/截止日）
+      // 「#」多条件（与财务页同原理）：以 # 分隔的多个关键词需全部命中（AND）；
+      // 类型词（项目/习惯/任务/子任务）与状态词（已归档）剥离不参与文本匹配
       archivedProjects() {
-        const k = (this.archKeyword || '').trim().toLowerCase();
+        const segs = (this.archKeyword || '').split('#').map(s => s.trim()).filter(Boolean);
+        const kws = [];
+        segs.forEach(sg => {
+          let rest = sg;
+          ['项目', '习惯', '子任务', '任务', '已归档'].forEach(w => { rest = rest.split(w).join(' '); });
+          rest = rest.trim().toLowerCase();
+          if (rest) kws.push(rest);
+        });
         return this.$store.state.projects.filter(p => p.status === 'archive' && !p.deleted_at &&
-          (!k || (p.name || '').toLowerCase().includes(k) || (p.deadline || '').toLowerCase().includes(k)
+          (!kws.length || kws.every(k => (p.name || '').toLowerCase().includes(k) || (p.deadline || '').toLowerCase().includes(k)
             || (p.desc || '').toLowerCase().includes(k) || (p.material_notes || '').toLowerCase().includes(k) || (p.material_link || '').toLowerCase().includes(k)
-            || (Array.isArray(p.tags) && p.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k)))));
+            || (Array.isArray(p.tags) && p.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k))))));
       },
       // 归档列表（UI 展示）：基础列表 + 日期/区间筛选 + 关键词（关键词已在 buildArchBase 应用）
       archList() {
@@ -13897,10 +13851,29 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 拆出为方法：archList 以搜索关键词构建、archMonthPieData 以空关键词构建（饼图不受搜索框影响）
       buildArchBase(keyword) {
         const out = [];
-        const k = (keyword || '').trim().toLowerCase();
-        const showTask = this.archType === 'all' || this.archType === 'task';
-        const showHabit = this.archType === 'all' || this.archType === 'habit';
-        const showProj = this.archType === 'all' || this.archType === 'project';
+        const rawK = (keyword || '').trim();
+        // 「#」多条件（与财务页同原理）：以 # 分隔的多个关键词需全部命中（AND）
+        const segs = rawK.split('#').map(s => s.trim()).filter(Boolean);
+        // 类型识别：任一段含「项目 / 习惯 / 子任务 / 任务」即按该类型筛选（可多类型并集，如「任务#习惯」同时显示两类）
+        // 段内优先级：项目 > 习惯 > 子任务 > 任务（「子任务」含「任务」，先判子任务）
+        const typeSet = new Set();
+        const textKws = [];   // 剥离类型词后的文本关键词，全部需命中（AND）
+        segs.forEach(sg => {
+          if (sg.indexOf('项目') >= 0) typeSet.add('project');
+          else if (sg.indexOf('习惯') >= 0) typeSet.add('habit');
+          else if (sg.indexOf('子任务') >= 0) typeSet.add('subtask');
+          else if (sg.indexOf('任务') >= 0) typeSet.add('task');
+          // 段内剥离类型/状态词，剩余文本仍参与匹配（如「任务紧急」→ 类型 task + 文本「紧急」）；
+          // 「已归档」为状态词：仓库内本就全部为已归档条目，识别后剥离、不当文本匹配（保证「已归档#旅行」等组合可用）
+          let rest = sg;
+          ['项目', '习惯', '子任务', '任务', '已归档'].forEach(w => { rest = rest.split(w).join(' '); });
+          rest = rest.trim().toLowerCase();
+          if (rest) textKws.push(rest);
+        });
+        const showTask = !typeSet.size || typeSet.has('task');    // 父任务（不含子任务）
+        const showSub = !typeSet.size || typeSet.has('subtask');  // 子任务（不含父任务）
+        const showHabit = !typeSet.size || typeSet.has('habit');
+        const showProj = !typeSet.size || typeSet.has('project');
         const self = this;
         const norm = (obj, type, date, realId) => Object.assign({}, obj, {
           _type: type,
@@ -13920,27 +13893,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           }
           return false;
         };
-        // 任务 & 子任务（子任务与任务同属「任务」维度）
+        // 父任务（搜索「任务」或空关键词时显示；搜索「子任务」时不混入）
         if (showTask) {
-          this.$store.getArchivedTasks(this.archCat, k).forEach(t => {
+          this.$store.getArchivedTasks(this.archCat, textKws).forEach(t => {
             if (!expandCycle(t, 'task')) out.push(norm(t, 'task', this.$store.archiveDateOf(t)));
           });
-          // 已归档子任务：扁平化并入（沿用父任务分类/标题参与筛选）
-          this.$store.getArchivedSubTasks(this.archCat, k).forEach(s => {
+        }
+        // 已归档子任务：扁平化并入（沿用父任务分类/标题参与筛选）；仅「子任务」或空关键词时显示
+        if (showSub) {
+          this.$store.getArchivedSubTasks(this.archCat, textKws).forEach(s => {
             if (!expandCycle(s, 'subtask')) out.push(norm(s, 'subtask', this.$store.archiveDateOf(s)));
           });
         }
         // 习惯：独立筛选，仅在「全部分类」下并入（习惯无分类归属）
         if (showHabit && (!this.archCat || this.archCat === '__all__')) {
-          this.$store.getArchivedHabits(k)
+          this.$store.getArchivedHabits(textKws)
             .forEach(h => out.push(norm(h, 'habit')));
         }
         if (showProj) {
+          // 项目文本命中：单关键词与旧口径一致（名称/截止日/描述/素材/标签）；多关键词逐词 AND
+          const projHitKw = (p, k) => (p.name || '').toLowerCase().includes(k) || (p.deadline || '').toLowerCase().includes(k)
+            || (p.desc || '').toLowerCase().includes(k) || (p.material_notes || '').toLowerCase().includes(k) || (p.material_link || '').toLowerCase().includes(k)
+            || (Array.isArray(p.tags) && p.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k)));
           this.$store.state.projects
             .filter(p => p.status === 'archive' && !p.deleted_at &&
-              (!k || (p.name || '').toLowerCase().includes(k) || (p.deadline || '').toLowerCase().includes(k)
-                || (p.desc || '').toLowerCase().includes(k) || (p.material_notes || '').toLowerCase().includes(k) || (p.material_link || '').toLowerCase().includes(k)
-                || (Array.isArray(p.tags) && p.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k)))))
+              (!textKws.length || textKws.every(k => projHitKw(p, k))))
             .forEach(p => out.push(norm(p, 'project')));
         }
         return out;
@@ -14028,8 +14005,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       onArchRowMainClick(item) {
         if (this.archMoved) return;                               // 滑动后的附带 click 忽略
         if (this.archSuppressClick) { this.archSuppressClick = false; return; } // 长按已消费，不再触发单击
-        // 项目条目：单击打开项目详情页；任务/习惯：单击无额外动作（长按打开详情）
+        // 单击进入对应页面：项目→项目详情页；父任务→子任务全屏页（查看其下子任务）；
+        // 子任务→所属父任务的子任务全屏页；习惯单击无动作（长按打开编辑）
+        const rid = (item._realId != null) ? item._realId : item._id;
         if (item._type === 'project') location.hash = '#/project/' + item._id;
+        else if (item._type === 'task') location.hash = '#/subtask/' + rid;
+        else if (item._type === 'subtask') location.hash = '#/subtask/' + item._parentId;
       },
       archHintDir(id) { return this.archHintId === id ? this.archHintSide : ''; },
       archHintText(id) { if (this.archHintId !== id) return ''; return '撤销归档'; },
@@ -14447,17 +14428,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
         </div>
         <div class="arch-filter">
-          <input v-model="archKeyword" placeholder="搜索标题/描述/素材/分类标签…" />
-        </div>
-        <div class="tabs" style="margin-top: 8px;">
-          <button :class="{on:archType==='all'}" @click="archType='all'">全部</button>
-          <button :class="{on:archType==='task'}" @click="archType='task'">📋 任务</button>
-          <button :class="{on:archType==='habit'}" @click="archType='habit'">🔄 习惯</button>
-          <button :class="{on:archType==='project'}" @click="archType='project'">📁 项目</button>
+          <input v-model="archKeyword" placeholder="搜索标签/标题/描述…（输入「任务/子任务/习惯/项目」按类型筛选；用 # 分隔多关键词，需同时满足）" />
+          <button v-if="archKeyword" class="search-clear" @click="archKeyword=''" title="清空搜索">✕</button>
         </div>
         <!-- 纵向时间线面板：选中日期 + 含提醒时间的归档任务/子任务；无提醒任务仍只在下方列表展示 -->
-        <div class="tl-panel" v-if="archSelDate && archTimeline.length">
-          <div class="tl-head">🕒 当日时间线（{{ archTimeline.length }} 条 · 按提醒时间升序）</div>
+        <!-- 搜索时自动隐藏：搜索为跨全部日期查询（与选中日期无关），时间线无意义；清空搜索词后自动恢复 -->
+        <div class="tl-panel" v-if="archSelDate && archTimeline.length && !archKeyword.trim()">
+          <div class="tl-head">🕒 当日时间线（{{ archTimeline.length }} 条）</div>
           <div class="tl-list">
             <div class="tl-item" v-for="it in archTimeline" :key="it.key" :class="['tl-'+it.type, { 'tl-copy': it.isTodayCopy }]" @click="openTlEdit(it)">
               <div class="tl-axis">
@@ -14891,7 +14868,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </transition>
       <button ref="fab" class="fab" :class="{dragging:dragging}" :style="ballStyle()" title="快速录入" v-show="!aiItems"
         @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onCancel">＋</button>
-      <AiTaskPreviewModal v-if="aiItems" :items="aiItems" :truncated="aiTruncated" @close="aiItems=null" @confirm="confirmAi" />
+      <AiTaskPreviewModal v-if="aiItems" :items="aiItems" :truncated="aiTruncated" :from-fab="true" @close="aiItems=null" @confirm="confirmAi" />
     </div>`,
   };
 
@@ -16057,25 +16034,34 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 注意：搜索范围独立于当前 Tab 列表（baseList），始终覆盖全部项目（含已归档/已完成），
       // 即「搜索可以搜索所有包括已归档的项目」。
       searchResults() {
-        const kw = (this.searchKeyword || '').trim().toLowerCase().replace(/^#+/, '');
-        if (!kw) return [];
+        // 「#」多条件（与财务页同原理）：以 # 分隔的多个关键词需全部命中（AND）
+        const segs = (this.searchKeyword || '').split('#').map(s => s.trim()).filter(Boolean);
+        if (!segs.length) return [];
+        // 状态词识别：任一段含「已归档」→ 仅命中已归档项目（含其子任务/灵感）；该词剥离后不参与文本匹配
+        const onlyArchived = segs.some(sg => sg.indexOf('已归档') >= 0);
+        const kws = [];
+        segs.forEach(sg => {
+          const rest = sg.split('已归档').join(' ').trim().toLowerCase();
+          if (rest) kws.push(rest);
+        });
+        const hit = hay => { const text = hay.join(' ').toLowerCase(); return kws.every(k => text.indexOf(k) >= 0); };
         const out = [];
-        const allForSearch = this.$store.state.projects.filter(p => !p.deleted_at);
+        const allForSearch = this.$store.state.projects.filter(p => !p.deleted_at && (!onlyArchived || p.status === 'archive'));
         allForSearch.forEach(p => {
           // 项目自身字段（标题/描述/素材备注/素材链接/一级#标签）：命中展示项目条目
           const phay = [ p.name || '', p.desc || '', p.material_notes || '', p.material_link || '' ];
           (p.tags || []).forEach(t => phay.push(t || ''));
-          if (phay.join(' ').toLowerCase().indexOf(kw) >= 0) out.push({ type: 'project', p });
+          if (hit(phay)) out.push({ type: 'project', p });
           // 子任务：命中展示子任务条目（归属项目作上下文）
           this.$store.getSubs(p.pid).forEach(s => {
             const shay = [ s.title || '', s.desc || '', s.material_notes || '', s.material_link || '' ];
             (s.tags || []).forEach(t => shay.push(t || ''));
-            if (shay.join(' ').toLowerCase().indexOf(kw) >= 0) out.push({ type: 'sub', p, s });
+            if (hit(shay)) out.push({ type: 'sub', p, s });
           });
           // 灵感素材：标题/详细笔记/素材链接 命中 → 以灵感条目展示（而非所属项目条目）
           this.$store.getIdeas(p.pid).forEach(i => {
             const ihay = [ i.title || '', i.content || '', i.link || '' ];
-            if (ihay.join(' ').toLowerCase().indexOf(kw) >= 0) out.push({ type: 'idea', p, i });
+            if (hit(ihay)) out.push({ type: 'idea', p, i });
           });
         });
         return out;
@@ -16434,7 +16420,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <!-- 顶部搜索框（复用待归档列表搜索样式；不持久化，切Tab/刷新清空） -->
       <div class="inbox-search" v-if="tab!=='tb'">
         <div class="arch-filter">
-          <input v-model="searchKeyword" placeholder="搜索项目/子任务：标题/描述/素材/灵感/标签…" />
+          <input v-model="searchKeyword" placeholder="搜索项目/子任务：标题/描述/素材/灵感/标签…（用 # 分隔多关键词，需同时满足；输入「已归档」筛已归档）" />
           <button v-if="searchKeyword" class="search-clear" @click="searchKeyword=''" title="清空搜索">✕</button>
         </div>
       </div>
@@ -18866,7 +18852,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   const App = {
     data() {
-      return { route: '/today', prevRoute: '/inbox', overlayStack: [] };
+      return { route: '/today', prevRoute: '/inbox', overlayStack: [], undoBanner: { show: false }, _undoTimer: null, _undoShownAt: 0 };
     },
     computed: {
       page() {
@@ -18933,6 +18919,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       allTags(nv) {
         if (this.filterTag && nv.indexOf(this.filterTag) < 0) this.filterTag = '';
       },
+      // 顶部「可撤销一步」提示：每次数据变更（store.undoHint 携带递增序号）弹出，2 秒无新操作自动消失
+      '$store.state.undoHint'(v) {
+        if (v && v.seq) {
+          this.undoBanner.show = true;
+          this._undoShownAt = Date.now();   // 记录弹出时刻，用于「刚弹出宽限期」内忽略手势合成事件
+          if (this._undoTimer) clearTimeout(this._undoTimer);
+          this._undoTimer = setTimeout(() => { this.undoBanner.show = false; }, 2000);
+        }
+      },
     },
     methods: {
       go(path) { location.hash = path; },
@@ -18964,6 +18959,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const target = (this.prevRoute && this.prevRoute !== this.route) ? this.prevRoute : '/inbox';
         location.hash = target;
       },
+      // 撤销上一步：执行 store 单步撤销（整体回滚数据），并关闭提示
+      undoStep() {
+        if (this._undoTimer) { clearTimeout(this._undoTimer); this._undoTimer = null; }
+        this.undoBanner.show = false;
+        if (this.$store && this.$store.undoLast) this.$store.undoLast();
+      },
     },
     mounted() {
       window.addEventListener('hashchange', this.onHash);
@@ -18974,10 +18975,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         try { history.replaceState(null, '', '#/today'); } catch (_) {}
       }
       this.route = '/today';
+      // 任意用户交互（点击别处 / 滚动 / 滑动 / 按键）立即收起撤销提示；点在提示本身上则交给 undoStep 处理
+      const onUserInteract = (e) => {
+        if (!this.undoBanner.show) return;
+        if (e.target && e.target.closest && e.target.closest('.undo-banner')) return;
+        // 刚弹出后的极短宽限期：忽略左滑/点击手势附带的合成事件（临界幅度滑动常触发合成 click），
+        // 避免「撤销归档」等手势操作刚弹出提示就被自身合成事件瞬间关掉、用户来不及点。滚动/按键仍可立即收起。
+        if ((e.type === 'click' || e.type === 'touchstart' || e.type === 'touchmove') && Date.now() - (this._undoShownAt || 0) < 500) return;
+        if (this._undoTimer) { clearTimeout(this._undoTimer); this._undoTimer = null; }
+        this.undoBanner.show = false;
+      };
+      this._onUserInteract = onUserInteract;
+      ['click', 'scroll', 'wheel', 'touchstart', 'touchmove', 'keydown'].forEach((t) => {
+        document.addEventListener(t, onUserInteract, true);
+      });
     },
-    beforeUnmount() { window.removeEventListener('hashchange', this.onHash); },
+    beforeUnmount() {
+      window.removeEventListener('hashchange', this.onHash);
+      if (this._onUserInteract) ['click', 'scroll', 'wheel', 'touchstart', 'touchmove', 'keydown'].forEach((t) => {
+        document.removeEventListener(t, this._onUserInteract, true);
+      });
+    },
     template: `
     <div class="app-shell">
+      <div class="undo-banner" v-if="undoBanner.show" @click="undoStep">
+        <span class="undo-ico">↩︎</span>
+        <span class="undo-msg">撤销上一步</span>
+      </div>
       <main class="app-main">
         <component :is="page" :pid="routePid" :tid="routeSubTid" :idea-id="routeIdeaId" :sub-id="routeSubId" />
       </main>
@@ -19139,12 +19163,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       elapsedSec(it) {
         return (it.durationSec || 0) + (it.timing ? Math.max(0, Math.round((this.now - (it.timerStart || this.now)) / 1000)) : 0);
       },
+      // 耗时展示统一 h min 口径（与耗时分布饼图 fmtSpent 一致）：
+      // 手动填报 → 「手动 X h X min」；计时累计 → 分钟级 fmtSpent（秒仅在不足 1 分钟时显示，秒级精度由专注全屏页时钟承担）
       durationText(it) {
-        if (it.manualMin != null) return '手动 ' + it.manualMin + ' 分';
+        if (it.manualMin != null) return '手动 ' + this.$store.fmtSpent(it.manualMin);
         const s = Math.round(this.elapsedSec(it));
         if (s < 60) return s + ' 秒';
-        const m = Math.floor(s / 60);
-        return m + ' 分' + (s % 60 ? (s % 60) + ' 秒' : '');
+        return this.$store.fmtSpent(Math.floor(s / 60));
       },
       // 实例所属子任务在「该实例日期」的完成量（页/章/个…，实时单位），任务表条目展示用
       doneAmountText(it) {
@@ -19324,7 +19349,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           </g>
         </svg>
         <div class="tb-legend">
-          <span v-for="r in pieRows" :key="drillPid ? ('s'+r.sid) : (drillTag ? ('p'+r.pid) : ('t'+r.tag))" class="tb-leg" :class="{clickable: !drillPid}" @click="drillPie(r)"><i :style="{background:r.color}"></i>{{ r.label }} · {{ r.value }} 分</span>
+          <span v-for="r in pieRows" :key="drillPid ? ('s'+r.sid) : (drillTag ? ('p'+r.pid) : ('t'+r.tag))" class="tb-leg" :class="{clickable: !drillPid}" @click="drillPie(r)"><i :style="{background:r.color}"></i>{{ r.label }} · {{ $store.fmtSpent(r.value) }}</span>
         </div>
       </div>
 
