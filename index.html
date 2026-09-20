@@ -104,6 +104,8 @@ body {
 .backup-note { font-size: 12px; line-height: 1.6; color: var(--sub); margin: 0 0 10px; }
 .backup-note b { color: var(--no); }
 .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+/* 左右对称等宽的成对按钮（如「立即备份一份 / 刷新列表」） */
+.backup-actions.sym > .btn { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; text-align: center; }
 .backup-modlist { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 4px 0 12px; }
 .backup-mod { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); cursor: pointer; user-select: none; }
 .backup-mod input { width: 15px; height: 15px; accent-color: var(--no); }
@@ -112,11 +114,14 @@ body {
 .backup-warn { font-size: 12px; line-height: 1.5; color: #b42318; background: #fff4f2; border: 1px solid #f3c2ba; border-radius: var(--radius-sm); padding: 8px 10px; margin: 0 0 10px; }
 /* 本地自动备份快照列表 */
 .ab-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.ab-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; background: #f7f8fb; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; }
+.ab-item { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; background: #f7f8fb; border: 1px solid var(--line); border-radius: var(--radius-sm); font-size: 13px; }
+/* 左侧整块：时间在上、描述（任务/标签/习惯）一行在下（纵向两行） */
+.ab-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ab-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--text); }
 .ab-new { margin-left: 6px; font-style: normal; font-size: 10px; color: #fff; background: var(--no, #2ecc71); padding: 1px 6px; border-radius: 8px; }
-.ab-meta { flex: 1 1 auto; color: var(--sub); font-size: 12px; }
-.ab-ops { flex: 0 0 auto; display: flex; gap: 6px; }
+/* 快照描述（任务 / 标签 / 习惯）：位于时间下方，单行呈现，超宽时省略 */
+.ab-meta { flex: 0 0 auto; min-width: 0; line-height: 1.5; color: var(--sub); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ab-ops { flex: 0 0 auto; display: flex; gap: 6px; align-self: center; }
 
 /* ---------- 同步 / 云端代发 UI（共享样式） ---------- */
 .sync-form { display: flex; flex-direction: column; gap: 8px; }
@@ -166,6 +171,7 @@ body {
 .read-sync-modal .fld { display: block; margin-bottom: 14px; font-size: 14px; font-weight: 600; color: var(--text); }
 .read-sync-modal .fld select, .read-sync-modal .fld input { width: 100%; margin-top: 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px; font-family: inherit; font-size: 14px; }
 .read-sync-modal .fld-err { color: var(--no); font-size: 12px; margin: -8px 0 10px; }
+.read-sync-modal .fld-tip { color: var(--sub); font-size: 12px; margin: -8px 0 10px; line-height: 1.5; }
 /* 养成手牌「完成」按钮（蓝色主按钮） */
 .hc-btn.primary { background: var(--primary); color: #fff; border-color: transparent; }
 
@@ -409,6 +415,9 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .board-group.sub { margin: 6px 0; }
 .board-group.sub .grp-head { font-size: 13px; padding: 8px 10px; }
 .board-group.adv > .grp-head { background: #eef1f8; }
+/* 高级设置内的分段按钮（任务夹/时间模式/周期方式等）：按内容自适应宽度，不再被压缩换行 */
+.adv-body .seg { flex-wrap: wrap; }
+.adv-body .seg button { flex: 0 0 auto; white-space: nowrap; }
 .note-flag { }
 /* AI 批量预览：逐条可编辑字段（与统一表单字段对齐） */
 .ai-title { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px; font-size: 14px; font-family: inherit; color: var(--text); margin-bottom: 6px; }
@@ -465,6 +474,16 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .modal-mask { position: fixed; inset: 0; background: rgba(20,24,40,.5); display: flex; align-items: flex-end; justify-content: center; z-index: var(--z-mask); }
 .modal { background: #fff; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; border-radius: var(--radius-lg) var(--radius-lg) 0 0; animation: up .2s ease; }
 .modal-lg { max-width: 480px; }
+/* 任务编辑类弹窗（新增待办 / 任务详情 / 子任务 / AI 解析预览）：固定高度 + 内容区内部滚动，
+   展开高级设置 / 标签 / 时间等折叠面板时整体高度不再变化（不跳高）；
+   底部操作按钮（取消 / 确定等）钉死在弹窗底部，不随内容展开或滚动而移动 */
+.modal-lg { display: flex; flex-direction: column; height: 90vh; max-height: 90vh; overflow: hidden; }
+.modal-lg .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+/* 主操作条抽离滚动流：用绝对定位钉在弹窗底部，并给内容区预留等高安全间距，
+   避免遮挡最后一项内容；.modal-body 内嵌的二次确认小弹窗（非直接子代）不受影响 */
+.modal-lg { position: relative; }
+.modal-lg .modal-body { padding-bottom: 74px; }
+.modal-lg .modal-body > .modal-actions { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; padding: 10px 12px 12px; background: #fff; border-top: 1px solid var(--line); z-index: 2; }
 @keyframes up { from { transform: translateY(40px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: #fff; z-index: var(--z-sticky); }
 .modal-head h3 { margin: 0; font-size: 16px; }
@@ -492,7 +511,6 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .emg-check { display: inline-flex; align-items: center; gap: 5px; }
 .emg-check input[type="checkbox"] { width: 16px; height: 16px; accent-color: #e74c3c; flex: 0 0 auto; }
 .emg-label { font-size: 13px; font-weight: 600; color: #e74c3c; white-space: nowrap; cursor: pointer; }
-.emg-tip { color: #e08e0b; background: #fff7e8; border-radius: var(--radius-sm); padding: 6px 10px; margin: 0 0 8px; }
 .fld-row { display: flex; gap: 10px; }
 .fld-row .fld { flex: 1; }
 /* AI 批量解析：多条简化列表（复选框 + 任务文字 + 删除叉号）；仅布局，复用现有输入/按钮样式 */
@@ -636,16 +654,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .cand input[type="checkbox"] { flex: 0 0 auto; margin-top: 4px; width: 16px; height: 16px; }
 .cand-edit { flex: 1; min-width: 0; width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 7px; font-size: 13px; line-height: 1.4; font-family: inherit; color: var(--text); background: #fff; resize: none; max-height: 72px; overflow-y: auto; }
 
-/* 子任务 */
+/* 子任务（旧列表样式：统一收拢到 .sub-list 作用域，避免裸 .sub 命中任务表单的 .board-group.sub，
+   导致高级设置内折叠标题与内容被 flex 横排挤压换行） */
 .sub-list { display: flex; flex-direction: column; gap: 6px; }
-.sub { display: flex; align-items: center; gap: 8px; background: #fafbff; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; }
-.sub span { flex: 1; font-size: 14px; }
-.sub span.done { text-decoration: line-through; color: var(--sub); }
-.sub .del, .cand .del { color: var(--no); cursor: pointer; font-weight: 700; }
-.sub .edit { flex: 0 0 auto; color: var(--primary); cursor: pointer; font-weight: 700; margin-left: 2px; }
-.sub .sub-deadline { flex: 0 0 auto; font-size: 12px; color: var(--sub); background: #eef2ff; border-radius: var(--radius-sm); padding: 2px 8px; cursor: pointer; }
-.sub .sub-deadline.overdue { color: #e8862b; background: #fff3e3; font-weight: 600; }
-.sub .sub-deadline.remind { color: var(--ok); background: #e8f6ee; }
+.sub-list .sub { display: flex; align-items: center; gap: 8px; background: #fafbff; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; }
+.sub-list .sub span { flex: 1; font-size: 14px; }
+.sub-list .sub span.done { text-decoration: line-through; color: var(--sub); }
+.sub-list .sub .del, .cand .del { color: var(--no); cursor: pointer; font-weight: 700; }
+.sub-list .sub .edit { flex: 0 0 auto; color: var(--primary); cursor: pointer; font-weight: 700; margin-left: 2px; }
+.sub-list .sub .sub-deadline { flex: 0 0 auto; font-size: 12px; color: var(--sub); background: #eef2ff; border-radius: var(--radius-sm); padding: 2px 8px; cursor: pointer; }
+.sub-list .sub .sub-deadline.overdue { color: #e8862b; background: #fff3e3; font-weight: 600; }
+.sub-list .sub .sub-deadline.remind { color: var(--ok); background: #e8f6ee; }
 .sub-add { display: flex; gap: 8px; }
 .sub-add input { flex: 1; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px; }
 .sub-add button { background: var(--primary); color: #fff; width: 40px; }
@@ -653,23 +672,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* 进度 / 素材 */
 .progress { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .progress select, .progress input { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px; }
-/* 进度记录折叠面板内的单位行（预设下拉 + 自定义输入） */
-.unit-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
-.unit-row select { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; background: #fff; }
-.unit-row input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; }
+/* 进度记录：进度单位自由输入框（替代原预设下拉 + 自定义单位列表） */
 .prog-value { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; margin-bottom: 2px; }
-/* 进度记录单位：可删除的内置/自定义单位列表 */
-.unit-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
-.unit-item { display: flex; gap: 6px; align-items: center; }
-.unit-pick { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; text-align: left; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 10px; font-size: 14px; color: var(--text); font-family: inherit; background: #fff; cursor: pointer; }
-.unit-pick.on { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, #fff); color: var(--primary); font-weight: 600; }
-.unit-pick .u-ico { font-size: 15px; }
-.unit-del { flex: 0 0 auto; width: 30px; height: 34px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; color: var(--sub); font-size: 16px; line-height: 1; cursor: pointer; }
-.unit-del:hover { border-color: #e74c3c; color: #e74c3c; }
-.unit-custom { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; }
-.unit-add-input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; }
-.unit-add-btn { flex: 0 0 auto; border: 1px solid var(--primary); border-radius: var(--radius-sm); padding: 7px 12px; font-size: 14px; color: var(--primary); background: #fff; cursor: pointer; }
-.unit-add-btn:hover { background: color-mix(in srgb, var(--primary) 10%, #fff); }
+.unit-input { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; margin-top: 4px; }
 .material pre { white-space: pre-wrap; background: #f7f8fc; border-radius: var(--radius-sm); padding: 10px; font-size: 12px; color: var(--sub); max-height: 120px; overflow-y: auto; }
 /* 素材备注（主描述）：可编辑多行文本 */
 .material-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -759,6 +764,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .bars.dense .bar-m.axis-key { display: block; font-size: 9px; line-height: 1; bottom: -15px; color: var(--sub); }
 .bars.dense .bar { min-height: 3px; }
 .chart-pace { margin-top: 10px; font-size: 12px; color: var(--sub); line-height: 1.6; }
+/* 年视图柱图下方为绝对定位的月份标签预留空间，避免与节奏小结重叠 */
+.bars.bars-year { padding-bottom: 18px; }
 /* 打卡日历点阵（编辑习惯弹窗内） */
 .habit-cal { margin: 10px 0 2px; }
 .hc-head { font-size: 12px; font-weight: 600; color: var(--sub); margin-bottom: 8px; }
@@ -1124,6 +1131,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .status-chip.custom.on { background: #c77800; border-color: #c77800; }
 .status-add { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
 .status-add input { flex: 1; }
+/* 自定义状态长按菜单：轻量浮层，锚定 chip 位置 */
+.status-menu-mask { position: fixed; inset: 0; z-index: var(--z-mask); background: transparent; }
+.status-menu { position: fixed; min-width: 150px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(20,24,40,.16); padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+.status-menu-title { font-size: 12px; color: var(--sub); padding: 4px 8px 6px; border-bottom: 1px solid var(--line); margin-bottom: 2px; word-break: break-all; }
+.status-menu-item { text-align: left; font-size: 13px; padding: 7px 8px; border-radius: var(--radius-sm); background: transparent; color: var(--text); }
+.status-menu-item:hover { background: #f2f4fa; }
+.status-menu-item.danger { color: var(--no, #e5484d); }
+.status-menu input { width: 100%; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.status-menu-acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
 
 /* —— 标签体系（项目 / 子任务 #标签） —— */
 .proj-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
@@ -1222,7 +1238,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* 打卡完成量堆积柱形图：柱高=时段完成量合计，按项目分色堆积 */
 .bar-stack { width: 60%; display: flex; flex-direction: column; justify-content: flex-end; border-radius: var(--radius-sm) var(--radius-sm) 0 0; overflow: hidden; min-height: 2px; transition: height .25s ease; background: #eef0f5; }
 .bar-seg { width: 100%; min-height: 1px; transition: height .25s ease; }
-.viz-checkin-sub { font-size: 12px; color: var(--sub); margin: 6px 0 0; }
 .chart-sum { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
 .sum-item { font-size: 13px; background: #f7f8fc; border-radius: var(--radius-sm); padding: 9px 12px; }
 .sum-item b { color: var(--primary); }
@@ -1386,12 +1401,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .viz-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .viz-head .view-toggle { flex: 1; margin-bottom: 0; }
 /* 独立可视化页：时段左右切换 + 说明 */
-.projviz-page { padding-bottom: 12px; }
+/* 独立可视化页：固定高度 + 内部滚动，切换 日/周/年 图示时整页不再跳动（高度 = 视口 - 顶部16px - 底部导航90px 预留） */
+.projviz-page { padding-bottom: 12px; height: calc(var(--vh, 1vh) * 100 - 106px); box-sizing: border-box; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .viz-period-nav { display: flex; align-items: center; justify-content: center; gap: 14px; margin: 6px 0 2px; }
 .viz-period-nav .icon-btn { width: 34px; height: 34px; padding: 0; border-radius: var(--radius-sm); background: #f0f1f6; color: var(--text); font-size: 20px; line-height: 1; }
 .viz-period-nav .icon-btn:disabled { opacity: .4; }
 .viz-period-label { font-size: 14px; font-weight: 600; color: var(--text); min-width: 170px; text-align: center; }
-.viz-tip { font-size: 12px; color: var(--sub); margin: 10px 4px 24px; line-height: 1.5; }
 /* 重要等级图标：移到条目标题同一行时，去掉底部外边距、与标题对齐 */
 .proj-name .imp-tag { display: inline-block; margin: 0 0 0 8px; vertical-align: 1px; font-weight: 600; }
 /* 填报详情页底部操作条：保存填报 + 关闭 固定在弹窗底部同一行 */
@@ -1584,6 +1599,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* 宽屏下单列内容居中，避免过长行；最大 900px 保证可读性 */
   .app-main > * { max-width: 900px; margin-left: auto; margin-right: auto; }
 
+  /* 桌面端独立可视化页：底部导航改为左侧栏，app-main 内边距为 28/56，高度扣减同步调整 */
+  .projviz-page { height: calc(var(--vh, 1vh) * 100 - 84px); }
+
   /* 弹窗在桌面端居中显示（而非底部抽屉） */
   .modal-mask { align-items: center; padding: 24px; }
   .modal { max-width: 560px; border-radius: var(--radius-lg); margin: auto; }
@@ -1721,8 +1739,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-ef i { color: var(--sub); font-style: normal; margin-right: 3px; }
 .fin-entry-calcs { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: #6a7bff; margin-top: 4px; }
 .fin-entry-tags { margin-top: 4px; }
-.fin-tpl { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px dashed var(--line); border-radius: var(--radius-sm); margin-bottom: 8px; }
-.fin-tpl-name { font-weight: 600; color: var(--text); }
 .block-btn { width: 100%; border: 1px dashed var(--line); background: #f7f8fc; color: var(--text); border-radius: var(--radius-sm); padding: 12px; font-weight: 700; margin-top: 8px; }
 .fin-subhead { font-size: 13px; font-weight: 700; color: var(--sub); margin: 10px 0 6px; }
 .fin-field-row, .fin-calc-rowedit { display: flex; gap: 4px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
@@ -1731,11 +1747,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-field-row.is-field-drag { box-shadow: 0 4px 14px rgba(40,50,90,.18); background: #f7f8ff; border-radius: var(--radius-sm); }
 .fin-field-row input, .fin-calc-rowedit input, .fin-calc-rowedit select { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 5px 6px; font-size: 12px; min-width: 0; }
 .ff-key { width: 70px; } .ff-label { width: 80px; } .ff-unit { width: 46px; } .ff-opt { width: 90px; } .fc-label { width: 80px; } .fc-unit { width: 42px; }
-.fin-savetpl { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .fin-chk { display: flex; align-items: center; gap: 4px; font-size: 13px; color: var(--text); font-weight: 500; }
 .fin-wish-sel { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px; margin-top: 4px; }
 .fin-wish-cmp { font-size: 12px; color: #ef4444; background: #fff3f3; border-radius: var(--radius-sm); padding: 6px 8px; margin-top: 4px; }
 .fin-modal, .fin-viz-modal { max-width: 560px; width: 100%; }
+/* 可视化弹窗：固定高度 + 内容区内部滚动，切换饼图/折线/时间轴等图示时整体不再跳动 */
+.fin-viz-modal { display: flex; flex-direction: column; height: 84vh; max-height: 84vh; }
+.fin-viz-modal .modal-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .fin-calcs { background: #f7f8fc; border-radius: var(--radius-sm); padding: 8px 10px; margin: 8px 0; }
 .fin-calc-row { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
 .fin-calc-row b { color: #6a7bff; }
@@ -1748,6 +1766,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-chart-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
 .fin-svg { width: 100%; height: auto; display: block; }
 .fin-pie-block { margin-bottom: 14px; }
+/* 饼图引导线标签：矢量文字锁定在 SVG 坐标系内，随容器等比缩放 */
+.pie-lb text { dominant-baseline: middle; }
 .fin-legend { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 6px; font-size: 12px; color: var(--text); }
 .fin-lg { display: inline-flex; align-items: center; gap: 4px; }
 .fin-lg i { width: 10px; height: 10px; border-radius: var(--radius-sm); display: inline-block; }
@@ -1782,7 +1802,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   .car-b-dot { font-size: 14px; }
   .car-b-tag { margin-left: auto; font-size: 12px; color: var(--sub); }
   .car-board-jds { margin-top: 10px; }
-  .car-timeline { max-height: 60vh; overflow: auto; }
+  .car-timeline { /* 高度变化交由 .fin-viz-modal .modal-body 统一滚动，避免与外层嵌套滚动互相干扰 */ }
   .car-year { margin-bottom: 12px; }
   .car-year-h { font-weight: 700; font-size: 15px; color: var(--primary); margin: 6px 0; position: sticky; top: 0; background: #fff; padding: 4px 0; }
   .car-ev { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
@@ -1794,7 +1814,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   .car-parse-edit { display: flex; flex-direction: column; gap: 8px; }
   .car-parse-edit .fld { margin: 0; }
   .car-parse-edit textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 8px; font-size: 13px; font-family: inherit; color: var(--text); line-height: 1.5; resize: vertical; }
-  .car-parse-tip { margin-top: 8px; font-size: 12px; color: var(--sub); }
   /* 简历草稿：手动按模块勾选拼装 */
   .resume-builder { background: #f7f8fc; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; }
   .rb-mod { margin-bottom: 8px; }
@@ -1977,13 +1996,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 备份模块注册表：每个模块映射到若干顶层 state 字段，供「选择性备份 / 恢复」按 Tab 拆份
   // special 模块（archive / inbox）不直接映射 state 字段，而是由 _buildXxxExport 派生导出、_restoreXxxImport 按 _id 安全合并，
   // 绝不整体覆盖 state 数组（避免导入归档子集时误删活动数据）。
+  // 数组顺序即 UI 展示顺序（backupModules 直接由本数组 map 而来），故按产品要求固定为：
+  // 今日 → 待归档 → 项目 → 归档 → 财务 → 职业。
+  // 注意：本顺序仅影响导出勾选与导入恢复的展示，各模块的 fields / special 处理与顺序无关。
   const BACKUP_MODULES = [
     { key: 'core', label: '今日', fields: ['tasks', 'habits', 'categories', 'progressUnits'] },
+    { key: 'inbox', label: '待归档', special: 'inbox' },       // 待归档 tab 原始数据（任务 / 分类 / 任务表 / 子任务）
     { key: 'projects', label: '项目', fields: ['projects', 'project_subs', 'project_records', 'project_ideas', 'project_folders', 'sub_custom_statuses', 'taskBoard'] },
+    { key: 'archive', label: '归档', special: 'archive' },     // 📦 全局已归档仓库（导出复盘视图，含逐日归属日期）
     { key: 'finance', label: '财务', fields: ['finance'] },
     { key: 'career', label: '职业', fields: ['career'] },
-    { key: 'archive', label: '归档', special: 'archive' },   // 📦 全局已归档仓库（导出复盘视图，含逐日归属日期）
-    { key: 'inbox', label: '待归档', special: 'inbox' },       // 待归档 tab 原始数据（任务 / 分类 / 任务表 / 子任务）
   ];
 
   /* ----------------------------- 工具函数 ----------------------------- */
@@ -2165,8 +2187,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 任务表：子任务每日打卡实例（按日期独立生成，历史实例完整留存）
     taskBoard: { instances: [] },
     wish_items: [], wish_records: [],
+    // 永久归档流水：模版任务每「完成归档一次」追加一条（{id, task_id, title, date, ts}）。
+    // 与母本 cycle_history / 副本标记完全解耦，resetTemplate 清空副本/时间时不会将其抹除，
+    // 保证模版反复复用时「全局已归档仓库」仍能逐次留痕。
+    archive_ledger: [],
     progressUnits: DEFAULT_PROGRESS_UNITS.map(u => ({ ...u })),
-    finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] },
+    finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] },
     career: { categories: [], entries: [], jds: [], resumes: [], tags: [] }, undoHint: null });
 
   /* ----------------------------- 持久化 ----------------------------- */
@@ -2187,6 +2213,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         sub_custom_statuses: state.sub_custom_statuses,
         taskBoard: state.taskBoard,
         wish_items: state.wish_items, wish_records: state.wish_records,
+        archive_ledger: state.archive_ledger,   // 模版归档永久流水（须随主数据落盘，否则刷新即丢）
         progressUnits: state.progressUnits,
         finance: state.finance,
         career: state.career,
@@ -2268,6 +2295,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.taskBoard = o.taskBoard || { instances: [] };
       state.wish_items = o.wish_items || [];
       state.wish_records = o.wish_records || [];
+      state.archive_ledger = Array.isArray(o.archive_ledger) ? o.archive_ledger : [];
       state.progressUnits = o.progressUnits || [];
       state.finance = o.finance || {};
       state.career = o.career || {};
@@ -2335,10 +2363,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.taskBoard = (o.taskBoard && Array.isArray(o.taskBoard.instances)) ? o.taskBoard : { instances: [] };
       state.wish_items = o.wish_items || [];
       state.wish_records = o.wish_records || [];
+      state.archive_ledger = Array.isArray(o.archive_ledger) ? o.archive_ledger : [];
       state.progressUnits = (o.progressUnits && Array.isArray(o.progressUnits) && o.progressUnits.length)
         ? o.progressUnits
         : DEFAULT_PROGRESS_UNITS.map(u => ({ ...u }));
-      state.finance = o.finance || { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], fieldTemplates: [] };
+      state.finance = o.finance || { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] };
       ensureFinancePresets();
       // 迁移：补全 hasDate 标记（旧数据未存该字段；按已保存的 year/month 推断）
       (state.finance.expenseEntries || []).forEach(normFinHasDate);
@@ -2865,10 +2894,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
 
   // 子任务紧急置顶：仅翻转 isEmergency，不动任何日期/周期/提醒字段。
+  // 注意：普通任务子任务在 t.sub_tasks[]，而项目子任务在 state.project_subs[]（按 pid 关联）。
+  // 原实现只查 t.sub_tasks，从项目页（parentId 传的是项目 pid）调用时必然找不到 → 标记从未落库，
+  // 表现为「勾选紧急后列表不置顶 / 紧急标签不出现」。此处两处都查，使两个入口口径一致。
   function toggleSubEmergency(parentId, subId) {
     const t = findTask(parentId);
-    if (!t) return;
-    const s = (t.sub_tasks || []).find(x => x._id === subId);
+    let s = null;
+    if (t) s = (t.sub_tasks || []).find(x => x._id === subId);
+    if (!s) s = state.project_subs.find(x => x.sid === subId && !x.deleted_at);
     if (!s) return;
     s.isEmergency = !s.isEmergency;
     persist();
@@ -3296,7 +3329,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 全部完成 → 自动归档母本（模版任务禁用：仅手动按钮可归档母本）
     // 归档前先写【归档快照】：保存全部副本 + cycle_history，使撤销归档时能按历史打卡日期完整恢复（绿勾保留、未打卡变灰）
     if (allOccurrencesDone(t) && !t.is_archived && !t.is_template) { archiveMasterCopies(t); t.is_archived = true; t.archived_at = todayStr(); t.autoArchivedByCopies = true; }
-    else if (t.is_template && allOccurrencesDone(t)) { resetTemplate(t._id); } // 模板：副本全完成→统一重置（清空时间+回收副本+重置子任务），不归档
+    else if (t.is_template && allOccurrencesDone(t)) {
+      // 模板：副本全完成 → 先追加一条永久归档流水（进「全局已归档仓库」记录一次），再统一重置。
+      // 顺序不可颠倒：resetTemplate 会清空 cycle_history / archived_copies，
+      // 只有写进独立的 archive_ledger 才能在反复复用后仍保留本次归档留痕。
+      ledgerAdd(t._id, t.title, todayStr(), { source: 'template', real_done: todayStr() });
+      resetTemplate(t._id); // 清空时间 + 回收副本 + 重置子任务，母本保持活跃可复用
+    }
     // 撤销后未全完成 → 母本退回待归档（仅自动归档情形，手动归档不受影响；模版任务不触发）
     if (!done && t.is_archived && t.autoArchivedByCopies && !allOccurrencesDone(t) && !t.is_template) { t.is_archived = false; t.autoArchivedByCopies = false; }
     persist();
@@ -3797,8 +3836,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!t || !t.is_template) return;            // 仅作用于模版任务
     if (archived) {
       archiveTaskFull(id);                        // 手动归档：母本 + 全部关联副本失效（等同 archiveTaskFull）
+      // 手动归档同样补一条流水，与「副本滑动完成」路径口径一致；
+      // 母本 is_archived=true 已能被仓库直接读取，此处流水仅作为「归档次数」的额外留痕来源。
+      ledgerAdd(id, t.title, todayStr(), { source: 'template_manual', real_done: todayStr() });
+      persist();
     } else {
       reverseArchivePoints(id);                    // 回滚归档时发放的积分（archiveTaskFull 按「当时状态」发放的 +3/+9/+5）
+      ledgerRemove(id, todayStr());                // 同步移除本次手动归档流水，避免仓库留幽灵记录
       t.is_archived = false;
       t.autoArchivedByCopies = false;
       restoreArchiveSnapshot(t);                  // 批量恢复全部关联副本（周期母本从快照回滚；无快照则清空 archived_copies）
@@ -3883,7 +3927,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const t = findTask(id);
     if (!t || t.is_archived) return;
     // 模板任务：副本左滑完成 = 立即统一重置（等同一键清空），不等 allOccurrencesDone
-    if (t.is_template) { resetTemplate(id); return; }
+    // 重置前先追加永久归档流水，保证「完成归档一次」在全局已归档仓库留痕一次
+    if (t.is_template) {
+      ledgerAdd(t._id, t.title, todayStr(), { source: 'template', real_done: todayStr() });
+      resetTemplate(id);
+      return;
+    }
     const today = todayStr();
     if (t.cycle) {
       let cur = parseDate(ws), end = parseDate(we);
@@ -4269,6 +4318,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return /阅读|读书/.test(h.name || '');
   }
 
+  // —— 进度单位文案 & 数值美化（阅读同步等场景共用）——
+  // ① 内置单位 id（book/drama/...）→ 映射中文；② 自定义单位 id → 按 id 取 label；③ 手填纯文本 → 原样返回
+  const PROGRESS_UNIT_MAP = { book: '章', drama: '集', course: '节', video: '集', pages: '页', hour: '小时' };
+  function unitLabelOf(mediaType) {
+    if (!mediaType) return '';
+    if (PROGRESS_UNIT_MAP[mediaType]) return PROGRESS_UNIT_MAP[mediaType];
+    const u = (state.progressUnits || []).find(x => x.id === mediaType);
+    if (u && u.label) return u.label;
+    return String(mediaType);
+  }
+  // 最多保留 1 位小数，整数不带 .0（128.0 → 128；128.50 → 128.5）
+  function trimNum(n) {
+    const v = Math.round(Number(n) * 10) / 10;
+    if (!isFinite(v)) return '0';
+    return Number.isInteger(v) ? String(v) : v.toFixed(1);
+  }
+
   // 拉取全部「书籍任务」：分类标签（含其下任意层级二级标签）等于「书籍」的任务（不含项目子任务）
   function getBookTasks() {
     // 书籍分类判定：自身或任一祖先分类 name === '书籍'（兼容「书籍」一级标签下各二级标签内建的书）
@@ -4284,13 +4350,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     state.tasks.forEach(t => {
       const p = t.progress_info || {};
       // 仅保留：未归档 + 进度开启 + 媒体类型为书籍 + 分类标签（含层级）等于「书籍」
-      if (p.enable && p.media_type === 'book' && !t.is_archived && isBookCategory(t.category_id)) {
+      if (p.enable && (p.media_type === 'book' || p.media_type === 'pages') && !t.is_archived && isBookCategory(t.category_id)) {
         const done = Number(p.done) || 0;
         const total = Number(p.total) || 0;
+        const unit = unitLabelOf(p.media_type) || '章';
         list.push({
-          kind: 'task', id: t._id, title: t.title, done, total,
+          kind: 'task', id: t._id, title: t.title, done, total, unit,
           reached: total > 0 && done >= total,
-          label: (total > 0 ? done + '/' + total : done) + ' 章',
+          label: (total > 0 ? trimNum(done) + '/' + trimNum(total) : trimNum(done)) + ' ' + unit,
         });
       }
     });
@@ -4313,35 +4380,45 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return true;
   }
 
-  // 累加阅读进度到选中书籍任务（task 或 sub）
-  function syncBookProgress(book, pages, date) {
-    const n = Number(pages) || 0;
-    if (!book || !(n > 0)) return;
+  // 同步阅读进度到选中书籍任务（task 或 sub）
+  // 语义修正：填入的是「本次阅读到第几页」（绝对页码，支持一位小数），不是本次读了多少页
+  // 内部按 目标 - 当前已读 计算增量：≤ 0 表示未前进（不改动数据）；任务类直接写入绝对页码，子任务按增量填报
+  function syncBookProgress(book, reached, date) {
+    if (!book) return;
+    const target = Math.round(Number(reached) * 10) / 10;
+    if (!isFinite(target) || target < 0) return;
     if (book.kind === 'task') {
       const t = findTask(book.id);
       if (!t) return;
       const info = t.progress_info || {};
       const total = Number(info.total) || 0;
-      if (total > 0 && (Number(info.done) || 0) >= total) return; // 已达 100%，不再累加
-      let done = (Number(info.done) || 0) + n;
-      if (total > 0 && done > total) done = total; // 封顶
+      const old = Number(info.done) || 0;
+      if (target <= old) return;                              // 未前进：不改动
+      if (total > 0 && old >= total) return;                  // 已达 100%，不再累加
+      let done = target;
+      if (total > 0 && done > total) done = total;            // 封顶
       info.done = done;
-      info.progress_value = total > 0 ? ('已读至 ' + done + '/' + total + ' 章') : ('已读 ' + done + ' 章');
+      const unit = unitLabelOf(info.media_type) || '章';
+      info.progress_value = total > 0
+        ? ('已读至 ' + trimNum(done) + '/' + trimNum(total) + ' ' + unit)
+        : ('已读 ' + trimNum(done) + ' ' + unit);
       t.progress_info = info;
     } else {
       const s = state.project_subs.find(x => x.sid === book.id);
       if (!s) return;
-      if (s.enableTotal && Number(s.total) > 0 && (Number(s.finished) || 0) >= Number(s.total)) return; // 已达 100%
+      const old = Number(s.finished) || 0;
+      if (target <= old) return;                              // 未前进：不生成填报记录
+      if (s.enableTotal && Number(s.total) > 0 && old >= Number(s.total)) return; // 已达 100%
       // 等价于执行一次填报操作（生成填报历史记录），并自动累加至项目整体进度
-      addRecord(s.sid, date, n);
+      addRecord(s.sid, date, Math.round((target - old) * 10) / 10);
     }
     persist();
   }
 
-  // 确认同步：先累加进度（如有），再标记习惯完成；并记住本次所选书，下次打卡默认同一本
-  function applyReadingSync(pr, selectedId, pages) {
+  // 确认同步：先写入进度（如有），再标记习惯完成；并记住本次所选书，下次打卡默认同一本
+  function applyReadingSync(pr, selectedId, reached) {
     const book = (pr.books || []).find(b => b.id === selectedId);
-    if (book) syncBookProgress(book, Number(pages) || 0, pr.date);
+    if (book) syncBookProgress(book, reached, pr.date);
     // 记忆上次同步的书籍（按阅读习惯维度）：下次打卡默认选中同一本；该书被归档后自动失效（getBookTasks 已排除归档）
     const h = findHabit(pr.habitId);
     if (h && selectedId) h.lastReadingBookId = selectedId;
@@ -4888,7 +4965,38 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return out;
   }
 
-  // 归档条目的「归属日期」：归档时间 > 计划执行日 > 创建时间
+  // —— 模版夹「完成归档一次」永久流水 ——
+  // 模版任务的副本会在归档后被 resetTemplate 立即清空回收（保证可反复复用），
+  // 因此不能依赖 cycle_history / archived_copies 在全局已归档仓库留痕，
+  // 改为写入独立于重置流程之外的 archive_ledger，每次完成归档追加一条。
+  function ledgerAdd(taskId, title, date, extra) {
+    if (!Array.isArray(state.archive_ledger)) state.archive_ledger = [];
+    const d = date || todayStr();
+    const e = Object.assign({
+      id: uid('aln'),
+      task_id: taskId || '',
+      title: title || '',
+      date: d,                 // 归属日期（实际完成归档当天）
+      ts: Date.now(),
+    }, extra || {});
+    state.archive_ledger.push(e);
+    return e;
+  }
+  // 撤销一次模版归档：按任务 + 日期移除最近一条流水（供「撤销归档」联动，避免仓库留幽灵记录）
+  function ledgerRemove(taskId, date) {
+    if (!Array.isArray(state.archive_ledger)) return false;
+    const d = date || todayStr();
+    for (let i = state.archive_ledger.length - 1; i >= 0; i--) {
+      const e = state.archive_ledger[i];
+      if (e.task_id === taskId && e.date === d) { state.archive_ledger.splice(i, 1); return true; }
+    }
+    return false;
+  }
+  function ledgerList() {
+    return Array.isArray(state.archive_ledger) ? state.archive_ledger.slice() : [];
+  }
+
+
   // 任务 / 习惯归档时写入 archived_at（实际归档当日）；无归档日时回落计划执行日，最后回落创建日
   function archiveDateOf(t) {
     if (t.cycle && t.cycle_history && t.cycle_history.length) {
@@ -4926,6 +5034,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     });
     state.habits.forEach(h => { if (h.is_archived && archiveDateOf(h) === date) n++; });
     state.projects.forEach(p => { if (p.status === 'archive' && !p.deleted_at && (p.archived_at || '') === date) n++; });
+    // 模版归档流水：每完成归档一次计 1（与母本副本状态解耦，重置不清）
+    ledgerList().forEach(e => { if (e.date === date) n++; });
     return n;
   }
 
@@ -5543,7 +5653,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       sid: uid('psub'), pid: pid, title: '', unit: '页',
       planDaily: 1, enableTotal: false, total: null, finished: 0,
       sub_start: null, sub_end: null, sub_done: false, status: '进行中',
-      tags: [], estMin: 0, spentMin: 0, done_at: null,
+      tags: [], estMin: 0, planFillMin: 0, spentMin: 0, done_at: null,
       isEmergency: false, cycle_start_date: '',
       inTaskBoard: false, // 是否进入任务表：勾选后每日生成独立打卡实例
     }, newSync(), s || {});
@@ -5566,6 +5676,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const tb = state.taskBoard || (state.taskBoard = { instances: [] });
     const have = {};
     tb.instances.forEach(it => { have[it.sid + '|' + it.date] = true; });
+    let added = 0;   // 本次实际新增的实例数
     state.project_subs.forEach(s => {
       if (s.deleted_at) return;
       if (!s.enableTotal || !s.inTaskBoard) return;          // 必须开启目标计划且勾选进入任务表
@@ -5579,8 +5690,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         timing: false, timerStart: null,
         createdAt: Date.now(),
       });
+      added++;
     });
-    persist();
+    // 仅在真正生成了新实例时才落盘。
+    // 本函数被「项目页 created / 切日期」以幂等方式调用，无新增时不应触发 persist ——
+    // 否则 recordSnapshot 会压入一份「内容完全相同」的快照，让顶部误弹「撤销上一步」
+    // （撤销后数据毫无变化，属于纯噪音提示）。
+    if (added > 0) persist();
   }
   // 读取某日全部实例（含已完成，按生成时间升序）
   function getTaskBoardInstances(date) {
@@ -5658,6 +5774,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     state.sub_custom_statuses.push(v);
     persist();
     return true;
+  }
+
+  // 删除自定义状态：从全局清单移除；所有处于该状态的子任务回退到「进行中」
+  // （内置 进行中 / 已完成 不可删除）
+  function removeCustomSubStatus(name) {
+    if (!name || name === '进行中' || name === '已完成') return false;
+    if (!state.sub_custom_statuses) state.sub_custom_statuses = [];
+    const i = state.sub_custom_statuses.indexOf(name);
+    if (i < 0) return false;
+    state.sub_custom_statuses.splice(i, 1);
+    state.project_subs.forEach(s => { if (s.status === name) { s.status = '进行中'; s.sub_done = false; } });
+    persist();
+    return true;
+  }
+
+  // 重命名自定义状态：全局清单与所有引用该状态的子任务同步改名
+  // 新名不可为空 / 不可与内置状态或已有自定义状态重名
+  function renameCustomSubStatus(oldName, newName) {
+    const v = (newName || '').trim();
+    if (!oldName || oldName === '进行中' || oldName === '已完成') return { ok: false, msg: '内置状态不可修改' };
+    if (!v) return { ok: false, msg: '名称不能为空' };
+    if (v === '进行中' || v === '已完成') return { ok: false, msg: '与内置状态重名' };
+    if (!state.sub_custom_statuses) state.sub_custom_statuses = [];
+    const i = state.sub_custom_statuses.indexOf(oldName);
+    if (i < 0) return { ok: false, msg: '状态不存在' };
+    if (v !== oldName && state.sub_custom_statuses.indexOf(v) >= 0) return { ok: false, msg: '已存在同名状态' };
+    state.sub_custom_statuses.splice(i, 1, v);
+    state.project_subs.forEach(s => { if (s.status === oldName) s.status = v; });
+    persist();
+    return { ok: true };
   }
 
   // —— ProjectRecord 填报留痕表 ——
@@ -5787,11 +5933,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return Math.min(100, Math.round((Number(s.finished) || 0) / Number(s.total) * 100));
   }
   // 子任务列表（已完成自动置后）：未完成保持原有相对顺序；已完成按完成时刻先后排在末尾
+  // 子任务展示顺序：紧急置顶 → 未完成（保持录入顺序）→ 已完成（按完成时间升序）
+  // 紧急置顶与「已完成自动置后」叠加时的优先级：已完成的紧急子任务仍归入 done 段（不做置顶），
+  // 与 isEmg / toggleSubDone 完成即摘除紧急展示的口径一致，避免「已完成却挂在最前面」。
   function getSubsOrdered(pid) {
     const list = getSubs(pid);
     const undone = [], done = [];
     list.forEach(s => { (isSubComplete(s) ? done : undone).push(s); });
     done.sort((a, b) => (Number(a.done_at) || 0) - (Number(b.done_at) || 0));
+    undone.sort((a, b) => (b.isEmergency ? 1 : 0) - (a.isEmergency ? 1 : 0));
     return undone.concat(done);
   }
   // 分钟 → "xx h xx min" 展示文本（0 分钟返回 '0 min'；不足 1 小时只显示分钟）
@@ -6159,6 +6309,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     let changed = false;
     // 项目子任务自定义状态清单：旧数据补齐（默认空数组，用户自由新增）
     if (state.sub_custom_statuses === undefined) { state.sub_custom_statuses = []; changed = true; }
+    // 模版归档永久流水：旧数据补齐（默认空数组，不影响既有归档仓库读数）
+    if (!Array.isArray(state.archive_ledger)) { state.archive_ledger = []; changed = true; }
     state.habits.forEach(h => {
       if (h && h.is_system) { delete h.is_system; changed = true; }
       // 养成型习惯补齐 plan_time 字段（旧数据可能缺失，缺省置空 -> 排末尾）
@@ -6183,6 +6335,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // —— 耗时统计 / 标签 / 完成时刻：旧数据补齐，缺失不影响任何既有逻辑 ——
       if (s.tags === undefined) { s.tags = []; changed = true; }
       if (s.estMin === undefined) { s.estMin = 0; changed = true; }
+      if (s.planFillMin === undefined) { s.planFillMin = 0; changed = true; }   // 单次填报时间（分钟）
       if (s.spentMin === undefined) {
         // 由历史填报留痕回填累计耗时（老记录无 spentMin 则为 0，不会凭空造数）
         s.spentMin = state.project_records.filter(r => r.sid === s.sid && !r.deleted_at)
@@ -6897,8 +7050,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   function ensureFinancePresets() {
     const f = state.finance;
-    if (!f) { state.finance = { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] }; return; }
-    ['expenseModules', 'incomeModules', 'expenseEntries', 'incomeEntries', 'depositModules', 'depositEntries', 'fieldTemplates'].forEach(k => { if (!Array.isArray(f[k])) f[k] = []; });
+    if (!f) { state.finance = { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] }; return; }
+    ['expenseModules', 'incomeModules', 'expenseEntries', 'incomeEntries', 'depositModules', 'depositEntries'].forEach(k => { if (!Array.isArray(f[k])) f[k] = []; });
     const exp = FINANCE_PRESET_EXPENSE.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'expense', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
     const inc = FINANCE_PRESET_INCOME.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'income', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
     const dep = FINANCE_PRESET_DEPOSIT.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'deposit', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
@@ -6997,14 +7150,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     else f.incomeEntries = f.incomeEntries.filter(e => e._id !== id);
     persist();
   }
-  function saveFieldTemplate(name, fields, calcs) {
-    const f = state.finance;
-    f.fieldTemplates.push({ _id: uid('fintpl'), name: (name || '模板').trim() || '模板', fields: (fields || []).map(finNormField), calcs: (calcs || []).map(finNormCalc) });
-    persist();
-  }
-  function removeFieldTemplate(id) {
-    const f = state.finance; f.fieldTemplates = f.fieldTemplates.filter(t => t._id !== id); persist();
-  }
   function linkExpenseToWish(entryId, wishId) {
     const e = state.finance.expenseEntries.find(x => x._id === entryId); if (!e) return;
     e.wishId = wishId || null; persist();
@@ -7028,6 +7173,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
     getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    // 模版归档永久流水（每次「完成归档一次」追加一条，重置不清）
+    ledgerAdd, ledgerRemove, ledgerList,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
     isCopyArchived, copyShouldRender, archiveMasterCopies, trimCycleCopiesAfterEnd,
     // 周期「延期机制」：模式分派与滚动链排期
@@ -7039,13 +7186,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 分类
     findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, convertTaskToSubTask, descendantCategoryIds, matchCategory, parseTagString,
     // 进度记录单位（内置可删除/新增）
-    getProgressUnits, addProgressUnit, removeProgressUnit,
+    getProgressUnits, addProgressUnit, removeProgressUnit, unitLabelOf, trimNum,
     // 奇想 / 临时任务
     quickAddTask, setQuickToQuickView, getQuickViewTasks,
     // 项目模块
     addProject, updateProject, archiveProject, reopenProject, deleteProject,
     addFolder, renameFolder, deleteFolder, getFolders, moveProjectToFolder, archiveFolder, reopenFolder, moveFolderToFolder,
-    addSub, updateSub, removeSub, addCustomSubStatus, isSubComplete, toggleSubDone, addRecord, getRecords, deleteRecord,
+    addSub, updateSub, removeSub, addCustomSubStatus, removeCustomSubStatus, renameCustomSubStatus, isSubComplete, toggleSubDone, addRecord, getRecords, deleteRecord,
     ensureTaskBoardInstances, getTaskBoardInstances, updateTaskBoardInstance, stopTaskBoardTimer,
     addIdea, updateIdea, removeIdea, pickIdea,
     addTaskIdea, getTaskIdeas,
@@ -7066,7 +7213,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 财务复盘（独立 Tab，数据隔离）
     ensureFinancePresets, addFinanceModule, updateFinanceModule, removeFinanceModule, setFinanceModulesOrder,
     addFinanceEntry, updateFinanceEntry, removeFinanceEntry,
-    saveFieldTemplate, removeFieldTemplate, linkExpenseToWish, unlinkExpenseWish,
+    linkExpenseToWish, unlinkExpenseWish,
     finComputeCalcs, finAmountOf, finEntryYM, FINANCE_PRESET_EXPENSE, FINANCE_PRESET_INCOME,
     // 职业 Tab（独立 Tab，数据隔离）
     ensureCareerPresets, addCareerCategory, updateCareerCategory, removeCareerCategory, setCareerCategoriesOrder,
@@ -7074,6 +7221,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     addJD, updateJD, removeJD, addResume, updateResume, removeResume,
     exportCareerText, exportCareerResumes, exportCareerJDs, exportCareer, importCareer,
     CAREER_PRESETS, CAREER_KIND_ICON,
+    // —— 本地自动备份（快照）对外 API ——：统计页 $store.lastBackupError() 会顺原型链解析到
+    // Function.prototype 上的同名成员，返回 function () { [native code] }（恒为真），
+    // 使「本地存储空间不足」红色告警框永远显示。此处补上显式实现。
+    // （listAutoBackups / restoreAutoBackup / doAutoBackup 已在上方作为对象方法定义，无需重复）
+    lastBackupError() { return this._lastBackupError || null; },
     // —— 数据备份 / 恢复（P0：零依赖本地备份，配合多设备迁移 / 刷新数据）——
     exportAll() {
       // 与 persist() 写入结构完全一致，保证可原样还原
@@ -7085,6 +7237,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         sub_custom_statuses: state.sub_custom_statuses,
         taskBoard: state.taskBoard,
         wish_items: state.wish_items, wish_records: state.wish_records,
+        archive_ledger: state.archive_ledger,
         progressUnits: state.progressUnits,
         finance: state.finance,
         career: state.career,
@@ -7155,8 +7308,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.taskBoard = (o.taskBoard && Array.isArray(o.taskBoard.instances)) ? o.taskBoard : { instances: [] };
       state.wish_items = Array.isArray(o.wish_items) ? o.wish_items : [];
       state.wish_records = Array.isArray(o.wish_records) ? o.wish_records : [];
+      state.archive_ledger = Array.isArray(o.archive_ledger) ? o.archive_ledger : [];
       state.progressUnits = (o.progressUnits && Array.isArray(o.progressUnits) && o.progressUnits.length) ? o.progressUnits : DEFAULT_PROGRESS_UNITS.map(u => ({ ...u }));
-      state.finance = (o.finance && typeof o.finance === 'object') ? o.finance : { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [], fieldTemplates: [] };
+      state.finance = (o.finance && typeof o.finance === 'object') ? o.finance : { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] };
       state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
       try { migrate(); } catch (e) { console.error('[MP] migrate on import failed', e); }
       persist(); // 落盘 + 广播全局刷新（revision++），各页面自动重载
@@ -7250,7 +7404,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         depositEntries: f.depositEntries || [],
         expenseEntries: f.expenseEntries || [],
         incomeEntries: f.incomeEntries || [],
-        fieldTemplates: f.fieldTemplates || [],
       };
       return JSON.stringify({
         app: 'MindPocket', kind: 'finance', version: 1,
@@ -7271,7 +7424,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       fin.depositEntries = Array.isArray(f.depositEntries) ? f.depositEntries : [];
       fin.expenseEntries = Array.isArray(f.expenseEntries) ? f.expenseEntries : [];
       fin.incomeEntries = Array.isArray(f.incomeEntries) ? f.incomeEntries : [];
-      fin.fieldTemplates = Array.isArray(f.fieldTemplates) ? f.fieldTemplates : [];
       persist(); // 落盘 + 广播刷新
     },
     // 选择性备份：仅导出勾选的模块（每个模块 = 一组顶层 state 字段），文件记录所含模块清单
@@ -7541,25 +7693,38 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     '日报','PPT','ppt','资料','素材','方案','文档','清单','草稿','稿','表','表格','视频','文章',
     '心得','体会','总结','复盘',
   ];
+  // 提醒语剥离的「保护 - 还原」三件套（用于标题提炼步骤 8）：
+  // 把「设置类动词 + 闹钟/铃声」整段暂存，剥完提示词后再还原，避免「定闹钟」被切成「定」。
+  // 用不可见控制字符作占位符，正常文本不会出现，不会与用户输入冲突。
+  const REMIND_GUARD = '\u0001';
+  const REMIND_HOLD = [];
+  const RESTORE_NOUN_RE = /(?:设定|设置|设个|设|定个|定|关闭|关|开启|开|调)\s*(?:个)?\s*(?:闹钟|铃声|提醒|定时|备忘)/g;
+  const REMIND_RESTORE_RE = new RegExp(REMIND_GUARD + '(\\d+)' + REMIND_GUARD, 'g');
+
   function splitCompound(text) {
     const t = (text || '').trim();
     if (!t || t.length > 12) return null;                                  // 过长不拆（避免误伤长句）
     if (/[\s，。；！？、,.;:！\n\r]/.test(t)) return null;                  // 含分隔符 → 视为多要素，不拆
     if (/[#@]/.test(t)) return null;                                       // 已有显式 #标签链，不覆盖
     if (/(?:每天|每日|每周|每星期|每月|明天|后天|大后天|今天|今日|下周|本周|下下周|连续|每隔?|提醒|通知|闹钟|在|去|到|从|过\s*\d)/.test(t)) return null;
+    // 拆出的「内容词」至少 2 字，避免把整词切成单字残骸。
+    // 例：「定闹钟」曾命中前缀「定」→ 标题只剩「定」（残骸）；「设闹钟」同。
+    // 要求内容长度 >= 2 后，这类「单字动词 + 2字宾语」的整词不再被拆，保留原词作标题。
+    const MIN_REST = 2;
     // 后缀优先（偏正：内容 + 类目名词），如 可视化作业 / 英语课 / 数据表
     for (const w of COMPOUND_TAGS) {
-      if (t.endsWith(w) && t.length > w.length) return { title: t.slice(0, -w.length), tag: w };
+      if (t.endsWith(w) && t.length - w.length >= MIN_REST) return { title: t.slice(0, -w.length), tag: w };
     }
     // 前缀兜底（动宾：动作 + 内容），如 学习SQL / 复习数学
     for (const w of COMPOUND_TAGS) {
-      if (t.startsWith(w) && t.length > w.length) return { title: t.slice(w.length), tag: w };
+      if (t.startsWith(w) && t.length - w.length >= MIN_REST) return { title: t.slice(w.length), tag: w };
     }
     return null;
   }
 
   function mockParseTask(text) {
     const t = normalizeText(text.trim());
+    REMIND_HOLD.length = 0; // 清空上一轮暂存（本函数会被批量解析连续调用，不清会累积）
     const cmp = splitCompound(t); // 复合词拆分（标题取内容词、标签取类目词），无则不生效
     const U = window.MPStore.util;
     const ymd = (d) => d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
@@ -7667,6 +7832,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       let date = null;
       const m1 = t.match(/(\d{4})[-/年.](\d{1,2})[-/月.](\d{1,2})/);
       if (m1) date = m1[1] + '-' + pad2(m1[2]) + '-' + pad2(m1[3]);
+      // 「M.D」简写日期（如 9.6 / 12.25 / 1.5）：默认当年；月份已过的顺延到下一年（与「X月Y日」一致）
+      if (!date) {
+        const mDot = t.match(/(?<![\d.价费格用])(\d{1,2})\.(\d{1,2})(?![0-9元块万亿万¥$])/);
+        if (mDot) {
+          const mo = +mDot[1], dd = +mDot[2];
+          if (mo >= 1 && mo <= 12 && dd >= 1 && dd <= 31) {
+            const now = new Date(); let y = now.getFullYear();
+            if (mo < now.getMonth() + 1) y += 1;
+            date = y + '-' + pad2(mo) + '-' + pad2(dd);
+          }
+        }
+      }
       const m2 = t.match(/(\d{1,2}|[一二三四五六七八九十]+)\s*月\s*(\d{1,2}|[一二两三四五六七八九十]+)\s*[日号]?/);
       if (m2) {
         const now = new Date(); let y = now.getFullYear(); const mo = cnNum(m2[1]), d = cnNum(m2[2]);
@@ -7744,8 +7921,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     }
 
     // 8) 标题提炼：剥离标签 / 时间 / 周期 / 提醒 / 地点词，取核心动作
-    let title = t
+      let title = t
       .replace(/#[^#\s]+(?:##[^#\s]+)?(?:###[^#\s]+)?/g, '')                          // #标签串
+      .replace(/(?<![\d.价费格用])(\d{1,2})\.(\d{1,2})(?:号|日)?(?![0-9元块万亿万¥$])/g, '')     // M.D 简写日期（如 9.6 / 9.6号）
       .replace(/过\s*(?:\d+|[一二两三四五六七八九十])\s*周/g, '')                        // 过X周
       .replace(/过\s*\d+\s*天/g, '')                                                   // 过X天
       .replace(/(\d+)\s*天后/g, '')                                                     // X天后
@@ -7769,10 +7947,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       .replace(/\d{1,2}\s*[:：]\s*\d{2}/g, '')                                // 数字时刻 15:30
       .replace(/(?:在|去|到|从)[^\s，。；！？、]+?(?:店|馆|公司|家|室|场|园|中心|楼|站|校|处|超市|医院|健身房|图书馆|咖啡馆|餐厅|区|栋|层)/g, '')
       .replace(/(?:在|去|到|从)(?<![A-Za-z])([A-Za-z]{1,3}\d{1,4}(?:[-_][A-Za-z0-9]+)?)(?![A-Za-z0-9])/g, '') // 去y105
-      .replace(/提醒我?去?|通知我?|闹钟/g, '');
+      // 提醒语剥离。难点：既要剥掉「提醒我 / 通知我 / 闹钟」这类提示词，又不能把
+      // 「定闹钟 / 设个闹钟 / 关闹钟」里的「闹钟」当提示词吃掉 —— 它是宾语，剥掉后
+      // 标题只剩单字动词（「定」「设」「关」），成为无意义残骸。
+      // 方案：先把「设置类动词 + 闹钟/铃声」整段暂存为占位符 → 再剥提示词 → 最后还原，
+      // 这样同时满足「提醒我定闹钟 → 定闹钟」与「定闹钟 → 定闹钟」两种诉求。
+      // 注意：回调形参写 match（整段匹配串），不可写 m[0] —— 本正则无捕获组，
+      // 回调签名是 (match, offset, string)，m[0] 会取到首字符，导致暂存成「定」而非「定闹钟」。
+      .replace(RESTORE_NOUN_RE, (match) => REMIND_GUARD + (REMIND_HOLD.push(match) - 1) + REMIND_GUARD)
+      .replace(/提醒我?去?|通知我?|闹钟|铃声/g, '')
+      .replace(REMIND_RESTORE_RE, (m, i) => REMIND_HOLD[+i]);
     if (placeToken) title = title.split(placeToken).join('');
     result.title = title.replace(/《[^》]*》/g, '').replace(/\s+/g, ' ').trim() || t;
-    if (cmp) result.title = cmp.title; // 复合词拆分：标题取内容词（如 SQL / 可视化）
+    // 注：标题仅在「未命中任何语义领域标签」时才取复合词拆分的内容词（见步骤 9）；
+    //     命中语义标签（个人/学习/作业/班务/生活）时保留更完整的标题，避免「写周报→写」这类误截。
 
     // 8.5) 收藏夹类《》识别：描述词决定收藏夹一级分类并作为二级标签；书名/片名/物名作任务标题
     //      例：小说《cx》→ #书籍##小说 ；国产《yy》→ #影片##国产 ；无描述词《三体》→ #书籍（一级）
@@ -7798,20 +7986,65 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       result.tags = sl ? ('#' + fl + '##' + sl) : ('#' + fl);
     }
 
-    // 9) 标签：未显式 #标签链时，按语义领域关键词识别（复盘规划→#个人 / 课业→#作业 / 班务→#班务 / 家务生活→#生活），
+    // 9) 标签：未显式 #标签链时，按语义领域关键词识别（自我管理→#个人 / 学业活动→#学习 / 课业成果→#作业 / 班务→#班务 / 日常→#生活），
     //    领域规则优先于「复合词拆分」的通用类目词；识别不出任何领域词则不强行带标签（默认空值，归属未分类）。
     if (!result.category_id && !result.isBook && !result.isColl) {
       let tagName = null;
-      // 语义领域规则优先于「复合词拆分」的通用类目词（如 资料/文档），领域标签更具体
-      if (/复盘|规划|总结|周报|月报|计划|回顾|反思|复盘会|年度|季度/.test(t)) tagName = '个人';
-      else if (/作业|课业|试卷|考试|学习|上课|复习|预习|功课|听课|备考|论文|习题|练习|PPT|报告|答辩/.test(t)) tagName = '作业';
-      else if (/班会|班级|查寝|晚点名|卫生检查|班主任|班委|班费|班群|课代表|年级大会|学号|收发作业|收集资料/.test(t)) tagName = '班务';
-      else if (/拖地|扫地|清理垃圾|丢垃圾|倒垃圾|扔垃圾|拿快递|取快递|收快递|寄快递|取外卖|拿外卖|点外卖|洗碗|洗衣服|晾衣服|收衣服|叠衣服|洗杯子|刷锅|擦地|墩地|通马桶|刷马桶|做饭|煮饭|炒菜|买菜|买早餐|买早饭|买午饭|买晚饭|买夜宵|带饭|买水果|浇花|擦桌子|擦窗|整理房间|收拾房间|叠被子|打扫|大扫除|充话费|交水电费|交房租|取药|拿药|晒被子|洗车|遛(狗|猫)|喂(猫|狗)|煮咖啡|泡咖啡|冲咖啡|泡茶|沏茶|煮茶|冲茶|收拾屋子|通下水道|换灯泡|逛超市|买东西|取钱|存钱|充水电|拿猫砂|买猫砂|囤猫砂|铲屎|猫粮|狗粮|洗面奶|洗脸|护肤|化妆|卸妆|洗头|吹头发|洗澡|蒸饭|熬粥|煮粥|煲汤|炖汤|煮面|下面条|煎蛋|热饭|打豆浆|榨汁|冲奶粉|热牛奶|和面|包饺子|蒸包子|煮鸡蛋|煎饼|热粥|熨衣服|烫衣服|洗鞋|刷鞋|收被子|吸尘|擦玻璃|擦地板|洗地毯|消毒|清理冰箱|整理衣柜|擦油烟机|刷牙|剪指甲|涂防晒|敷面膜|涂身体乳|梳头|剪头发|染发|做美甲|修眉|买零食|囤货|囤纸巾|买日用品|逛街|买衣服|买鞋|囤面膜|交网费|交燃气费|交物业费|交宽带|充值|充公交卡|体检|打疫苗|给猫梳毛|遛弯|修水管|换水龙头|修电器|充空调|装家具|拧螺丝|晒鞋|贴手机膜|给手机充电|充充电宝|关窗|收阳台/.test(t)) tagName = '生活';
-      else if (cmp) tagName = cmp.tag; // 复合词拆分得到的通用类目词（如 文档 / PPT）兜底
+      // 个人：复盘 / 规划 / 总结 / 周报月报 / 计划回顾等自我管理类
+      if (/复盘|规划|总结|周报|月报|计划|回顾|反思|复盘会|年度|季度|日报|备忘|待办清单|记账|理财|列清单/.test(t)) tagName = '个人';
+      // 学习：听课 / 复习 / 备考 / 背单词等学业活动（与「作业」的课业成果类区分开）
+      // 【补充】四六级 / 六级 / 四级 / 雅思托福等考试代称；「整理 xx 笔记」「知识(点)梳理」等知识型动作。
+      // 注意：「作文」从本规则移除 —— 它在「拿作文 / 收作文」等生活场景里会误判，
+      // 保留「写作文 / 抄作文 / 背作文」这类明确指向学习行为的组合式。
+      // 优先级：本段有两条「班务 / 作业」前置特例，必须插在「学习」规则之前 —— 否则会被
+      // 「学习」规则里的「课 / 学习」二字抢走归属。
+      // 班务前置特例：党课 / 团课 / 青年大学习 等集体学习活动，语义主体是「班级/团组织事务」，
+      // 必须让给 #班务 —— 否则会被下方「学习」规则的「课 / 学习」二字抢走（与「学习通」同理）。
+      else if (/党课|团课|青年大学习|团日活动|主题党日/.test(t)) tagName = '班务';
+      else if (/学习通/.test(t)) tagName = '作业';
+      else if (/学习|预习|复习|听课|上课|备考|刷题|自习|网课|上网课|晨读|早读|晚读|诵读|背单词|背课文|背诗|背公式|默写|练字|听写|抄写|写作文|抄作文|背作文|读后感|考研|考证|报班|做作业|写作业|改错|订正|练听力|练口语|学英语|学日语|学编程|学车|考驾照|做实验|查学习资料|复习功课|预习功课|晨练|晨读|四六级|六级|四级|雅思|托福|专四|专八|知识|知识点|笔记/.test(t)) tagName = '学习';
+      // 作业：试卷 / 考试 / 论文 / PPT / 报告 / 答辩 / 习题等课业成果；含「学习通」等课业平台
+      else if (/作业|课业|试卷|考试|习题|练习|论文|PPT|报告|答辩|功课|测验|模考|补课|家教|写作业|做作业|学习通/.test(t)) tagName = '作业';
+      // 班务：班级 / 班委 / 查寝等
+      // 【补充】「交材料 / 上交材料 / 交报名表」等班级事务递交类：主体是「交给班级/学校」的集体事务，
+      // 归 #班务 而非 #生活。必须在「生活取送」模式之前命中（本规则位于其上方，顺序天然满足）。
+      // 同时补进「交材料」这类词的动词不定式写法，避免被下面的生活取送式抢走。
+      else if (/班会|班级|查寝|晚点名|卫生检查|班主任|班委|班费|班群|课代表|年级大会|学号|收发作业|收集资料|交材料|上交材料|交报名表|交表格|交证明|交申请|收材料|提交材料|交团费|交材料费|青年大学习|团课|党课|志愿|志愿服务|社联|学生会|社团/.test(t)) tagName = '班务';
+      // 生活：家务 / 起居 / 出行 / 健康 / 缴费 / 购物 / 餐饮 / 休闲 / 个人事务等日常
+      // 【泛化模式】以下五条用「动词 + 对象」通用式覆盖高频长尾，避免逐词枚举漏项：
+      //   ① 充电动词 + 任意电器（手表 / 充电宝 / 耳机 / 电脑 / 电动车 / 手机…）
+      //   ② 洗涤动词 + 任意衣物织物（袜子 / 裤子 / 内裤 / 毛巾 / 被套 / 窗帘…）
+      //   ③ 穿脱 / 晾晒动词 + 任意床品衣物（枕头 / 被子 / 床单 / 衣服 / 鞋…）
+      //   ④ 购买动词 + 任意日用物件（电灯 / 灯泡 / 台灯 / 电池 / 拖鞋 / 雨伞…）
+      //   ⑤ 生活取送 / 办理动词 + 任意物件（拿作文 / 兑换车票 / 定闹钟 / 寄材料…）
+      // 说明：④只要求「买 + 具体物件」，比原先枚举「买日用品 / 买衣服」覆盖广得多；
+      //      物件词表按「长词在前」排列（灯泡 → 灯），否则长的会被短的先吃掉导致漏判。
+      //      为免误伤，理财类（买保险 / 买基金）不列入，那类归 #个人。
+      // 优先级：本段置于「作业」之后，故「拿作文」等若同时含课业词，仍以更具体的课业标签为准。
+      else if (
+        /充电|充个电|给[^，。；！？、\s]{0,6}充(电|上电)|充(充电宝|手机|手表|电脑|平板|耳机|相机|电池)|换电池/.test(t) ||
+        /(洗|刷|搓|涮|晾|晒|收|叠|熨|补|缝|换洗)[^，。；！？、\s]{0,3}(袜|裤|衣|衫|鞋|靴|毛巾|被|褥|枕|床单|被套|枕套|窗帘|地毯|抱枕|坐垫|手套|围巾|帽子|内衣|内裤|胸罩|文胸|垫|布|抹布)/.test(t) ||
+        /(晒|晾|收|铺|换)[^，。；！？、\s]{0,2}(被|褥|枕|床单|被套|枕套)/.test(t) ||
+        /买[^，。；！？、\s]{0,4}(灯泡|台灯|电灯|灯管|灯罩|电池|拖鞋|雨伞|雨衣|水杯|保温杯|饭盒|衣架|挂钩|插座|插排|数据线|充电线|充电器|纸巾|牙膏|牙刷|洗发水|沐浴露|洗衣液|洗洁精|垃圾袋|收纳盒|钥匙|门牌|坐垫|靠垫|鼠标垫|鞋垫|灯|鞋|锁|盆|桶|锅|碗|垫|袋|瓶|壶|伞|架|线|器|纸|笔|杯)/.test(t) ||
+        // ⑤ 生活取送 / 办理 / 设置类：「动词 + 物件」泛化。取送（拿/取/领/收/交/送/寄/退/换 + 物品）
+        //    与设置（定/设/关/开 + 闹钟/铃声/提醒）均属日常琐事，对象词表覆盖常见长尾。
+        /(拿|取|领|收|交|送|寄|退|换|兑换|订|约)[^，。；！？、\s]{0,6}(作文|试卷|作业本|材料|资料|文件|快递|包裹|外卖|车票|机票|门票|电影票|票|行李|钥匙|证件|证书|报告|表格|单子|账单|发票|药|口红|蛋糕|鲜花|水果|书|本子|笔|雨伞|衣服|鞋|口罩|水|奶|报纸|信件)/.test(t) ||
+        /(定|设|设定|设置|关|开|调)[^，。；！？、\s]{0,2}(闹钟|铃声|提醒|定时|备忘)/.test(t) ||
+        /(拖地|扫地|清理垃圾|丢垃圾|倒垃圾|扔垃圾|拿快递|取快递|收快递|寄快递|取外卖|拿外卖|点外卖|叫外卖|洗碗|洗衣服|晾衣服|收衣服|叠衣服|洗杯子|刷锅|擦地|墩地|通马桶|刷马桶|做饭|煮饭|炒菜|买菜|买早餐|买早饭|买午饭|买晚饭|买夜宵|带饭|买水果|浇花|擦桌子|擦窗|整理房间|收拾房间|叠被子|打扫|大扫除|整理收纳|收纳|充话费|交水电费|交电费|交水费|交燃气费|交网费|交宽带|交物业费|交房租|取药|拿药|买药|晒被子|洗车|遛(狗|猫|宠物)|喂(猫|狗|宠物)|铲屎|煮咖啡|泡咖啡|冲咖啡|泡茶|沏茶|煮茶|冲茶|收拾屋子|通下水道|换灯泡|逛超市|买东西|取钱|存钱|汇款|转账|充水电|拿猫砂|买猫砂|囤猫砂|猫粮|狗粮|洗面奶|洗脸|护肤|化妆|卸妆|洗头|吹头发|洗澡|洗漱|蒸饭|熬粥|煮粥|煲汤|炖汤|煮面|下面条|煎蛋|热饭|打豆浆|榨汁|冲奶粉|热牛奶|和面|包饺子|蒸包子|煮鸡蛋|煎饼|热粥|熨衣服|烫衣服|洗鞋|刷鞋|收被子|吸尘|擦玻璃|擦地板|洗地毯|消毒|清理冰箱|整理衣柜|擦油烟机|刷牙|剪指甲|涂防晒|敷面膜|涂身体乳|梳头|剪头发|染发|做美甲|修眉|买零食|囤货|囤纸巾|买日用品|逛街|买衣服|买鞋|买包|囤面膜|充值|充公交卡|体检|打疫苗|核酸检测|做核酸|测核酸|核酸|给猫梳毛|遛弯|修水管|换水龙头|修电器|充空调|装家具|拧螺丝|晒鞋|贴手机膜|给手机充电|充充电宝|关窗|收阳台|订机票|订酒店|订餐|订座|健身|瑜伽|跑步|锻炼|运动|打球|游泳|骑行|爬山|散步|挂号|预约挂号|预约体检|看医生|看牙医|看病|就医|打针|输液|理疗|按摩|泡脚|修脚|足疗|理发|剪发|做头发|烫发|美容|做美容|美甲|脱毛|陪家人|陪父母|陪孩子|陪诊|看电影|看演出|看演唱会|看展|看球|逛商场|逛公园|聚会|聚餐|约会|请客|请吃饭|庆生|吃火锅|吃烧烤|喝奶茶|喝咖啡|喝饮料|买饮料|购物|血拼|取包裹|领快递|退换货|退快递|修手机|修电脑|修家电|修门锁|装软件|装机|加油|停车|充电|取干洗|干洗|缝补|裁剪|私事|个人事务|生活缴费|报销|发票|证件|办证|续签|签证|护照|身份证|落户|社保|公积金|搬家|借书|还书|去图书馆|图书馆|交税|交保费|还信用卡|还贷款|还贷|缴税|去银行|寄信|寄包裹|个人护理|哄睡|带娃|接娃|送娃|陪玩|如厕|见朋友|见同学|同学聚会|老友聚会|社交|发朋友圈|刷朋友圈|回消息|回微信|回电话|回邮件|发微信|发消息|聊天|视频通话|打电话|语音通话|约饭|约朋友|约见面|睡觉|午睡|午休|早起|晚起|早睡|熬夜|补觉|打盹|打游戏|玩游戏|刷视频|刷剧|看剧|追剧|听歌|看直播|唱歌|K歌|桌游|剧本杀|密室逃脱|露营|钓鱼|摄影|拍照|拍视频|剪视频|看漫画|听书|打牌|麻将|下棋|拼图|喝水|吃饭|吃早餐|吃午饭|吃晚饭|吃夜宵|下午茶|订奶茶|点奶茶|打车|坐地铁|坐公交|乘高铁|坐火车|坐飞机|开车|导航|堵车|车年检|汽车保养|车险|骑车|步行|充电桩|度假|周边游|短途游|订民宿|订车票|取行李|行李整理|攻略|理财|投资|炒股|基金|股票|存款|买保险|续保|宠物洗澡|驱虫|宠物疫苗|宠物看病|美睫|纹眉|植发|羽毛球|篮球|足球|乒乓球|跳绳|跳操|普拉提|举铁|撸铁|拉伸|晨跑|夜跑|健走|买家具|换窗帘|除螨|除甲醛|通风|买绿植|种菜|擦墙|补漆|疏通下水道|漏水|堵漏|数据备份|清理内存|手机备份|系统重装|吃药|量血压|测血糖|测体温|康复|心理咨询|拔罐|针灸|推拿|送礼|买礼物|生日礼物|红包|随礼|走亲戚|拜年|过节|团圆饭|家长会|亲子|亲子活动|哄孩子|辅导作业|接送孩子|休息|放松)/.test(t)
+      ) tagName = '生活';
+
       if (tagName) {
         const tagStr = '#' + tagName;
         // 仅产出标签串，不预先建分类（避免硬编码 'task' 误建任务夹同名分类；分类创建交由预览层按文件夹统一解析）
         result.tags = tagStr;
+        result.category_id = null;
+        result.parent_category = '';
+        result.hasLevel3 = false;
+        result.level3Chain = null;
+      } else if (cmp) {
+        // 复合词拆分得到的通用类目词（如 文档 / PPT）兜底；标题取内容词（如 SQL / 可视化）
+        result.title = cmp.title;
+        result.tags = '#' + cmp.tag;
         result.category_id = null;
         result.parent_category = '';
         result.hasLevel3 = false;
@@ -8175,23 +8408,61 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     name: 'ReadingSyncModal',
     props: { data: { type: Object, required: true } },
     data() {
-      return { selectedId: '', pages: '', err: '' };
+      return { selectedId: '', reached: '', err: '' };
     },
     computed: {
       books() { return (this.data && this.data.books) || []; },
+      // 当前选中书籍（用于展示「已读到哪里」与做下限校验）
+      currentBook() { return this.books.find(b => b.id === this.selectedId) || null; },
+      unitText() { return (this.currentBook && this.currentBook.unit) || '页'; },
+      currentText() {
+        const b = this.currentBook;
+        if (!b) return '';
+        return b.total > 0
+          ? (this.fmtNum(b.done) + ' / ' + this.fmtNum(b.total) + ' ' + this.unitText)
+          : (this.fmtNum(b.done) + ' ' + this.unitText);
+      },
+      // 已填页码换算出的本次增量（仅作提示，写入仍按绝对页码）
+      deltaText() {
+        const b = this.currentBook;
+        const v = String(this.reached == null ? '' : this.reached).trim();
+        if (!b || !/^\d+(\.\d)?$/.test(v)) return '';
+        const cur = Number(b.done) || 0;
+        const n = Number(v);
+        if (n <= cur) return '';
+        const cap = (b.total > 0 && n > b.total) ? Number(b.total) : n;
+        const d = Math.round((cap - cur) * 10) / 10;
+        return d > 0 ? ('本次将新增 ' + this.fmtNum(d) + ' ' + this.unitText) : '';
+      },
+      reachedHint() {
+        if (!this.currentBook) return '';
+        return this.deltaText || '';
+      },
     },
     created() { if (this.books.length) this.selectedId = this.data.defaultId || this.books[0].id; },
     watch: {
-      data() { if (this.books.length) this.selectedId = this.data.defaultId || this.books[0].id; this.pages = ''; this.err = ''; },
+      data() { if (this.books.length) this.selectedId = this.data.defaultId || this.books[0].id; this.reached = ''; this.err = ''; },
+      // 换书时清空已填页码与报错，避免沿用上一本书的页码
+      selectedId() { this.reached = ''; this.err = ''; },
     },
     methods: {
+      // 最多 1 位小数的数值展示（整数不带 .0）
+      fmtNum(x) {
+        const fn = (this.$store && this.$store.trimNum) ? this.$store.trimNum : null;
+        return fn ? fn(x) : String(Math.round(Number(x) * 10) / 10);
+      },
       onConfirm() {
         // 无书籍任务（下拉为占位）时，确认等同跳过，仅标记习惯完成
         if (!this.books.length) { this.onSkip(); return; }
-        const n = Number(this.pages);
-        if (this.pages === '' || isNaN(n)) { this.err = '请输入本次阅读页数'; return; }
-        if (n < 0) { this.err = '页数不能为负数'; return; } // 负数拦截
-        this.$emit('confirm', { selectedId: this.selectedId, pages: n });
+        const v = String(this.reached == null ? '' : this.reached).trim();
+        if (v === '') { this.err = '请输入本次阅读到的页数'; return; }
+        if (!/^\d+(\.\d)?$/.test(v)) { this.err = '请输入数字，最多一位小数（如 128 或 128.5）'; return; }
+        const n = Number(v);
+        const b = this.currentBook;
+        const cur = b ? (Number(b.done) || 0) : 0;
+        // 语义为「读到了第几页」，不允许回退（回退请到任务详情里手动改进度）
+        if (b && n < cur) { this.err = '不能低于当前已读进度（' + this.currentText + '）'; return; }
+        this.$emit('confirm', { selectedId: this.selectedId, reached: n });
       },
       onSkip() { this.$emit('skip'); },
       onClose() { this.$emit('skip'); }, // ✕ 等同跳过同步：直接完成习惯、不改动任何任务
@@ -8207,9 +8478,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <option v-for="b in books" :key="b.kind + b.id" :value="b.id">{{ b.title }}（{{ b.label }}{{ b.reached ? ' · 已读完' : '' }}）</option>
             </select>
           </label>
-          <label class="fld">本次阅读页数
-            <input type="number" min="0" step="1" v-model="pages" @input="err=''" placeholder="如 30" />
+          <label class="fld">本次阅读到（第几{{ unitText }}）
+            <input type="number" min="0" step="0.1" inputmode="decimal" v-model="reached" @input="err=''" placeholder="如 128 或 128.5" />
           </label>
+          <p class="fld-tip" v-if="reachedHint">{{ reachedHint }}</p>
           <p class="fld-err" v-if="err">{{ err }}</p>
           <div class="modal-actions">
             <button class="btn ghost" @click="onSkip">跳过同步</button>
@@ -8639,7 +8911,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.TaskFormCore = {
     name: 'TaskFormCore',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：原内联实现已抽出，行为不变
-    props: { draft: { type: Object, required: true }, simpleDate: { type: Boolean, default: false }, hideTag: { type: Boolean, default: false }, isCopy: { type: Boolean, default: false } },
+    props: { draft: { type: Object, required: true }, simpleDate: { type: Boolean, default: false }, hideTag: { type: Boolean, default: false }, isCopy: { type: Boolean, default: false }, autoExpandFilled: { type: Boolean, default: false } },
     emits: ['convert-habit'],
     data() {
       return {
@@ -8655,8 +8927,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         cycleRuleTouched: false,
         // 周期起始日：不允许早于今天（开始时间只能设为今天或未来，过去日期无意义）
         cycleStartBlur: false,
-        // 新增进度单位输入框（临时草稿）
-        newUnitLabel: '',
       };
     },
     created() {
@@ -8664,6 +8934,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       else if (this.draft.date_mode) this.timeTab = 'date';
       // 从列表标签头 ➕ 等入口进入且已预填分类时，自动展开高级设置与标签输入区，使「已选标签」可见
       if (this.draft.category_id) { this.advOpen = true; this.grp.tag = true; }
+      // 长按进入任务详情：高级设置中「已有记录（输入项非空）」的折叠组默认展开，
+      // 让用户一眼看到该项已配置的内容，无需手动逐层点开；空项保持折叠不干扰。
+      if (this.autoExpandFilled) this.expandFilledGroups();
     },
     computed: {
       cycleType() { return this.draft.cycle ? this.draft.cycle.type : 'none'; },
@@ -8696,9 +8969,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         get() { return this.draft.cycle ? (this.draft.cycle.rule || '') : ''; },
         set(v) { this.draft.cycle = Object.assign({}, this.draft.cycle || { type: this.cycleType }, { rule: v }); },
       },
-      isKnownUnit() { return this.$store.getProgressUnits().some(u => u.id === this.draft.progress_info.media_type); },
-      // 可选进度单位列表（用户可删除内置单位、新增自定义单位）
-      progressUnits() { return this.$store.getProgressUnits(); },
+      // 进度单位输入框：显示「人类可读单位文案」，保存为原始文本（支持自由自定义，不再依赖预设下拉）
+      unitText: {
+        get() { return this.$store.unitLabelOf(this.draft.progress_info.media_type); },
+        set(v) {
+          const s = (v || '').trim();
+          this.draft.progress_info.media_type = s;
+          if (s) this.rememberUnit(s);
+        },
+      },
       // 收藏夹任务：时间选择器无效（无法绑定日期 / 周期）
       isColl() { return this.draft.folderType === 'collection'; },
       // 设置时间：日期 / 周期 二选一（由 draft 状态派生）
@@ -8715,6 +8994,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
     },
     methods: {
+      // 长按进入任务详情：扫描高级设置各折叠组，凡「已有记录」（有实际输入项）的组自动展开；
+      // 无内容的组保持折叠，避免详情页一打开就铺满、干扰浏览。
+      //   标签组  ：已归属分类（category_id）或有标签输入文本
+      //   时间组  ：已设执行日期 / 区间 / 指定月 / 周期（收藏夹任务无此组，不受影响）
+      //   进度记录：已开启（progress_info.enable）——该项无折叠头，但需展开高级设置才可见，故一并处理
+      // 只要命中任意一项有记录，就展开「高级设置」外层面板。
+      expandFilledGroups() {
+        const d = this.draft || {};
+        let any = false;
+        // 标签组：有分类或有标签输入
+        const hasTag = !!(d.category_id || d.tagInput);
+        if (hasTag) { this.grp.tag = true; any = true; }
+        // 时间组：有日期或周期
+        const hasTime = !!(d.cycle || d.execute_date || d.date_start || d.plan_month || d.date_mode === 'single');
+        if (hasTime) { this.grp.time = true; any = true; }
+        // 进度记录：已开启
+        if (d.progress_info && d.progress_info.enable) any = true;
+        if (any) this.advOpen = true;
+      },
       // 周期类型：每天 → 二次确认转习惯；其余 → 设置周期并清空日期（二选一）
       pickCycle(type) {
         if (type === 'day') { this.showDailyConfirm = true; return; }
@@ -8743,16 +9041,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.draft.date_mode = ''; this.draft.plan_month = ''; this.draft.execute_date = ''; this.draft.date_start = ''; this.draft.date_end = '';
         this.timeTab = 'cycle';
       },
-      // 选择某个进度单位（内置或自定义）
-      pickUnit(id) { this.draft.progress_info.media_type = id; },
-      // 删除一个进度单位（当前任务若正在使用它，则退化为可编辑的自定义项）
-      removeUnit(id) { this.$store.removeProgressUnit(id); },
-      // 新增自定义进度单位并立即选用
-      addUnit() {
-        const L = (this.newUnitLabel || '').trim();
-        if (!L) return;
-        const u = this.$store.addProgressUnit(L);
-        if (u) { this.draft.progress_info.media_type = u.id; this.newUnitLabel = ''; }
+      // 进度单位记忆：记住最近一次填写的单位，下次启动进度记录时作为默认预填
+      rememberUnit(label) {
+        try { window.localStorage.setItem('mindpocket:lastUnit', String(label)); } catch (e) {}
+      },
+      loadRememberedUnit() {
+        try { return window.localStorage.getItem('mindpocket:lastUnit') || ''; } catch (e) { return ''; }
+      },
+      // 输入框实时记忆
+      onUnitInput() {
+        const s = (this.unitText || '').trim();
+        if (s) this.rememberUnit(s);
+      },
+      // 勾选「启动进度记录」即展开编辑；若尚未选单位，预填记忆值（无记忆则默认「章」）
+      onProgEnableToggle() {
+        if (this.draft.progress_info.enable && !this.draft.progress_info.media_type) {
+          const mem = this.loadRememberedUnit();
+          this.draft.progress_info.media_type = mem || '章';
+        }
       },
       // 切换三种日期类型（再次点击当前类型则取消，回到「未设置」）；清理互斥字段，并清空周期（二选一）
       setDateType(type) {
@@ -8889,7 +9195,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </span>
         <input v-model="draft.title" placeholder="请输入任务" />
       </div>
-      <p class="tip emg-tip" v-if="draft.isEmergency">勾选后无视所有日期、周期排序规则，固定放在今日Tab首位，需优先完成。</p>
       <label class="fld">描述<textarea v-model="draft.desc" placeholder="请补充描述（可选）"></textarea></label>
       <button class="block-note" @click="noteOpen=true">
         <span>📎 素材备注（全屏输入）</span>
@@ -9037,33 +9342,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
           </div>
           <p class="tip" v-if="isColl">📦 收藏夹任务不支持设置时间（日期 / 周期）。</p>
-          <!-- 启动进度记录（折叠） -->
+          <!-- 启动进度记录：勾选即展开编辑，单位用自由输入框并记忆上次填写 -->
           <div class="board-group sub">
-            <button class="grp-head" @click="grp.prog=!grp.prog">
-              <span>启动进度记录</span><span class="caret">{{ grp.prog ? '▼' : '▶' }}</span>
-            </button>
-            <div class="grp-body" v-if="grp.prog">
-              <label class="fld check"><input type="checkbox" v-model="draft.progress_info.enable" /> 开启</label>
-              <template v-if="draft.progress_info.enable">
-                <div class="unit-list">
-                  <div class="unit-item" v-for="u in progressUnits" :key="u.id">
-                    <button type="button" class="unit-pick" :class="{on: draft.progress_info.media_type===u.id}" @click="pickUnit(u.id)">
-                      <span class="u-ico">{{ u.icon }}</span><span class="u-label">{{ u.label }}</span>
-                    </button>
-                    <button type="button" class="unit-del" @click.stop="removeUnit(u.id)" title="删除该单位">×</button>
-                  </div>
-                  <!-- 当前单位已被删除（不在可选列表）：退化为可编辑自定义项 -->
-                  <div class="unit-item" v-if="!isKnownUnit">
-                    <input class="unit-custom" v-model="draft.progress_info.media_type" placeholder="自定义单位，如：张 / 次" />
-                  </div>
-                  <!-- 新增自定义单位 -->
-                  <div class="unit-item add">
-                    <input class="unit-add-input" v-model="newUnitLabel" placeholder="新增单位，如：张 / 次" @keyup.enter="addUnit" />
-                    <button type="button" class="unit-add-btn" @click="addUnit">＋ 添加</button>
-                  </div>
-                </div>
-                <input class="prog-value" v-model="draft.progress_info.progress_value" placeholder="如：第 12 章 / 第 12 集" />
-              </template>
+            <div class="grp-body">
+            <label class="fld check"><input type="checkbox" v-model="draft.progress_info.enable" @change="onProgEnableToggle" /> 启动进度记录</label>
+            <template v-if="draft.progress_info.enable">
+              <label class="fld">进度单位
+                <input class="unit-input" v-model="unitText" @input="onUnitInput" placeholder="如：章 / 页 / 张 / 次 / 集" />
+              </label>
+              <input class="prog-value" v-model="draft.progress_info.progress_value" placeholder="如：第 12 章 / 第 12 集" />
+            </template>
             </div>
           </div>
         </div>
@@ -9127,7 +9415,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cycle_delay_mode: '',
           enable_remind: false, remind_time: '09:00',
           cycle: null,
-          progress_info: { enable: false, media_type: 'book', progress_value: '' },
+          progress_info: { enable: false, media_type: '', progress_value: '' },
           isEmergency: false,
           showArrangeBtn: true,
         },
@@ -9294,7 +9582,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     created() {
       const s = this.sub;
-      const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: 'book', progress_value: '' }, isEmergency: false, hasCheckbox: true, week_offset: null, time_mode: null, cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0, cycle_start_date: '', cycle_delay_mode: 'recount' };
+      const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: '', progress_value: '' }, isEmergency: false, hasCheckbox: true, week_offset: null, time_mode: null, cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0, cycle_start_date: '', cycle_delay_mode: 'recount' };
       if (s) {
         this.form = Object.assign({}, base, {
           title: s.title || '',
@@ -9311,7 +9599,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           enable_remind: !!(s.enable_remind || s.sub_remind),
           remind_time: s.remind_time || s.sub_remind_time || '',
           cycle: s.cycle ? JSON.parse(JSON.stringify(s.cycle)) : null,
-          progress_info: s.progress_info ? JSON.parse(JSON.stringify(s.progress_info)) : { enable: false, media_type: 'book', progress_value: '' },
+          progress_info: s.progress_info ? JSON.parse(JSON.stringify(s.progress_info)) : { enable: false, media_type: '', progress_value: '' },
           isEmergency: !!s.isEmergency,
           hasCheckbox: s.hasCheckbox !== false,
           week_offset: (s.week_offset != null) ? s.week_offset : null,
@@ -10523,7 +10811,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="modal modal-lg">
         <div class="modal-head"><h3>任务详情</h3><button class="x" @click="cancel">✕</button></div>
         <div class="modal-body" v-if="task && form">
-          <TaskFormCore :draft="form" :is-copy="isCopy" ref="form" @convert-habit="onConvertHabit" />
+          <TaskFormCore :draft="form" :is-copy="isCopy" :auto-expand-filled="true" ref="form" @convert-habit="onConvertHabit" />
           <p class="tip prog-sync" v-if="form.progress_info.enable">📊 进度已同步至：{{ form.progress_info.progress_value || '（开启记录）' }}{{ $unitLabel(form.progress_info.media_type) ? '（' + $unitLabel(form.progress_info.media_type) + '）' : '' }}</p>
 
           <div v-if="hasExecHist">
@@ -11674,9 +11962,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const defaultId = (lastId && books.some(b => b.id === lastId)) ? lastId : (books.length ? books[0].id : '');
         this.pendingReading = { habitId, date, books, defaultId };
       },
-      onSyncConfirm({ selectedId, pages }) {
+      onSyncConfirm({ selectedId, reached }) {
         if (!this.pendingReading) return;
-        this.$store.applyReadingSync(this.pendingReading, selectedId, pages);
+        this.$store.applyReadingSync(this.pendingReading, selectedId, reached);
         this.pendingReading = null;
       },
       onSyncSkip() {
@@ -12156,7 +12444,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     //   识别 = 1 条 → 复用 TaskFormCore 弹出完整可编辑详情（含全部高级设置），AI 解析标题/描述/标签/时间/地点，无法识别默认空白
     //   识别 > 1 条 → 简化批量编辑视图：列表[复选框 + 任务文字 + 删除叉号]；下方新增任务输入 + 归属标签输入
     //               批量任务统一存入待归档 Tab（顶层任务），按归属标签打标；所有高级设置默认空白，后续可在待归档长按编辑
-    props: { items: { type: Array, required: true }, truncated: { type: Boolean, default: false }, fromFab: { type: Boolean, default: false } },
+    props: { items: { type: Array, required: true }, truncated: { type: Boolean, default: false } },
     components: { TaskFormCore: C.TaskFormCore },
     data() {
       // 单条 AI 任务默认归入「任务夹」；多条（>1）默认归入「收藏夹」（需求规则）
@@ -12207,24 +12495,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           enable_remind: !!(it.remind || it.enable_remind),
           remind_time: it.remind_time || '',
           cycle: cy,
-          progress_info: it.progress_info ? JSON.parse(JSON.stringify(it.progress_info)) : { enable: false, media_type: 'book', progress_value: '' },
+          progress_info: it.progress_info ? JSON.parse(JSON.stringify(it.progress_info)) : { enable: false, media_type: '', progress_value: '' },
           isEmergency: !!it.isEmergency, // 紧急标记：默认不勾选
         };
       });
-      // 悬浮球创建：未解析出标签的条目默认归入「临时任务」，并同步清空时间字段
-      // （与临时任务「无时间待归档」语义一致，预览表单所见即所得；用户手动改选其他标签则不受影响）
-      if (this.fromFab) {
-        const QV = window.MPStore.getQuickViewCatId();
-        drafts.forEach((d) => {
-          if (!d.category_id) {
-            d.category_id = QV;
-            d.date_mode = ''; d.plan_month = ''; d.execute_date = '';
-            d.date_start = ''; d.date_end = '';
-            d.enable_remind = false; d.remind_time = '';
-            d.cycle = null;
-          }
-        });
-      }
+      // 注：不再将「无标签且无日期」的 AI 解析结果强制归入「临时任务」；
+      // 保持未分类（空标签），由用户在预览里手动选择归属，AI 未识别到标签就不填标签。
       const checked = drafts.map(() => true);
       return { drafts, checked, folderType: defFolder, newTitle: '', batchTagInput: '', batchParsedTags: [], batchLevel3Chain: null };
     },
@@ -12277,8 +12553,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           desc: d.desc || '',
           material_notes: d.material_notes || '',
           material_link: d.material_link || '',
-          // 从悬浮球创建且未手动选标签时，默认归入「临时任务」（与悬浮球简单录入语义一致），避免产出非临时任务而带出「安排」按钮
-          category_id: d.category_id || (this.fromFab ? this.$store.getQuickViewCatId() : null),
+          // 未手动选标签时保持未分类（空标签），不强行归入「临时任务」
+          category_id: d.category_id || null,
           parent_category: d.parent_category || '',
           is_template: d.folderType === 'template',
           is_collection: d.folderType === 'collection',
@@ -12327,8 +12603,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             desc: '',
             material_notes: '',
             material_link: '',
-            // 从悬浮球创建且未手动选归属标签时，默认归入「临时任务」（与悬浮球简单录入语义一致）
-            category_id: batchCat || (this.fromFab ? this.$store.getQuickViewCatId() : null),
+            category_id: batchCat || null,
             parent_category: batchParent || '',
             is_template: this.folderType === 'template',
             is_collection: this.folderType === 'collection',
@@ -12340,7 +12615,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             cycle_end_count: 0,
             cycle_start_date: '',
             cycle_delay_mode: 'recount',
-            progress_info: { enable: false, media_type: 'book', progress_value: '' },
+            progress_info: { enable: false, media_type: '', progress_value: '' },
             isEmergency: false,
             date_mode: 'single', plan_year: null, plan_month: null, plan_week: null,
             execute_date: null, date_start: '', date_end: '', week_offset: null, time_mode: null,
@@ -13556,7 +13831,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         archLongTimer: null, archSuppressClick: false,
         toast: '', toastTimer: null,
         // 统计板块折叠状态（默认全展开；本地缓存，再次进入保留）
-        collapsed: { habit: false, arch: false, backup: true },
+        collapsed: { habit: false, arch: false, backup: true, backupData: true, notify: true, relay: true },
         // 归档仓库：项目条目长按操作弹窗（重命名/删除/取消）+ 项目编辑/删除二次确认
         showProjEdit: false, editPid: null,
         // 演示数据模式（本地持久化）
@@ -13567,14 +13842,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         relayStatus: { enabled: false, count: 0, lastRun: 0, lastError: '', backendError: '' },
         relayToken: '', relayVaultId: '',
         // —— 选择性备份 / 恢复：导出勾选 + 导入勾选 ——
-        backupSel: { core: true, projects: true, wish: true, finance: true, career: true, settings: false, archive: false, inbox: false },
+        // 默认勾选：项目 + 归档（其余模块按需手动勾选）
+        backupSel: { core: false, projects: true, finance: false, career: false, archive: true, inbox: false },
         importFileRaw: '',            // 已读取的导入文件原文
         importFileName: '',
         importModules: [],            // 文件中实际存在的模块 key
         importSel: {},                // 导入时勾选的模块 key -> true
         // —— 本地自动备份：快照列表（来自独立 localStorage 空间）——
         autoBackups: [],
-        autoBackupCap: 5,
       };
     },
     mounted() {
@@ -13803,20 +14078,43 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const monthTotal = byDay.reduce((a, b) => a + b, 0);
         return { name: h.name, mode: 'month', byDay, dim, monthTotal };
       },
-      // 月视图打卡节奏：平均几天打卡一次（口径 = 当月天数 ÷ 有打卡的天数；
+      // 月视图已过天数：当月按「已过天数」算平均（如 9/16 就是 16 天）；
+      // 查看历史月份视为整月已过；查看未来月份按 0 处理（不展示节奏）
+      habitMonthElapsedDays() {
+        const dim = new Date(this.year, this.month, 0).getDate();
+        const t = this.today.split('-');
+        const ty = +t[0], tm = +t[1], td = +t[2];
+        if (this.year < ty || (this.year === ty && this.month < tm)) return dim;   // 历史月：整月
+        if (this.year > ty || (this.year === ty && this.month > tm)) return 0;     // 未来月：未开始
+        return Math.min(td, dim);                                                  // 当月：已过天数
+      },
+      // 月视图打卡节奏：平均几天打卡一次（口径 = 当月已过天数 ÷ 有打卡的天数；
       // 同一天多次打卡只算「打卡 1 天」，避免记录型习惯一天多记拉低间隔）
       habitPaceText() {
         const d = this.chartData;
         if (!d || d.mode !== 'month') return '';
-        const days = d.dim || 0;
+        const elapsed = this.habitMonthElapsedDays;
         const activeDays = (d.byDay || []).filter(v => v > 0).length;
         const total = d.monthTotal || 0;
-        if (!activeDays || !days) return '本月暂无打卡记录';
-        const avg = days / activeDays;
+        if (!elapsed) return '本月尚未开始';
+        if (!activeDays) return '本月暂无打卡记录';
+        const avg = elapsed / activeDays;
         // 整数直出，非整数保留一位小数
         const avgTxt = (Math.round(avg * 10) % 10 === 0) ? String(Math.round(avg)) : (Math.round(avg * 10) / 10).toFixed(1);
         const multi = total > activeDays ? ('，共 ' + total + ' 次') : '';
-        return '平均 ' + avgTxt + ' 天打卡一次（当月 ' + days + ' 天 · 打卡 ' + activeDays + ' 天' + multi + '）';
+        return '平均 ' + avgTxt + ' 天打卡一次（当月已过 ' + elapsed + ' 天 · 打卡 ' + activeDays + ' 天' + multi + '）';
+      },
+      // 年视图打卡节奏：平均每月打卡几次（口径 = 全年总次数 ÷ 有打卡记录的月份数；
+      // 只把有记录的月份计入分母，避免零记录月份拉低平均）
+      habitYearPaceText() {
+        const d = this.chartData;
+        if (!d || d.mode !== 'year') return '';
+        const months = (d.byMonth || []).filter(v => v > 0).length;
+        const annual = d.annual || 0;
+        if (!months) return '本年度暂无打卡记录';
+        const avg = annual / months;
+        const avgTxt = (Math.round(avg * 10) % 10 === 0) ? String(Math.round(avg)) : (Math.round(avg * 10) / 10).toFixed(1);
+        return '平均每月打卡 ' + avgTxt + ' 次（有记录 ' + months + ' 个月 · 全年 ' + annual + ' 次）';
       },
       selectedHabit() { return this.chartHabitId ? this.$store.findHabit(this.chartHabitId) : null; },
       // 打卡日期清单：按当前月/年视图筛选选中习惯的已完成日期（只读，不修改原始数据）
@@ -13838,6 +14136,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         list = list.filter(d => d.indexOf(prefix) === 0);
         return list.sort();
       },
+      // 全选框（get 反映是否全部勾选；set 一键全选 / 全不选）
+      allChecked: {
+        get() {
+          const mods = this.$store.backupModules;
+          return mods.length > 0 && mods.every(m => this.backupSel[m.key]);
+        },
+        set(v) {
+          const next = Object.assign({}, this.backupSel);
+          this.$store.backupModules.forEach(m => { next[m.key] = !!v; });
+          this.backupSel = next;
+        },
+      },
+      // 最近一次自动备份是否失败（配额溢出等），用于展示红色提示，避免「静默空白」
+      // 说明：必须是 computed —— 模板里以 {{ backupError }} 直接插值渲染；
+      // 若误放进 methods，插值会输出函数对象本身（function () { [native code] }）且恒为真。
+      backupError() { return this.$store.lastBackupError(); },
     },
     watch: {
       // 记忆前端 UI 筛选状态（不改动任何业务数据）
@@ -13897,6 +14211,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (showTask) {
           this.$store.getArchivedTasks(this.archCat, textKws).forEach(t => {
             if (!expandCycle(t, 'task')) out.push(norm(t, 'task', this.$store.archiveDateOf(t)));
+          });
+          // 模版归档流水：模版任务副本完成后立即被重置回收，其归档留痕只存在于 archive_ledger。
+          // 按「每个归档流水日」展开为独立条目（每次完成归档一次 = 仓库记录一次）。
+          // 去重：母本当前若仍处于归档态（手动归档未撤销），其实体已被上方 getArchivedTasks 收录，
+          // 该日期已被该实体条目覆盖，此处不再重复展开，避免同一天出现两条。
+          const coveredDates = new Set(
+            out.filter(o => o._type === 'task' && o._realId).map(o => o._realId + '@' + o._date)
+          );
+          this.$store.ledgerList().forEach(e => {
+            if (!e || !e.task_id) return;
+            if (coveredDates.has(e.task_id + '@' + e.date)) return;
+            if (textKws.length && !textKws.every(k => (e.title || '').toLowerCase().includes(k))) return;
+            out.push({
+              _type: 'task', _id: e.id, _realId: e.task_id,
+              _title: e.title || '（模版任务）',
+              _typeLabel: '任务', _date: e.date,
+              _isLedger: true,
+            });
           });
         }
         // 已归档子任务：扁平化并入（沿用父任务分类/标题参与筛选）；仅「子任务」或空关键词时显示
@@ -14017,6 +14349,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       execArchUndo(id) {
         const item = this.findArchItem(id);
         if (!item) return;
+        // 模版永久归档流水：是「某次完成归档」的历史留痕，不对应任何可撤销的实体状态，
+        // 因此左滑撤销对其无意义（避免误触发把母本整体撤销）。仅提示，不改动数据。
+        if (item._isLedger) { this.showToast('该条为模版归档记录，无撤销'); return; }
         const rid = (item._realId != null) ? item._realId : item._id;
         if (item._type === 'task') this.$store.setArchived(rid, null, false);
         else if (item._type === 'habit') this.$store.unarchiveHabit(rid);
@@ -14135,11 +14470,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         try { localStorage.setItem('mindpocket:demoMode', this.demoMode ? '1' : '0'); } catch (e) {}
       },
       // —— 数据备份 / 恢复（支持按 Tab 选择性导出 / 导入）——
-      backupAllOn() { return this.$store.backupModules.every(m => this.backupSel[m.key]); },
-      toggleBackupAll(e) {
-        const v = !!e.target.checked;
-        this.$store.backupModules.forEach(m => { this.backupSel[m.key] = v; });
-      },
       // 仅导出勾选的模块
       exportBackup() {
         const keys = this.$store.backupModules.filter(m => this.backupSel[m.key]).map(m => m.key);
@@ -14217,9 +14547,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             const known = this.$store.backupModules.map(m => m.key);
             const mods = Array.isArray(o.modules) ? o.modules.filter(k => known.indexOf(k) >= 0 && o[k]) : [];
             if (!mods.length) throw new Error('该文件未包含任何可识别模块');
+            // 按 backupModules 的当前顺序重排，而非沿用文件里写入的 modules 顺序：
+            // 旧备份文件的 modules 是历史顺序，直接渲染会让导入列表与导出列表顺序不一致。
+            // 以注册表顺序为准，既保证两侧口径统一，也兼容任意历史文件。
+            const order = {};
+            known.forEach((k, i) => { order[k] = i; });
             this.importFileRaw = raw;
             this.importFileName = file.name || 'backup.json';
-            this.importModules = mods;
+            this.importModules = mods.slice().sort((a, b) => order[a] - order[b]);
             const sel = {};
             mods.forEach(k => { sel[k] = true; });
             this.importSel = sel;
@@ -14287,14 +14622,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
       },
       autoBackupCount(data) {
-        if (!data || typeof data !== 'object') return '空快照';
+        if (!data || typeof data !== 'object') return { empty: true, t: 0, c: 0, h: 0 };
         const t = Array.isArray(data.tasks) ? data.tasks.length : 0;
         const c = Array.isArray(data.categories) ? data.categories.length : 0;
         const h = Array.isArray(data.habits) ? data.habits.length : 0;
-        return '任务 ' + t + ' · 标签 ' + c + ' · 习惯 ' + h;
+        return { empty: false, t: t, c: c, h: h };
       },
-      // 最近一次自动备份是否失败（配额溢出等），用于展示红色提示，避免「静默空白」
-      backupError() { return this.$store.lastBackupError(); },
+      // 最近一次自动备份是否失败（配额溢出等）见上方 computed.backupError
       moduleLabel(key) { const m = this.$store.backupModules.find(x => x.key === key); return m ? m.label : key; },
       // —— 手机提醒推送（P2：ntfy 延迟消息）——
       notifyGenTopic() {
@@ -14527,11 +14861,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="chart" v-if="chartData">
           <template v-if="chartData.mode==='year'">
             <div class="chart-title">{{ chartData.name }} — {{ year }} 年 共 {{ chartData.annual }} 次</div>
-            <div class="bars">
+            <div class="bars bars-year">
               <div class="bar" v-for="(v,i) in chartData.byMonth" :key="i" :style="{height:(v/maxMonth()*100)+'%'}" :title="(i+1)+'月 · '+v+' 次'">
                 <span class="bar-v">{{ v }}</span><span class="bar-m">{{ i+1 }}</span>
               </div>
             </div>
+            <!-- 年视图节奏小结：平均每月打卡几次（分母只算有记录的月份） -->
+            <p class="chart-pace" v-if="habitYearPaceText">⏱️ {{ habitYearPaceText }}</p>
           </template>
           <template v-else>
             <div class="chart-title">{{ chartData.name }} — {{ year }}年{{ month }}月 共 {{ chartData.monthTotal }} 次</div>
@@ -14540,7 +14876,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <span class="bar-v">{{ v }}</span><span class="bar-m axis-key" v-if="[1,5,10,15,20,25,31].indexOf(i+1) >= 0">{{ i+1 }}</span>
               </div>
             </div>
-            <!-- 月视图节奏小结：平均几天打卡一次（当月天数 ÷ 有打卡的天数） -->
+            <!-- 月视图节奏小结：平均几天打卡一次（当月已过天数 ÷ 有打卡的天数） -->
             <p class="chart-pace" v-if="habitPaceText">⏱️ {{ habitPaceText }}</p>
           </template>
         </div>
@@ -14549,13 +14885,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <!-- 数据备份：导出 / 导入（P0：零依赖本地备份，支撑多设备迁移与刷新） -->
       <section class="block">
-        <h3 class="block-title">💾 数据备份与恢复</h3>
-        <div class="backup-box">
-          <p class="backup-note">导出 JSON 备份时，可<b>单独勾选某个 Tab</b> 只备份该部分数据；导入时也支持<b>只恢复所选 Tab</b>，其余数据不受影响。换设备 / 重装前建议先备份。</p>
-
+        <h3 class="block-title" @click="toggleCol('backupData')">💾 数据备份与恢复 <span class="caret">{{ collapsed.backupData ? '▶' : '▼' }}</span></h3>
+        <div class="backup-box" v-show="!collapsed.backupData">
           <div class="backup-modlist">
             <label class="backup-mod backup-mod-all">
-              <input type="checkbox" :checked="backupAllOn" @change="toggleBackupAll" /> <b>全选</b>
+              <input type="checkbox" v-model="allChecked" /> <b>全选</b>
             </label>
             <label class="backup-mod" v-for="m in $store.backupModules" :key="m.key">
               <input type="checkbox" v-model="backupSel[m.key]" /> {{ m.label }}
@@ -14590,20 +14924,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <section class="block">
         <h3 class="block-title" @click="toggleCol('backup')">🔄 本地自动备份 <span class="caret">{{ collapsed.backup ? '▶' : '▼' }}</span></h3>
         <div class="backup-box" v-show="!collapsed.backup">
-          <p class="backup-note">本地每 <b>30 分钟</b>自动生成一份快照（切到后台 / 关闭页面时也会<b>立即备份</b>），仅保留最近 <b>{{ autoBackupCap }}</b> 份，存于<b>独立空间</b>、与主数据隔离。若页面崩溃或误删 / 误覆盖数据，可在此<b>一键恢复到任意一份快照</b>。</p>
           <p class="backup-warn" v-if="backupError">{{ backupError }}</p>
-          <div class="backup-actions">
+          <div class="backup-actions sym">
             <button class="btn primary" @click="doAutoBackup">📌 立即备份一份</button>
             <button class="btn ghost" @click="refreshAutoBackups">🔃 刷新列表</button>
           </div>
           <p class="backup-note" v-if="!autoBackups.length">暂无快照——首次自动备份将在 30 分钟内生成，或切到后台 / 关闭页面时立即生成。</p>
           <ul class="ab-list" v-else>
             <li class="ab-item" v-for="(s, i) in autoBackups" :key="i">
-              <span class="ab-time">{{ autoBackupTime(s.ts) }}<em v-if="i === 0" class="ab-new">最新</em></span>
-              <span class="ab-meta">{{ autoBackupCount(s.data) }}</span>
+              <!-- 左侧：时间独立一行，任务 / 标签 / 习惯三行描述换行竖排在其下方 -->
+              <div class="ab-main">
+                <span class="ab-time">{{ autoBackupTime(s.ts) }}<em v-if="i === 0" class="ab-new">最新</em></span>
+                <span class="ab-meta">
+                  <template v-if="autoBackupCount(s.data).empty">空快照</template>
+                  <template v-else>任务 {{ autoBackupCount(s.data).t }} · 标签 {{ autoBackupCount(s.data).c }} · 习惯 {{ autoBackupCount(s.data).h }}</template>
+                </span>
+              </div>
               <span class="ab-ops">
                 <button class="btn-mini" @click="restoreAutoBackup(i)">恢复</button>
-                <button class="btn-mini danger" @click="deleteAutoBackup(i)">删除</button>
               </span>
             </li>
           </ul>
@@ -14613,12 +14951,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <!-- 手机提醒推送（P2：ntfy 延迟消息） -->
       <section class="block">
-        <h3 class="block-title">🔔 手机提醒推送</h3>
-        <div class="backup-box">
-          <p class="backup-note">任务到点时手机弹窗 + 铃声 + 震动。本应用采用 <b>ntfy</b> 通道：免费、无需自有服务器，各设备共用同一主题。</p>
-
-          <!-- ntfy 通道 -->
-          <p class="backup-note">ntfy 服务器持有延迟消息，<b>即使本应用已关闭也会准时送达</b>；但灭屏时安卓可能拦推送，需关闭 ntfy 的电池优化（iOS 一般不受影响）。</p>
+        <h3 class="block-title" @click="toggleCol('notify')">🔔 手机提醒推送 <span class="caret">{{ collapsed.notify ? '▶' : '▼' }}</span></h3>
+        <div class="backup-box" v-show="!collapsed.notify">
           <div v-if="!notifyStatus.enabled" class="sync-form">
             <label>ntfy 服务器（默认 ntfy.sh；国内可填可达的镜像或自托管地址）</label>
             <input v-model="$store.state.settings.notify.server" placeholder="https://ntfy.sh" />
@@ -14647,20 +14981,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn ghost" @click="notifySchedule">立即重新安排</button>
               <button class="btn ghost" @click="notifyDisable">关闭</button>
             </div>
-            <p class="backup-note">收不到？① 手机 ntfy App 里确认已订阅下面这个主题；② 先点「发送测试推送」验证通道，再点「1 分钟后定时测试」验证定时；③ iOS 需在系统设置里允许 ntfy 通知与横幅。</p>
-            <p class="backup-note">手机端：安装 ntfy App → 订阅主题 <code>{{ $store.state.settings.notify.server }}/{{ $store.state.settings.notify.topic }}</code></p>
           </div>
         </div>
       </section>
 
       <!-- 云端代发（P2+：突破 ntfy 3 天投递窗口的 GitHub Actions 后端） -->
       <section class="block">
-        <h3 class="block-title">☁ 云端代发（远期提醒不漏）</h3>
-        <div class="backup-box">
-          <p class="backup-note">ntfy 免费服务只接受约 3 天内的定时消息，更远的提醒浏览器发不出去。开启后，GitHub Actions 每 30 分钟把即将到点的提醒补投给你（ntfy）。数据写在你的私有仓库 <code>mindpocket-vaults</code>，零额外费用、无需自有服务器。</p>
-
+        <h3 class="block-title" @click="toggleCol('relay')">☁ 云端代发（远期提醒不漏） <span class="caret">{{ collapsed.relay ? '▶' : '▼' }}</span></h3>
+        <div class="backup-box" v-show="!collapsed.relay">
           <div v-if="!relayStatus.enabled" class="sync-form">
-            <label>GitHub 令牌（细粒度 PAT，仅限 mindpocket-vaults 仓库 Contents 读写）</label>
+            <label>GitHub 令牌</label>
             <input type="password" v-model="relayToken" placeholder="ghp_... 或 github_pat_..." />
             <label>保险库 ID（留空自动生成；须与提醒推送所在 vault 一致）</label>
             <input v-model="relayVaultId" placeholder="留空自动生成" />
@@ -14868,7 +15198,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </transition>
       <button ref="fab" class="fab" :class="{dragging:dragging}" :style="ballStyle()" title="快速录入" v-show="!aiItems"
         @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onCancel">＋</button>
-      <AiTaskPreviewModal v-if="aiItems" :items="aiItems" :truncated="aiTruncated" :from-fab="true" @close="aiItems=null" @confirm="confirmAi" />
+      <AiTaskPreviewModal v-if="aiItems" :items="aiItems" :truncated="aiTruncated" @close="aiItems=null" @confirm="confirmAi" />
     </div>`,
   };
 
@@ -14930,7 +15260,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     template: `
     <div class="modal-mask" @click.self="$emit('close')">
-      <div class="modal">
+      <!-- modal-lg：内容区内部滚动 + 底部「删除 / 取消 / 保存」操作条钉死在弹窗底部。
+           操作条必须是 .modal-body 的直接子代，固定定位规则（.modal-lg .modal-body > .modal-actions）才生效。 -->
+      <div class="modal modal-lg">
         <div class="modal-head"><h3>{{ pid ? '编辑项目' : '新建项目' }}</h3><button class="x" @click="$emit('close')">✕</button></div>
         <div class="modal-body">
           <label class="fld">项目名称<input v-model="name" @keyup.enter="save" placeholder="如：毕业论文 / 备考雅思" /></label>
@@ -14950,13 +15282,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button type="button" :class="{on: importance==='high'}" @click="importance='high'">高度重要</button>
             </div>
           </label>
-          <div class="modal-actions">
+          <!-- 主操作条：删除 / 取消 / 保存 三键同行左到右排列（与子任务编辑弹窗口径一致）。
+               删除仅在编辑已有项目时出现；用 .modal-actions.with-del 保持三键等宽，不因多一个键而挤压。 -->
+          <div class="modal-actions" :class="{ 'with-del': !!pid }">
+            <button v-if="pid" class="btn danger" @click="showDelConfirm=true">删除</button>
             <button class="btn ghost" @click="$emit('close')">取消</button>
             <button class="btn primary" @click="save">保存</button>
-          </div>
-          <!-- 删除项目（仅编辑已有项目时出现；与常规编辑分隔，区隔高危操作） -->
-          <div class="del-zone" v-if="pid">
-            <button class="btn danger-soft" style="width:100%" @click="showDelConfirm=true">删除项目</button>
           </div>
         </div>
       </div>
@@ -14978,15 +15309,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectSubEditModal = {
     name: 'ProjectSubEditModal',
     props: { pid: { type: String, required: true }, sid: { type: String, default: '' }, ideaId: { type: String, default: '' }, seedTitle: { type: String, default: '' }, seedTags: { type: Array, default: () => [] } },
-    data() { return { title: '', unit: '页', customUnit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', newStatus: '', tags: [], tagInput: '', estH: 0, estM: 0, isEmergency: false, inTaskBoard: false, showDelConfirm: false }; },
+    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', newStatus: '', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, showDelConfirm: false, statusMenu: null, statusRenameVal: '' }; },
     computed: {
       // 本项目已有的子任务标签，作为快捷选择项（排除已选），减少重复手输
       tagSuggestions() {
         return this.$store.getSubTags(this.pid).filter(t => this.tags.indexOf(t) < 0);
       },
-      estMinInput() { return Math.max(0, (Number(this.estH) || 0) * 60 + (Number(this.estM) || 0)); },
-      // 展示用单位：自定义时取 customUnit 文本（缺省回退「页」），预设时取原值
-      dispUnit() { return this.unit === '__custom' ? (((this.customUnit || '').trim()) || '') : (this.unit || ''); },
+      // 预计耗时：小时输入支持小数点（如 1.5 h = 90 分钟），换算为分钟存储
+      estMinInput() { return Math.max(0, Math.round((Number(this.estH) || 0) * 60)); },
+      // 单次填报时间：小时（支持小数）→ 分钟
+      planFillMinInput() { return Math.max(0, Math.round((Number(this.planFillHours) || 0) * 60)); },
+      // 展示用单位：直接取输入框文本，缺省回退「页」用于占位与提示文案
+      dispUnit() { return (this.unit || '').trim(); },
       // 状态可选项：内置 进行中 / 已完成 + 用户自定义状态（均为非完成状态）
       statusOptions() {
         const builtin = ['进行中', '已完成'];
@@ -14996,18 +15330,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     created() {
       this.tags = (this.seedTags || []).slice();
+      // 单位记忆：记住最近一次填写的单位，新增子任务时作为默认预填（无记忆则留空）
+      let lastUnit = '';
+      try { lastUnit = localStorage.getItem('mindpocket:subUnit') || ''; } catch (e) {}
+      this.unit = lastUnit;
       if (this.sid) {
         const s = this.$store.state.project_subs.find(x => x.sid === this.sid);
         if (s) {
           this.title = s.title || '';
-          // 旧数据兼容：单位若不在预设列表（页/题/篇/节/次）内，视为自定义单位回填
-          const PRESET_UNITS = ['页', '题', '篇', '节', '次'];
-          if (s.unit && PRESET_UNITS.indexOf(s.unit) < 0) { this.unit = '__custom'; this.customUnit = s.unit; }
-          else { this.unit = s.unit || '页'; }
+          this.unit = s.unit || '';   // 单位改为自由文本，直接回填
           this.tags = (s.tags || []).slice();
           this.inTaskBoard = !!s.inTaskBoard;
           const em = Number(s.estMin) || 0;
-          this.estH = Math.floor(em / 60); this.estM = em % 60;
+          this.estH = em ? +(em / 60).toFixed(2) : 0;   // 分钟 → 小时（保留两位小数）
+          this.planFillHours = s.planFillMin ? +(Number(s.planFillMin) / 60).toFixed(2) : 0;
           this.planDaily = s.planDaily;
           this.enableTotal = !!s.enableTotal;
           this.total = (s.total == null ? '' : s.total);
@@ -15050,9 +15386,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const cur = this.sid ? this.$store.state.project_subs.find(x => x.sid === this.sid) : null;
         const wasDone = !!(cur && cur.sub_done);
         const nowDone = this.status === '已完成';
+        const unitVal = (this.unit || '').trim() || '页';   // 单位留空时兜底「页」，保证统计文案可读
+        // 单位记忆：记住本次填写的单位，供下次新增子任务预填
+        try { localStorage.setItem('mindpocket:subUnit', unitVal); } catch (e) {}
         const patch = {
           title,
-          unit: this.unit === '__custom' ? (((this.customUnit || '').trim()) || '页') : (this.unit || '页'),
+          unit: unitVal,
           // 每日计划：未开启目标计划则该字段不参与任何计算（存 0）；开启即自带每日计划能力
           planDaily: this.enableTotal ? (Number(this.planDaily) || 0) : 0,
           enableTotal: this.enableTotal,
@@ -15063,6 +15402,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           tags: this.tags.slice(),
           // 预计耗时：0 = 未设置，此时时间进度条改用项目内相对刻度展示
           estMin: this.estMinInput,
+          // 单次填报时间（分钟）：0 = 未设置，仅作填报参考
+          planFillMin: this.planFillMinInput,
           isEmergency: !!this.isEmergency, // 紧急标记：强制置顶今日Tab
           // 工作流状态：选「已完成」即标记完成（sub_done=true），否则为非完成（含自定义状态）
           status: this.status || '进行中',
@@ -15096,6 +15437,72 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       pickSuggest(t) { if (this.tags.indexOf(t) < 0) this.tags.push(t); },
       // 状态类型判断：内置状态之外即为自定义（非完成）状态
       isCustomStatus(opt) { return opt !== '进行中' && opt !== '已完成'; },
+      // —— 自定义状态管理：长按 chip 打开操作菜单（重命名 / 删除）——
+      // 长按判定：pointerdown 起 550ms 未抬起 → 打开菜单（并抑制随后的 click 选中）
+      // 注意：事件对象在异步回调中已被释放（currentTarget 会变 null），
+      // 因此必须在 pointerdown 同步阶段先取出锚点坐标。
+      startPress(opt, ev) {
+        this.cancelPress();
+        const el = ev.currentTarget;
+        const r = el ? el.getBoundingClientRect() : null;
+        const anchor = r ? { left: r.left, top: r.top, bottom: r.bottom } : null;
+        this._pressTimer = setTimeout(() => {
+          this._pressTimer = null;
+          this._pressFired = true;
+          this.openStatusMenu(opt, anchor);
+        }, 550);
+      },
+      cancelPress() {
+        if (this._pressTimer) { clearTimeout(this._pressTimer); this._pressTimer = null; }
+      },
+      // 长按已触发菜单时，随后的 click 不再切换选中态，避免误改
+      onStatusClick(opt) {
+        if (this._pressFired) { this._pressFired = false; return; }
+        this.status = opt;
+      },
+      // anchor：长按时同步取好的 chip 坐标（异步回调中事件对象已不可用）
+      // 菜单锚定在 chip 下方；贴近屏幕右/下边缘时自动回收，避免溢出可视区
+      openStatusMenu(opt, anchor) {
+        if (!this.isCustomStatus(opt)) return;
+        const a = anchor || null;
+        const MW = 160, MH = 96;             // 菜单预估尺寸（用于边缘回收）
+        const vw = window.innerWidth, vh = window.innerHeight;
+        let x = a ? a.left : 16;
+        let y = a ? a.bottom + 6 : 16;
+        x = Math.min(x, Math.max(8, vw - MW - 8));
+        x = Math.max(8, x);
+        // 下方空间不足时翻到 chip 上方
+        if (y + MH > vh - 8) y = a ? Math.max(8, a.top - MH - 6) : 16;
+        this.statusRenameVal = opt;
+        this.statusMenu = { name: opt, x: Math.round(x), y: Math.round(y), renaming: false };
+      },
+      closeStatusMenu() { this.statusMenu = null; },
+      // 右键（桌面端）等价于长按：同样需要同步取锚点坐标
+      onStatusContext(opt, ev) {
+        if (!this.isCustomStatus(opt)) return;
+        const el = ev.currentTarget;
+        const r = el ? el.getBoundingClientRect() : null;
+        this.openStatusMenu(opt, r ? { left: r.left, top: r.top, bottom: r.bottom } : null);
+      },
+      startRename() { if (this.statusMenu) this.statusMenu.renaming = true; },
+      // 提交重命名：同步全局清单与所有引用该状态的子任务；成功后若当前选中项为旧名则跟随改名
+      submitRename() {
+        if (!this.statusMenu) return;
+        const oldName = this.statusMenu.name;
+        const res = this.$store.renameCustomSubStatus(oldName, this.statusRenameVal);
+        if (!res.ok) { alert(res.msg || '重命名失败'); return; }
+        if (this.status === oldName) this.status = (this.statusRenameVal || '').trim();
+        this.statusMenu = null;
+      },
+      // 删除自定义状态：引用该状态的子任务回退「进行中」；若当前选中该项则同步回退
+      removeStatus() {
+        if (!this.statusMenu) return;
+        const name = this.statusMenu.name;
+        if (!confirm('确定删除状态「' + name + '」？使用该状态的子任务将回退为「进行中」。')) return;
+        this.$store.removeCustomSubStatus(name);
+        if (this.status === name) this.status = '进行中';
+        this.statusMenu = null;
+      },
       // 新增自定义状态：写入全局清单并立即选中（内置状态 / 空 / 重复 均拦截）
       addCustomStatus() {
         const v = (this.newStatus || '').trim();
@@ -15113,7 +15520,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     template: `
     <div class="modal-mask" @click.self="$emit('close')">
-      <div class="modal">
+      <!-- modal-lg：内容区内部滚动 + 底部「删除 / 取消 / 保存」操作条钉死在弹窗底部。
+           操作条必须是 .modal-body 的直接子代，固定定位规则（.modal-lg .modal-body > .modal-actions）才生效；
+           底部内嵌的二次确认弹层（status-menu-mask / undo-confirm）为 .modal 的直接子代，不受该规则影响。 -->
+      <div class="modal modal-lg">
         <div class="modal-head"><h3>{{ sid ? '编辑子任务' : '新增子任务' }}</h3><button class="x" @click="$emit('close')">✕</button></div>
         <div class="modal-body">
           <div class="fld fld-emergency">
@@ -15122,37 +15532,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </span>
             <input v-model="title" @keyup.enter="save" placeholder="如：查阅文献 / 写框架" />
           </div>
-          <p class="tip emg-tip" v-if="isEmergency">勾选后无视所有日期、周期排序规则，固定放在今日Tab首位，需优先完成。</p>
-          <!-- 工作流状态：内置 进行中 / 已完成，可自定非完成状态；选「已完成」即标记完成 -->
-          <label class="fld">状态
-            <div class="status-pick">
-              <button type="button" v-for="opt in statusOptions" :key="opt" class="status-chip"
-                :class="{ on: status===opt, done: opt==='已完成', custom: isCustomStatus(opt) }"
-                @click="status = opt">{{ opt }}</button>
-            </div>
-            <div class="status-add">
-              <input v-model="newStatus" placeholder="新增自定义状态，如：待审核 / 受阻" @keyup.enter.stop="addCustomStatus" />
-              <button type="button" class="btn-mini" @click="addCustomStatus">＋ 添加</button>
-            </div>
-          </label>
+          <!-- 开启目标计划：单位 / 单次填报数量 / 单次填报时间 / 总任务量 / 预计耗时 / 进入任务表 -->
           <label class="fld check"><input type="checkbox" v-model="enableTotal" /> 开启目标计划</label>
           <template v-if="enableTotal">
             <div class="fld-row">
               <label class="fld">单位
-                <select v-model="unit">
-                  <option>页</option><option>题</option><option>篇</option><option>节</option><option>次</option>
-                  <option value="__custom">自定义…</option>
-                </select>
-              </label>
-              <label class="fld" v-if="unit==='__custom'">自定义单位
-                <input v-model="customUnit" placeholder="如：张 / 个 / 组" />
+                <input type="text" v-model="unit" placeholder="如：页 / 题 / 个 / 章" />
               </label>
               <label class="fld">单次填报数量<input type="number" min="0" v-model="planDaily" /></label>
             </div>
+            <!-- 总任务量：紧随「单次填报数量」，位于时间类字段（单次填报时间 / 预计耗时）上方 -->
             <label class="fld">总任务量（{{ dispUnit || '页' }}）
               <input type="number" min="1" v-model="total" :placeholder="'总' + (dispUnit || '页') + '数'" />
             </label>
-            <label class="fld check"><input type="checkbox" v-model="inTaskBoard" /> 进入任务表（每日生成独立打卡实例，可在「任务表」按日打卡）</label>
+            <div class="fld-row">
+              <label class="fld">单次填报时间 · 小时<input type="number" min="0" step="0.5" v-model="planFillHours" placeholder="如 0.5" /></label>
+              <label class="fld">预计耗时 · 小时（可选）<input type="number" min="0" step="0.5" v-model="estH" placeholder="如 1.5" /></label>
+            </div>
+            <label class="fld check"><input type="checkbox" v-model="inTaskBoard" /> 进入任务表</label>
           </template>
           <div class="fld-row">
             <label class="fld">开始日期（可选）
@@ -15162,11 +15559,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <input type="text" v-model="sub_end" placeholder="YYYY-MM-DD" @blur="sub_end=$store.util.autoFormatDate(sub_end)" :class="{invalid: sub_end && !$store.util.validateDateInput(sub_end).ok}" />
             </label>
           </div>
-          <!-- 预计耗时：仅作已花费时间进度条的参照基准，不参与完成判定 -->
-          <div class="fld-row">
-            <label class="fld">预计耗时 · 小时（可选）<input type="number" min="0" max="999" v-model="estH" /></label>
-            <label class="fld">分钟<input type="number" min="0" max="59" step="5" v-model="estM" /></label>
-          </div>
+          <!-- 工作流状态：内置 进行中 / 已完成，可自定非完成状态；选「已完成」即标记完成 -->
+          <!-- 自定义状态 chip 长按可重命名 / 删除 -->
+          <label class="fld">状态
+            <div class="status-pick">
+              <button type="button" v-for="opt in statusOptions" :key="opt" class="status-chip"
+                :class="{ on: status===opt, done: opt==='已完成', custom: isCustomStatus(opt) }"
+                @click="onStatusClick(opt)"
+                @pointerdown="isCustomStatus(opt) && startPress(opt, $event)"
+                @pointerup="cancelPress" @pointerleave="cancelPress" @pointercancel="cancelPress"
+                @contextmenu.prevent="onStatusContext(opt, $event)">{{ opt }}</button>
+            </div>
+            <div class="status-add">
+              <input v-model="newStatus" placeholder="新增自定义状态，如：待审核 / 受阻" @keyup.enter.stop="addCustomStatus" />
+              <button type="button" class="btn-mini" @click="addCustomStatus">＋ 添加</button>
+            </div>
+          </label>
 
           <!-- 子任务标签：手动输入 + 已有标签快捷选择，支撑标签筛选与耗时分布统计 -->
           <label class="fld">标签（如 英语 / 数学，可多个）
@@ -15183,6 +15591,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button class="btn danger" v-if="sid" @click="showDelConfirm=true">删除</button>
             <button class="btn ghost" @click="$emit('close')">取消</button>
             <button class="btn primary" @click="save">保存</button>
+          </div>
+        </div>
+        <!-- 自定义状态长按菜单：重命名 / 删除 -->
+        <div class="status-menu-mask" v-if="statusMenu" @click.self="closeStatusMenu">
+          <div class="status-menu" :style="{ left: statusMenu.x + 'px', top: statusMenu.y + 'px' }" @click.stop>
+            <template v-if="statusMenu.renaming">
+              <input v-model="statusRenameVal" @keyup.enter="submitRename" placeholder="新状态名" />
+              <div class="status-menu-acts">
+                <button class="btn-mini" @click="closeStatusMenu">取消</button>
+                <button class="btn-mini primary" @click="submitRename">确定</button>
+              </div>
+            </template>
+            <template v-else>
+              <div class="status-menu-title">{{ statusMenu.name }}</div>
+              <button class="status-menu-item" @click="startRename">✏️ 修改名称</button>
+              <button class="status-menu-item danger" @click="removeStatus">🗑 删除状态</button>
+            </template>
           </div>
         </div>
         <div class="undo-confirm" v-if="showDelConfirm">
@@ -15279,7 +15704,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     created() {
       this.recordDate = this.$store.util.todayStr();
-      if (this.sub) this.actualNum = this.sub.planDaily;
+      if (this.sub) {
+        this.actualNum = this.sub.planDaily;
+        // 单次填报时间记忆：打开填报弹窗即预填母本保存的「单次填报时间」，
+        // 与「单次填报数量」同口径（两者都是子任务上的参考值，填报时自动带出，可再手动改）。
+        const pm = Number(this.sub.planFillMin) || 0;
+        if (pm > 0) { this.spentH = Math.floor(pm / 60); this.spentM = pm % 60; }
+      }
     },
     methods: {
       mmdd(d) {
@@ -15815,7 +16246,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="viz-checkin-wrap" style="margin-top:10px;">
         <div class="viz-sec-title">📅 打卡天数 / 完成量（{{ vizWindow.label }}）</div>
         <p class="viz-checkin-summary">已打卡 <b>{{ checkinTotal }}</b> 天 / 共 {{ checkinDenominator }} 天 · 覆盖率 <b>{{ checkinPct }}%</b></p>
-        <p class="viz-checkin-sub">各时段完成量（按子任务堆积，鼠标悬停看明细）</p>
         <div class="chart-bars" v-if="hasCheckinAmountData" style="height:140px;margin-top:6px;">
           <div class="chart-bar" v-for="b in checkinAmountBuckets.buckets" :key="b.key"
                :title="b.total > 0 ? ('完成量 ' + b.total + ' · 已打卡 ' + b.days + ' 天') : ('已打卡 ' + b.days + ' 天 · 无完成量')">
@@ -17280,7 +17710,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() {
       const now = new Date();
       return {
-        year: now.getFullYear(), month: 0, allYears: false,
+        year: now.getFullYear(), month: 0, allYears: true,
         showEntry: false, entryMode: 'add', entryModule: null, editId: null, draft: null,
         showModule: false, moduleEdit: null, moduleType: 'expense',
         showViz: false, vizType: 'pie', vizRange: 'year', vizScope: 'both', vizCat: '',
@@ -17381,8 +17811,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       vizExpense() { return (this.fin.expenseEntries || []).filter(this.vizWindow); },
       vizIncome() { return (this.fin.incomeEntries || []).filter(this.vizWindow); },
+      vizDeposit() { return (this.fin.depositEntries || []).filter(this.vizWindow); },
       vizPieExpense() { return this.pieOf(this.vizExpense, this.modulesExpense); },
       vizPieIncome() { return this.pieOf(this.vizIncome, this.modulesIncome); },
+      vizPieDeposit() { return this.pieOf(this.vizDeposit, this.modulesDeposit); },
       vizLine() { return this.lineOf(); },
       lineMax() { let m = 0; (this.vizLine.series || []).forEach(s => (s.data || []).forEach(d => { if (d > m) m = d; })); return m; },
     },
@@ -17520,7 +17952,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // —— 模块增改 ——
       openAddModule(type) {
         this.moduleType = type;
-        this.moduleEdit = { name: '', icon: type === 'expense' ? '📦' : '💰', type: type, fields: [], calcs: [], saveTpl: false, tplName: '', fromTemplate: '' };
+        this.moduleEdit = { name: '', icon: type === 'expense' ? '📦' : '💰', type: type, fields: [], calcs: [] };
         this.showModule = true;
       },
       openEditModule(mod) {
@@ -17529,7 +17961,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           _id: mod._id, name: mod.name, icon: mod.icon, type: mod.type,
           fields: (mod.fields || []).map(f => ({ _kid: this._kid(), key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required })),
           calcs: (mod.calcs || []).map(c => Object.assign({}, c)),
-          saveTpl: false, tplName: '', fromTemplate: '',
         };
         this.showModule = true;
       },
@@ -17569,16 +18000,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       addModuleCalc() { this.moduleEdit.calcs.push({ key: 'c' + Date.now().toString().slice(-5), label: '', kind: 'ratio', num: '', den: '', from: '', to: '', unit: '', round: 1, allowEmpty: false }); },
       removeModuleCalc(i) { this.moduleEdit.calcs.splice(i, 1); },
-      loadTemplateIntoModule() {
-        const t = (this.fin.fieldTemplates || []).find(x => x._id === this.moduleEdit.fromTemplate); if (!t) return;
-        this.moduleEdit.fields = (t.fields || []).map(f => ({ key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required }));
-        this.moduleEdit.calcs = (t.calcs || []).map(c => Object.assign({}, c));
-      },
       saveModule() {
         const me = this.moduleEdit; if (!me.name || !me.name.trim()) { alert('请填写模块名称'); return; }
         const fields = me.fields.map(f => ({ key: f.key, label: f.label, type: f.type || 'text', unit: f.unit || '', options: (f.options || '').split(/[，,]/).map(s => s.trim()).filter(Boolean), required: !!f.required }));
         const calcs = me.calcs.map(c => ({ key: c.key, label: c.label, kind: c.kind || 'ratio', from: c.from, to: c.to, num: c.num, den: c.den, unit: c.unit || '', round: c.round, allowEmpty: !!c.allowEmpty }));
-        if (me.saveTpl && me.tplName && me.tplName.trim()) this.$store.saveFieldTemplate(me.tplName.trim(), fields, calcs);
         if (me._id) this.$store.updateFinanceModule(me._id, { name: me.name, icon: me.icon, fields: fields, calcs: calcs });
         else this.$store.addFinanceModule(me.type, { name: me.name, icon: me.icon, fields: fields, calcs: calcs });
         this.closeModule();
@@ -17628,12 +18053,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           }
         }
         this.dragId = null; this.dragType = null; this.dragging = false;
-      },
-      // —— 字段模板 ——
-      delTemplate(t) { if (confirm('删除模板？')) this.$store.removeFieldTemplate(t._id); },
-      applyTemplate(t) {
-        this.openAddModule('expense');
-        this.$nextTick(() => { this.moduleEdit.fromTemplate = t._id; this.loadTemplateIntoModule(); });
       },
       // —— 愿望池联动 ——
       wishCost(id) { const w = this.wishItems.find(x => x._id === id); return w ? w.cost : 0; },
@@ -17744,7 +18163,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const cat = this.vizCat;
         const multi = this.vizRange === 'years';
         const xLabels = multi
-          ? Array.from(new Set((this.vizExpense.concat(this.vizIncome)).map(e => e.year))).sort((a, b) => a - b)
+          ? Array.from(new Set((this.vizExpense.concat(this.vizIncome, this.vizDeposit)).map(e => e.year))).sort((a, b) => a - b)
           : (() => { const arr = []; for (let i = 1; i <= 12; i++) arr.push(i); return arr; })();
         const series = [];
         const pick = (entries, modules, name, color) => {
@@ -17757,11 +18176,46 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             series.push({ name: name, color: color, data: data });
           }
         };
-        if (this.vizScope === 'expense' || this.vizScope === 'both') pick(this.vizExpense, this.modulesExpense, '总支出', '#ef4444');
-        if (this.vizScope === 'income' || this.vizScope === 'both') pick(this.vizIncome, this.modulesIncome, '总收入', '#10b981');
+        const all = this.vizScope === 'all', both = this.vizScope === 'both';
+        if (this.vizScope === 'expense' || both || all) pick(this.vizExpense, this.modulesExpense, '总支出', '#ef4444');
+        if (this.vizScope === 'income' || both || all) pick(this.vizIncome, this.modulesIncome, '总收入', '#10b981');
+        if (this.vizScope === 'deposit' || all) pick(this.vizDeposit, this.modulesDeposit, '总存款', '#6a7bff');
         return { xLabels: xLabels, series: series, multi: multi };
       },
       pieCum(rows, i) { if (i < 0) return 0; const total = rows.reduce((s, r) => s + r.value, 0) || 1; let s = 0; for (let k = 0; k <= i; k++) s += rows[k].value; return 360 * s / total; },
+      // 饼图引导线：为每个扇区计算「扇区中点」→「折线拐点」→「文字锚点」三点坐标，
+      // 左右分侧（右半文字靠左对齐、左半靠右对齐），并做垂直防重叠微调。
+      pieLabels(rows, total) {
+        if (!rows || !rows.length || !total) return [];
+        const cx = 160, cy = 92, r = 70;       // 与 SVG viewBox 0 0 320 184 内圆心/半径一致
+        const outR = r + 16;                   // 引导线拐点半径
+        const labels = rows.map((row, i) => {
+          const a0 = this.pieCum(rows, i - 1), a1 = this.pieCum(rows, i);
+          const mid = (a0 + a1) / 2 * Math.PI / 180;
+          const cos = Math.cos(mid), sin = Math.sin(mid);
+          const right = cos >= 0;
+          return {
+            label: row.label, value: row.value, color: row.color,
+            pct: Math.round(row.value / total * 100),
+            x1: cx + cos * r, y1: cy + sin * r,          // 扇区边缘
+            x2: cx + cos * outR, y2: cy + sin * outR,     // 折线拐点
+            side: right ? 1 : -1,
+            anchor: right ? 'start' : 'end',
+            ty: cy + sin * outR,
+          };
+        });
+        // 同侧按 y 排序后做防重叠：与上一个标签至少间隔 13px
+        [1, -1].forEach(side => {
+          const group = labels.filter(l => l.side === side).sort((a, b) => a.ty - b.ty);
+          let last = -Infinity;
+          group.forEach(l => {
+            if (l.ty - last < 13) l.ty = last + 13;
+            last = l.ty;
+          });
+        });
+        labels.forEach(l => { l.x3 = l.side > 0 ? cx + outR + 6 : cx - outR - 6; });
+        return labels;
+      },
       piePath(cx, cy, r, a0, a1) {
         if (a1 - a0 >= 359.999) return 'M ' + (cx - r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx + r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx - r) + ' ' + cy + ' Z';
         const p0 = [cx + r * Math.cos(a0 * Math.PI / 180), cy + r * Math.sin(a0 * Math.PI / 180)];
@@ -17963,16 +18417,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <button class="btn block-btn" @click="openAddModule('expense')">＋ 新增支出模块</button>
       </div>
 
-      <div class="fin-section">
-        <div class="fin-sec-head">🧩 字段模板（自定义表单结构一键复用）</div>
-        <div v-if="(fin.fieldTemplates||[]).length === 0" class="empty-tip">暂无保存的字段模板，编辑模块时可「存为模板」</div>
-        <div v-for="t in fin.fieldTemplates" :key="t._id" class="fin-tpl">
-          <span class="fin-tpl-name">{{ t.name }}（{{ t.fields.length }}字段）</span>
-          <button class="btn mini" @click="applyTemplate(t)">应用</button>
-          <button class="btn mini danger" @click="delTemplate(t)">删除</button>
-        </div>
-      </div>
-
       <!-- 条目编辑弹窗 -->
       <div class="modal-mask" v-if="showEntry" @click.self="closeEntry">
         <div class="modal fin-modal">
@@ -18035,13 +18479,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="modal-body">
             <div class="fld"><label>模块名称</label><input v-model="moduleEdit.name" placeholder="如 餐饮支出" /></div>
             <div class="fld"><label>图标 Emoji</label><input v-model="moduleEdit.icon" placeholder="📦" /></div>
-            <div class="fld" v-if="(fin.fieldTemplates||[]).length">
-              <label>从字段模板载入</label>
-              <select v-model="moduleEdit.fromTemplate" @change="loadTemplateIntoModule">
-                <option value="">不使用模板</option>
-                <option v-for="t in fin.fieldTemplates" :key="t._id" :value="t._id">{{ t.name }}</option>
-              </select>
-            </div>
             <div class="fin-subhead">录入字段</div>
             <div v-for="f in moduleEdit.fields" :key="f._kid" :data-kid="f._kid" class="fin-field-row" :class="{ 'is-field-drag': draggingField && dragFieldKid === f._kid }">
               <span class="fin-field-drag" title="按住拖动调整字段顺序" @pointerdown.prevent="startFieldDrag($event, f)">⠿</span>
@@ -18082,10 +18519,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn mini danger" @click="removeModuleCalc(i)">✕</button>
             </div>
             <button class="btn mini" @click="addModuleCalc">＋ 计算项</button>
-            <div class="fin-savetpl">
-              <label class="fin-chk"><input type="checkbox" v-model="moduleEdit.saveTpl" /> 存为字段模板</label>
-              <input v-if="moduleEdit.saveTpl" v-model="moduleEdit.tplName" placeholder="模板名称" />
-            </div>
             <div class="modal-actions">
               <button class="btn" @click="closeModule">取消</button>
               <button class="btn primary" @click="saveModule">保存模块</button>
@@ -18107,31 +18540,55 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <label>时间</label>
               <select v-model="vizRange"><option value="month">单月</option><option value="quarter">单季度</option><option value="year">单年</option><option value="years">多年</option></select>
               <label>范围</label>
-              <select v-model="vizScope"><option value="expense">仅支出</option><option value="income">仅收入</option><option value="both">收支合并</option></select>
+              <select v-model="vizScope"><option value="expense">仅支出</option><option value="income">仅收入</option><option value="deposit">仅存款</option><option value="both">收支合并</option><option value="all">收支存全部</option></select>
               <label>分类</label>
-              <select v-model="vizCat"><option value="">全部</option><option v-for="m in modulesExpense.concat(modulesIncome)" :key="m._id" :value="m._id">{{ m.name }}</option></select>
+              <select v-model="vizCat"><option value="">全部</option><option v-for="m in modulesExpense.concat(modulesIncome, modulesDeposit)" :key="m._id" :value="m._id">{{ m.name }}</option></select>
             </div>
 
             <div v-if="vizType==='pie'" class="fin-chart">
-              <div v-if="vizScope!=='income' && vizPieExpense.rows.length" class="fin-pie-block">
+              <div v-if="(vizScope==='expense' || vizScope==='both' || vizScope==='all' || vizScope==='') && vizPieExpense.rows.length" class="fin-pie-block">
                 <div class="fin-chart-title">支出结构占比（合计 {{ fmtMoney(vizPieExpense.total) }}）</div>
-                <svg viewBox="0 0 320 180" class="fin-svg">
-                  <g v-for="(r,i) in vizPieExpense.rows" :key="'e'+i" :transform="'translate(160,90)'">
-                    <path :d="piePath(0,0,78, pieCum(vizPieExpense.rows,i-1), pieCum(vizPieExpense.rows,i-1) + 360* r.value/vizPieExpense.total)" :fill="r.color" />
+                <svg viewBox="0 0 320 184" class="fin-svg">
+                  <g v-for="(r,i) in vizPieExpense.rows" :key="'e'+i" :transform="'translate(160,92)'">
+                    <path :d="piePath(0,0,70, pieCum(vizPieExpense.rows,i-1), pieCum(vizPieExpense.rows,i-1) + 360* r.value/vizPieExpense.total)" :fill="r.color" />
+                  </g>
+                  <g v-for="(l,i) in pieLabels(vizPieExpense.rows, vizPieExpense.total)" :key="'el'+i" class="pie-lb">
+                    <polyline :points="l.x1+','+l.y1+' '+l.x2+','+l.y2+' '+l.x3+','+l.ty" fill="none" :stroke="l.color" stroke-width="1" />
+                    <circle :cx="l.x1" :cy="l.y1" r="1.6" :fill="l.color" />
+                    <text :x="l.x3 + (l.side>0?2:-2)" :y="l.ty + 3" :text-anchor="l.anchor" font-size="8.5" fill="var(--text)">{{ l.label }} {{ fmtShort(l.value) }}</text>
                   </g>
                 </svg>
-                <div class="fin-legend"><span v-for="r in vizPieExpense.rows" :key="r.label" class="fin-lg"><i :style="{background:r.color}"></i>{{ r.label }} {{ Math.round(r.value/vizPieExpense.total*100) }}%</span></div>
+                <div class="fin-legend"><span v-for="r in vizPieExpense.rows" :key="r.label" class="fin-lg"><i :style="{background:r.color}"></i>{{ r.label }} {{ fmtMoney(r.value) }} · {{ Math.round(r.value/vizPieExpense.total*100) }}%</span></div>
               </div>
-              <div v-if="vizScope!=='expense' && vizPieIncome.rows.length" class="fin-pie-block">
+              <div v-if="(vizScope==='income' || vizScope==='both' || vizScope==='all') && vizPieIncome.rows.length" class="fin-pie-block">
                 <div class="fin-chart-title">收入结构占比（合计 {{ fmtMoney(vizPieIncome.total) }}）</div>
-                <svg viewBox="0 0 320 180" class="fin-svg">
-                  <g v-for="(r,i) in vizPieIncome.rows" :key="'i'+i" :transform="'translate(160,90)'">
-                    <path :d="piePath(0,0,78, pieCum(vizPieIncome.rows,i-1), pieCum(vizPieIncome.rows,i-1) + 360* r.value/vizPieIncome.total)" :fill="r.color" />
+                <svg viewBox="0 0 320 184" class="fin-svg">
+                  <g v-for="(r,i) in vizPieIncome.rows" :key="'i'+i" :transform="'translate(160,92)'">
+                    <path :d="piePath(0,0,70, pieCum(vizPieIncome.rows,i-1), pieCum(vizPieIncome.rows,i-1) + 360* r.value/vizPieIncome.total)" :fill="r.color" />
+                  </g>
+                  <g v-for="(l,i) in pieLabels(vizPieIncome.rows, vizPieIncome.total)" :key="'il'+i" class="pie-lb">
+                    <polyline :points="l.x1+','+l.y1+' '+l.x2+','+l.y2+' '+l.x3+','+l.ty" fill="none" :stroke="l.color" stroke-width="1" />
+                    <circle :cx="l.x1" :cy="l.y1" r="1.6" :fill="l.color" />
+                    <text :x="l.x3 + (l.side>0?2:-2)" :y="l.ty + 3" :text-anchor="l.anchor" font-size="8.5" fill="var(--text)">{{ l.label }} {{ fmtShort(l.value) }}</text>
                   </g>
                 </svg>
-                <div class="fin-legend"><span v-for="r in vizPieIncome.rows" :key="r.label" class="fin-lg"><i :style="{background:r.color}"></i>{{ r.label }} {{ Math.round(r.value/vizPieIncome.total*100) }}%</span></div>
+                <div class="fin-legend"><span v-for="r in vizPieIncome.rows" :key="r.label" class="fin-lg"><i :style="{background:r.color}"></i>{{ r.label }} {{ fmtMoney(r.value) }} · {{ Math.round(r.value/vizPieIncome.total*100) }}%</span></div>
               </div>
-              <div v-if="(vizScope!=='income' && !vizPieExpense.rows.length) && (vizScope!=='expense' && !vizPieIncome.rows.length)" class="empty-tip">当前筛选无数据</div>
+              <div v-if="(vizScope==='deposit' || vizScope==='all') && vizPieDeposit.rows.length" class="fin-pie-block">
+                <div class="fin-chart-title">存款结构占比（合计 {{ fmtMoney(vizPieDeposit.total) }}）</div>
+                <svg viewBox="0 0 320 184" class="fin-svg">
+                  <g v-for="(r,i) in vizPieDeposit.rows" :key="'d'+i" :transform="'translate(160,92)'">
+                    <path :d="piePath(0,0,70, pieCum(vizPieDeposit.rows,i-1), pieCum(vizPieDeposit.rows,i-1) + 360* r.value/vizPieDeposit.total)" :fill="r.color" />
+                  </g>
+                  <g v-for="(l,i) in pieLabels(vizPieDeposit.rows, vizPieDeposit.total)" :key="'dl'+i" class="pie-lb">
+                    <polyline :points="l.x1+','+l.y1+' '+l.x2+','+l.y2+' '+l.x3+','+l.ty" fill="none" :stroke="l.color" stroke-width="1" />
+                    <circle :cx="l.x1" :cy="l.y1" r="1.6" :fill="l.color" />
+                    <text :x="l.x3 + (l.side>0?2:-2)" :y="l.ty + 3" :text-anchor="l.anchor" font-size="8.5" fill="var(--text)">{{ l.label }} {{ fmtShort(l.value) }}</text>
+                  </g>
+                </svg>
+                <div class="fin-legend"><span v-for="r in vizPieDeposit.rows" :key="r.label" class="fin-lg"><i :style="{background:r.color}"></i>{{ r.label }} {{ fmtMoney(r.value) }} · {{ Math.round(r.value/vizPieDeposit.total*100) }}%</span></div>
+              </div>
+              <div v-if="!vizPieExpense.rows.length && !vizPieIncome.rows.length && !vizPieDeposit.rows.length" class="empty-tip">当前筛选无数据</div>
             </div>
 
               <div v-else-if="vizType==='line'" class="fin-chart">
@@ -18693,7 +19150,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn mini" v-if="!showAllJDFields" @click="showAllJDFields = true">＋ 补充其他字段</button>
               <button class="btn mini" v-else @click="showAllJDFields = false">收起空字段</button>
             </div>
-            <div class="car-parse-tip">以上字段解析后均可直接编辑 / 删除，保存后生效</div>
           </div>
           <div class="fin-sec-head">✅ 匹配结论</div>
           <div class="car-concl">
@@ -19797,7 +20253,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="viz-checkin-wrap" style="margin-top:18px;border-top:1px dashed var(--line);padding-top:14px;">
           <div class="viz-sec-title">📅 打卡天数 / 完成量（{{ vizWindow.label }}）</div>
           <p class="viz-checkin-summary">已打卡 <b>{{ checkinTotal }}</b> 天 / 共 {{ checkinDenominator }} 天 · 覆盖率 <b>{{ checkinPct }}%</b></p>
-          <p class="viz-checkin-sub">各时段完成量（按项目堆积，鼠标悬停看明细）</p>
           <div class="chart-bars" v-if="hasCheckinAmountData" style="height:140px;margin-top:6px;">
             <div class="chart-bar" v-for="b in checkinAmountBuckets.buckets" :key="b.key"
                  :title="b.total > 0 ? ('完成量 ' + b.total + ' · 已打卡 ' + b.days + ' 天') : ('已打卡 ' + b.days + ' 天 · 无完成量')">
@@ -19819,7 +20274,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
         <button class="btn ghost" style="margin-top:14px;width:100%;" @click="exportViz">⬇ 导出可视化数据</button>
       </div>
-      <p class="viz-tip">统计基于各项目子任务的「填报专注时长」与「填报打卡天数」，仅计入当前所选时段（日 / 周 / 年）。</p>
       <div class="wp-toast" v-if="toast">{{ toast }}</div>
     </div>`,
   };
