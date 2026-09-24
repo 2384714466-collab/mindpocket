@@ -856,6 +856,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .arch-filter .search-clear:hover { background: #e7eaf3; }
 .search-count { font-size: 12px; color: var(--sub); margin: 10px 2px 4px; }
 /* 项目搜索结果：子任务条目显示其归属项目作为上下文 */
+/* 搜索结果中的「已归档条目」：灰色蒙版覆盖，弱化为不可点的沉底态，与「置后」排序呼应 */
+.row.task-row.arch-mask { position: relative; background: #f3f4f6 !important; filter: grayscale(1); opacity: .72; }
+.row.task-row.arch-mask::after {
+  content: ""; position: absolute; inset: 0; border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(220,224,230,.18), rgba(200,205,212,.32));
+  pointer-events: none;
+}
 .sub-prefix { color: var(--sub); margin-right: 2px; }
 .sub-parent { color: var(--sub); margin-right: 6px; }
 
@@ -1367,6 +1374,27 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .lz-tags-head .collapse-btn { color: var(--sub); font-size: 12px; }
 /* 二级 ## 标签：缩进 + 弱底，做出层级视觉区分 */
 .lz-tag.sub { margin-left: 14px; background: #f3f5fb; }
+/* 标签筛选触发条：替代原内联折叠勾选，点击弹出多选悬浮窗口 */
+.lz-filter-btn { flex: 0 0 auto; font-size: 12px; padding: 5px 12px; border-radius: var(--radius-pill); background: #fafbff; color: var(--sub); border: 1px solid var(--line); white-space: nowrap; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+.lz-filter-btn .caret { font-size: 10px; }
+.lz-filter-btn.on { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+.lz-filter-btn.ghost { background: #eef0f5; color: var(--no); border-color: transparent; }
+.lz-filter-btn:active { filter: brightness(0.96); }
+/* 标签多选悬浮窗口：居中弹出，遮罩 + 圆角卡片，独立于底部抽屉式 modal */
+.lz-tag-picker-mask { position: fixed; inset: 0; background: rgba(20,24,40,.45); display: flex; align-items: center; justify-content: center; z-index: var(--z-mask); padding: 18px; }
+.lz-tag-picker { background: #fff; width: 100%; max-width: 420px; max-height: 72vh; border-radius: var(--radius-lg); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 16px 48px rgba(0,0,0,.22); }
+.lz-tag-picker .modal-head { border-bottom: 1px solid var(--line); }
+.lz-picker-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 12px; -webkit-overflow-scrolling: touch; }
+.lz-picker-body .empty-tip { color: var(--sub); font-size: 13px; text-align: center; padding: 16px 0; }
+/* 标签勾选项：一级 + 二级缩进，复选框 + 名称 左对齐 */
+.lz-check-group { padding: 6px 0; }
+.lz-check-group + .lz-check-group { border-top: 1px solid var(--line); }
+.lz-check { display: flex; align-items: center; gap: 9px; padding: 5px 2px; font-size: 14px; color: var(--text); cursor: pointer; -webkit-user-select: none; user-select: none; }
+.lz-check input[type=checkbox] { width: 17px; height: 17px; flex: 0 0 auto; accent-color: var(--primary); cursor: pointer; }
+.lz-check-name { line-height: 1.4; }
+.lz-check-subs { padding-left: 26px; }
+.lz-check.sub { font-size: 13px; color: var(--sub); }
+.lz-check.sub .lz-check-name { color: var(--sub); }
 /* 随机卡片本体：复用任务卡基础结构，配色与主应用统一 */
 .lz-card-wrap { position: relative; overflow: hidden; border-radius: var(--radius-md); }
 .lz-card-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 18px; background: #e8f6ee; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; color: var(--ok); }
@@ -1489,8 +1517,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-hist-status.cancelled { background: #ffeaea; color: #c0443c; }
 .wp-hist-acts { display: inline-flex; gap: 4px; white-space: nowrap; }
 .wp-hist-act { font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: #fff; color: var(--text); cursor: pointer; }
-.wp-hist-act.verify { color: #1f9d57; border-color: #bfe6cd; }
-.wp-hist-act.verify:hover { background: #e8f6ee; }
 .wp-hist-act.undo { color: #c0443c; border-color: #f3c4c0; }
 .wp-hist-act.undo:hover { background: #ffeaea; }
 .wp-undo-warn { font-size: 14px; line-height: 1.6; color: var(--text); margin: 4px 0 8px; }
@@ -6048,7 +6074,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     state.wish_records.push({
       _id: recordId, wish_id: id, wish_name: item.name, cost: item.cost,
       time: new Date().toISOString(), status: 'normal', recordType: 'redeem',
-      verify: 'pending',   // 兑换后默认「待核销」：已扣积分、权益尚未核销领取
+      verify: 'verified',  // 兑换即核销：兑换视为已使用权益，无需再手动核销；如实际未用可「撤销兑换」返还积分
     });
     if (item.count_type === 'one_time') {
       item.is_archived = true;
@@ -6071,9 +6097,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return recordId;
   }
   // 兑换记录核销状态（与 cancel 标记 status 正交）：
-  //   'pending'  待核销（已扣积分、权益尚未领取）→ 可撤销
-  //   'verified' 已核销（权益已领取/使用）→ 不可撤销
-  //   'expired'  已过期（待核销超有效期未核销）→ 不可撤销；此状态由本函数动态计算，不落库
+  //   'verified' 已核销（兑换即核销：兑换视为已使用）→ 可撤销（实际未用可返还积分）
+  //   'pending'  待核销（仅旧数据：已扣积分、权益尚未领取）→ 可撤销
+  //   'expired'  已过期（旧数据待核销超有效期未核销）→ 不可撤销；此状态由本函数动态计算，不落库
   //   'cancelled' 已撤销（被 undoRedeem 标记 status='reversed'）
   function redeemState(r) {
     if (!r) return 'pending';
@@ -6102,8 +6128,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function undoRedeem(recordId) {
     const rec = state.wish_records.find(r => r._id === recordId);
     if (!rec || rec.status === 'reversed') return false;
-    // 仅「待核销」可撤销；已核销 / 已过期 / 已撤销 一律拒绝（二次确认由 UI 层负责）
-    if (redeemState(rec) !== 'pending') return false;
+    // 「兑换即核销」后，已核销（含刚兑换）同样可撤销（实际没用就撤销返还积分）；
+    // 仅已过期 / 已撤销不可撤销（二次确认由 UI 层负责）。旧数据的待核销态仍可撤销。
+    const st = redeemState(rec);
+    if (st !== 'pending' && st !== 'verified') return false;
     const cost = Number(rec.cost) || 0;
     const wishId = rec.wish_id, wishName = rec.wish_name || '未知愿望';
     // 1) 原兑换记录置 reversed → 自动退出 getPointsSpent 汇总，积分即时返还（余额口径只统计 normal）
@@ -9335,12 +9363,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn clear-time" @click="clearTime">🧹 清除全部时间</button>
             </div>
           </div>
-          <!-- 安排按钮：是否在条目上显示「安排」按钮（默认勾选；取消则所有场景隐藏） -->
-          <div class="board-group sub">
-            <div class="grp-body">
-              <label class="fld check"><input type="checkbox" v-model="draft.showArrangeBtn" /> 安排按钮是否展现于条目</label>
-            </div>
-          </div>
           <p class="tip" v-if="isColl">📦 收藏夹任务不支持设置时间（日期 / 周期）。</p>
           <!-- 启动进度记录：勾选即展开编辑，单位用自由输入框并记忆上次填写 -->
           <div class="board-group sub">
@@ -9352,6 +9374,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               </label>
               <input class="prog-value" v-model="draft.progress_info.progress_value" placeholder="如：第 12 章 / 第 12 集" />
             </template>
+            </div>
+          </div>
+          <!-- 安排按钮：是否在条目上显示「安排」按钮（默认勾选；取消则所有场景隐藏）——置于启动进度记录之后 -->
+          <div class="board-group sub">
+            <div class="grp-body">
+              <label class="fld check"><input type="checkbox" v-model="draft.showArrangeBtn" /> 安排按钮是否展现于条目</label>
             </div>
           </div>
         </div>
@@ -9479,6 +9507,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         } else {
           this.$store.addTask(fields);
         }
+        // 通知父组件：任务已真正落库（携带其归属分类 _id，供待归档页自动展开对应标签）。
+        // 与 close 区分：取消时只发 close、不发 saved，避免未新增也误展开。
+        this.$emit('saved', this.draft.category_id || '');
         this.$emit('close');
       },
       // 「每天」→ 习惯：新增为记录型习惯（不创建任务），关闭并跳转今日（习惯页）
@@ -10906,7 +10937,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() {
       return {
         collapsed: true,                          // 整卡默认收起；切 tab 重新挂载即回到默认折叠态
-        lzTagsExpanded: (() => { try { return localStorage.getItem('mindpocket:leisureTagsExpanded') === '1'; } catch (e) { return false; } })(), filterTag: '', currentId: '',
+        filterTags: [], tagPickerOpen: false, currentId: '',   // 标签筛选：多选数组 + 悬浮窗口开关（替代原折叠勾选）
         recent: [],                                  // 近期已抽到的 id，用于短时间内不重复
         startX: 0, dragX: 0, dragging: false, moved: false,
         toast: '', toastTimer: null,
@@ -10937,10 +10968,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         });
         return tree;
       },
-      // 当前标签下的候选（「全部收藏」= 全域随机）
+      // 当前标签下的候选（空数组 = 全域随机「全部收藏」；多选时按「任一命中」缩窄候选池）
       filtered() {
-        if (!this.filterTag) return this.pool;
-        return this.pool.filter(t => this.$store.categoryChainNames(t).indexOf(this.filterTag) >= 0);
+        if (!this.filterTags.length) return this.pool;
+        return this.pool.filter(t => {
+          const chain = this.$store.categoryChainNames(t);
+          return this.filterTags.some(tag => chain.indexOf(tag) >= 0);
+        });
       },
       current() { return this.filtered.find(t => t._id === this.currentId) || null; },
       catChips() { return this.current ? this.$catTagList(this.current) : []; },
@@ -10959,18 +10993,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     methods: {
       // —— 整卡展开/收起：默认收起（标题栏点击切换）；切 tab 重新挂载即回到默认折叠态 ——
       toggleLeisure() { this.collapsed = !this.collapsed; },
-      // —— 标签栏展开/收起：默认折叠（仅显示「全部收藏」+「展开▼」），点击切换全部展开/收起；状态本地记忆 ——
-      toggleLzTags() {
-        this.lzTagsExpanded = !this.lzTagsExpanded;
-        try { localStorage.setItem('mindpocket:leisureTagsExpanded', this.lzTagsExpanded ? '1' : '0'); } catch (e) {}
-      },
-      // —— 标签筛选：单选，再次点击取消回到「全部收藏」 ——
-      pickTag(t) {
-        this.filterTag = (this.filterTag === t) ? '' : t;
+      // —— 标签多选悬浮窗口：点击筛选条打开；窗口内可勾选多个标签，确定/点遮罩关闭 ——
+      openTagPicker() { this.tagPickerOpen = true; },
+      closeTagPicker() { this.tagPickerOpen = false; },
+      // —— 标签筛选：多选，可同时勾选任意个标签；再次勾选取消 ——
+      toggleTag(t) {
+        const i = this.filterTags.indexOf(t);
+        if (i >= 0) this.filterTags.splice(i, 1);
+        else this.filterTags.push(t);
         this.recent = [];
         this.pickRandom();
       },
-      pickAll() { this.filterTag = ''; this.recent = []; this.pickRandom(); },
+      clearTags() { this.filterTags = []; this.recent = []; this.pickRandom(); },
       // —— 随机抽取：单次仅 1 条，短时间内不重复抽到同一条 ——
       pickRandom() {
         const list = this.filtered;
@@ -11081,16 +11115,42 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </h3>
 
       <div class="leisure-body" v-show="!collapsed">
-        <!-- 标签筛选：默认折叠，仅显示「全部收藏」+「展开▼」；点击展开显示全部标签 +「收起▲」（状态本地记忆） -->
+        <!-- 标签筛选：点击筛选条弹出悬浮窗口，可多选标签；选中后按「任一命中」缩窄候选池 -->
         <div class="lz-tags" v-if="tags.length">
-          <span class="lz-tag" :class="{on: !filterTag}" @click="pickAll">全部收藏</span>
-          <template v-if="lzTagsExpanded">
-            <template v-for="node in tagTree" :key="'t'+node.name">
-              <span class="lz-tag" :class="{on: filterTag===node.name}" @click="pickTag(node.name)">{{ node.name }}</span>
-              <span class="lz-tag sub" :class="{on: filterTag===sub}" v-for="sub in node.subs" :key="'s'+sub" @click="pickTag(sub)">{{ sub }}</span>
-            </template>
-          </template>
-          <span class="collapse-btn" @click="toggleLzTags">{{ lzTagsExpanded ? '收起 ▲' : '展开 ▼' }}</span>
+          <span class="lz-filter-btn" :class="{on: filterTags.length}" @click="openTagPicker">
+            <span v-if="filterTags.length">已选 {{ filterTags.length }} 个标签</span>
+            <span v-else>全部收藏</span>
+            <span class="caret">▾</span>
+          </span>
+          <span class="lz-filter-btn ghost" v-if="filterTags.length" @click="clearTags">清空</span>
+        </div>
+
+        <!-- 标签多选悬浮窗口：居中弹出，遮罩点击 / 完成 均可关闭；勾选即时缩窄候选池 -->
+        <div class="lz-tag-picker-mask" v-if="tagPickerOpen" @click.self="closeTagPicker">
+          <div class="lz-tag-picker">
+            <div class="modal-head">
+              <h3>选择标签（可多选）</h3>
+              <button class="x" @click="closeTagPicker">✕</button>
+            </div>
+            <div class="lz-picker-body">
+              <div class="lz-check-group" v-for="node in tagTree" :key="'p'+node.name">
+                <label class="lz-check">
+                  <input type="checkbox" :checked="filterTags.indexOf(node.name) >= 0" @change="toggleTag(node.name)" />
+                  <span class="lz-check-name">{{ node.name }}</span>
+                </label>
+                <div class="lz-check-subs" v-if="node.subs.length">
+                  <label class="lz-check sub" v-for="sub in node.subs" :key="'ps'+sub">
+                    <input type="checkbox" :checked="filterTags.indexOf(sub) >= 0" @change="toggleTag(sub)" />
+                    <span class="lz-check-name">{{ sub }}</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn ghost" @click="clearTags">清空</button>
+              <button class="btn primary" @click="closeTagPicker">完成</button>
+            </div>
+          </div>
         </div>
 
         <!-- 随机卡片：单次只展示 1 条 -->
@@ -11109,8 +11169,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
 
         <!-- 空态：温和文案，不弹错误提示 -->
-        <div class="lz-empty" v-else-if="filterTag">
-          「{{ filterTag }}」下还没有收藏内容<br />换个标签，或先去收藏几件想做的事～
+        <div class="lz-empty" v-else-if="filterTags.length">
+          所选标签下还没有收藏内容<br />换个标签组合，或先去收藏几件想做的事～
         </div>
         <div class="lz-empty" v-else>
           收藏池还空着呢<br />把想读的书、想看的影片、想去的地方收藏起来，闲下来就能随机抽一件
@@ -11313,11 +11373,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       confirmEdit() { if (this.editExhausted) return; const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType, validity_days: this.editValidity }); this.$store.incrementEditCount(); this.closeEdit(); },
       toggleHist() { this.histOpen = !this.histOpen; this.saveCard(); },
       setVizDim(d) { this._vizDim = d; this.saveCard(); },
-      // 核销 / 撤销兑换
-      verifyRec(r) { this.$store.verifyRedeem(r._id); },
+      // 撤销兑换（兑换即核销：已核销/待核销均可撤销，仅已过期不可）
       rstate(r) { return this.$store.redeemState(r); },
       openUndoConfirm(r) {
-        if (!r || this.$store.redeemState(r) !== 'pending') return;   // 仅「待核销」可撤销
+        if (!r) return;
+        const st = this.$store.redeemState(r);
+        if (st !== 'pending' && st !== 'verified') return;   // 仅待核销/已核销可撤销
         if (this.toastTimer) clearTimeout(this.toastTimer);
         this.toast = ''; this.undoRecordId = null;
         this.confirmUndoId = r._id; this.confirmUndoName = r.wish_name || ''; this.confirmUndoCost = r.cost || 0;
@@ -11408,8 +11469,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <span class="wp-hist-status" :class="r.status==='reversed' ? 'cancelled' : rstate(r)">
               {{ r.status==='reversed' ? '已撤销' : (rstate(r)==='pending' ? '待核销' : rstate(r)==='verified' ? '已核销' : '已过期') }}
             </span>
-            <span class="wp-hist-acts" v-if="r.status==='normal' && rstate(r)==='pending'">
-              <button class="wp-hist-act verify" @click="verifyRec(r)">核销</button>
+            <span class="wp-hist-acts" v-if="r.status==='normal' && (rstate(r)==='pending' || rstate(r)==='verified')">
               <button class="wp-hist-act undo" @click="openUndoConfirm(r)">撤销兑换</button>
             </span>
           </div>
@@ -11486,7 +11546,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   <div class="modal"><div class="modal-head"><h3>确认撤销兑换</h3><button class="x" @click="closeUndoModal">✕</button></div>
     <div class="modal-body">
       <p class="wp-undo-warn">确定撤销兑换「{{ confirmUndoName }}」？将返还 <strong>{{ confirmUndoCost }}</strong> 积分，原兑换记录保留并标记「已撤销」。</p>
-      <p class="wp-undo-tip">已核销、已过期的兑换不可撤销。</p>
+      <p class="wp-undo-tip">兑换即视为已使用；如实际未使用可撤销并返还积分。已过期的兑换不可撤销。</p>
       <div class="modal-actions">
         <button class="btn ghost" @click="closeUndoModal">取消</button>
         <button class="btn danger" @click="confirmUndo">确认撤销</button>
@@ -12965,20 +13025,29 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const rest = sg.split('已归档').join(' ').trim().toLowerCase();
           if (rest) kws.push(rest);
         });
+        // 结果分两组：未归档（out）在前、已归档（arch）置后，保证「已归档条目始终排在搜索结果末尾」。
+        // 仅当显式输入「已归档」时两组内容等同（全为归档），排序无副作用；每个结果带 archived 标记供 UI 灰色蒙版。
         const out = [];
+        const arch = [];
         const folders = ['task', 'collection', 'template'];
         folders.forEach(fv => {
           const tasks = this.scopeTasksOf(fv);
           tasks.forEach(t => {
             if (onlyArchived && !t.is_archived) return;   // 「已归档」筛选：父任务仅保留已归档
-            if (this.taskMatches(t, kws)) out.push({ isSub: false, task: t, folder: fv });
+            if (this.taskMatches(t, kws)) {
+              const item = { isSub: false, task: t, folder: fv, archived: !!t.is_archived };
+              (item.archived ? arch : out).push(item);
+            }
             (t.sub_tasks || []).forEach(s => {
               if (onlyArchived && !s.is_archived) return; // 「已归档」筛选：子任务仅保留已归档
-              if (this.subMatches(t, s, kws)) out.push({ isSub: true, sub: s, parent: t, folder: fv });
+              if (this.subMatches(t, s, kws)) {
+                const item = { isSub: true, sub: s, parent: t, folder: fv, archived: !!s.is_archived };
+                (item.archived ? arch : out).push(item);
+              }
             });
           });
         });
-        return out;
+        return out.concat(arch);  // 已归档整体置后
       },
     },
     created() { this.restoreUiState(); },
@@ -13101,6 +13170,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       onTaskAddClose() {
         this.showTaskAdd = false;
         this.taskAddCat = ''; this.taskAddMonth = null; this.taskAddDate = ''; this.taskAddPreset = '';
+      },
+      // 标签 ➕ 新增任务真正落库后：自动展开其归属标签（含整条祖先链），让用户立即看到刚添加的任务。
+      // catId 为空 → 未分类，展开「未分类」区；否则自底向上逐层展开（顶层一级走 catExpand，二级/三级走 subExpand）。
+      onTaskAdded(catId) {
+        if (!catId) { this.uncatOpen = true; return; }
+        const chain = [];
+        let cur = this.$store.findCategory(catId);
+        let guard = 0;
+        while (cur && guard++ < 10) { chain.push(cur); cur = cur.parent ? this.$store.findCategory(cur.parent) : null; }
+        if (!chain.length) { this.uncatOpen = true; return; }
+        // chain 末项即顶层一级（无父），用 catExpand；其余层级用 subExpand
+        chain.forEach((node, i) => {
+          if (i === chain.length - 1) this.catExpand[node._id] = true;
+          else this.subExpand[node._id] = true;
+        });
       },
       // —— 三文件夹范围判定（收藏夹=COLLECTION_CATS 或 is_collection 标记；模版夹=is_template；任务夹=其余） ——
       isCollection(t) {
@@ -13459,7 +13543,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <template v-if="searchKeyword.trim()">
           <p class="search-count" v-if="searchResults.length">找到 {{ searchResults.length }} 条匹配</p>
           <div class="row task-row swipeable" v-for="r in searchResults" :key="r.isSub ? ('s'+r.parent._id+r.sub._id) : ('t'+r.task._id)"
-               :class="{ 'emergency-bg': (r.isSub ? r.sub.isEmergency : r.task.isEmergency) }"
+               :class="{ 'emergency-bg': (r.isSub ? r.sub.isEmergency : r.task.isEmergency), 'arch-mask': r.archived }"
                :style="r.isSub ? {} : rowStyle(r.task)"
                @pointerdown="r.isSub ? void(0) : rowDown($event, r.task)"
                @pointermove="r.isSub ? void(0) : rowMove($event, r.task)"
@@ -13669,7 +13753,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <SubTaskEditModal v-if="showSubEdit" :task-id="editSubPid" :sub-id="editSubSid" @close="showSubEdit=false" />
       <CategoryManageModal v-if="showCatManage" @close="showCatManage=false" />
       <CategoryEditModal v-if="catEditId" :cat-id="catEditId" :folder="folderView" @close="catEditId=null" />
-      <TaskAddModal v-if="showTaskAdd" :category-id="taskAddCat || (taskAddPreset ? '' : (activeCat !== '__all__' ? activeCat : ''))" :preset-mode="taskAddPreset" :folder-type="taskAddPreset" :default-date="taskAddDate" :default-month="taskAddMonth" @close="onTaskAddClose" />
+      <TaskAddModal v-if="showTaskAdd" :category-id="taskAddCat || (taskAddPreset ? '' : (activeCat !== '__all__' ? activeCat : ''))" :preset-mode="taskAddPreset" :folder-type="taskAddPreset" :default-date="taskAddDate" :default-month="taskAddMonth" @close="onTaskAddClose" @saved="onTaskAdded" />
     </div>`,
   };
 
@@ -16838,6 +16922,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       menuMoveFolder() { const f = this.menuFolder; this.menuClose(); if (f) this.moveFolderDlgFid = f.fid; },
       menuDelFolder() { const f = this.menuFolder; this.menuClose(); if (f) this.delFid = f.fid; },
     },
+    // 标签 / 排序下拉：滚动页面、滑动、按键盘即自动收起（点空白仍由 backdrop 处理，保持下拉项可点选）
+    mounted() {
+      let _sx = 0, _sy = 0;
+      const onTouchStart = (e) => { const t = e.touches && e.touches[0]; _sx = t ? t.clientX : 0; _sy = t ? t.clientY : 0; };
+      const closeMenus = (e) => {
+        if (e.type === 'touchstart') { onTouchStart(e); return; }
+        // 真实滑动（位移超阈值）才收起，避免轻点抖动误关
+        if (e.type === 'touchmove') {
+          const t = e.touches && e.touches[0]; if (!t) return;
+          if (Math.abs(t.clientX - _sx) < 8 && Math.abs(t.clientY - _sy) < 8) return;
+        }
+        // 仅下拉面板自身（.sort-menu，含其内部滚动）不收起；蒙层与页面其余区域的交互都应收起
+        if (e.target && e.target.closest && e.target.closest('.sort-menu')) return;
+        // 键盘输入场景（如搜索框）不收起
+        if (e.type === 'keydown' && e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable)) return;
+        if (this.showTagMenu || this.showSortMenu) { this.showTagMenu = false; this.showSortMenu = false; }
+      };
+      this._closeProjMenus = closeMenus;
+      ['scroll', 'wheel', 'touchstart', 'touchmove', 'keydown'].forEach((t) => {
+        document.addEventListener(t, closeMenus, true);
+      });
+    },
+    beforeUnmount() {
+      if (this._closeProjMenus) ['scroll', 'wheel', 'touchstart', 'touchmove', 'keydown'].forEach((t) => {
+        document.removeEventListener(t, this._closeProjMenus, true);
+      });
+    },
     template: `
     <div class="page">
       <h2 class="page-title">项目</h2>
@@ -17713,7 +17824,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         year: now.getFullYear(), month: 0, allYears: true,
         showEntry: false, entryMode: 'add', entryModule: null, editId: null, draft: null,
         showModule: false, moduleEdit: null, moduleType: 'expense',
-        showViz: false, vizType: 'pie', vizRange: 'year', vizScope: 'both', vizCat: '',
+        showViz: false, vizType: 'pie', vizRange: 'years', vizScope: 'all', vizCat: '',
         showTpl: false,
         confirmDelEntry: false,
         showFinMenu: false,
@@ -18885,6 +18996,39 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       openViz() { this.showViz = true; },
       closeViz() { this.showViz = false; },
       catColor(c) { const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6']; const i = this.categories.indexOf(c); return palette[((i % palette.length) + palette.length) % palette.length]; },
+      // 饼图引导线：与财务页同款——「扇区边缘 → 径向拐点 → 水平延伸」折线 + 端点文字，
+      // 左右分侧对齐、同侧按 y 排序做 13px 防重叠；标注「分类名 数量」。
+      pieLabels(rows, total) {
+        if (!rows || !rows.length || !total) return [];
+        const cx = 160, cy = 92, r = 70;       // 与 SVG viewBox 0 0 320 184 内圆心/半径一致
+        const outR = r + 16;                   // 引导线拐点半径
+        const labels = rows.map((row, i) => {
+          const a0 = this.pieCum(rows, i - 1), a1 = this.pieCum(rows, i);
+          const mid = (a0 + a1) / 2 * Math.PI / 180;
+          const cos = Math.cos(mid), sin = Math.sin(mid);
+          const right = cos >= 0;
+          return {
+            label: row.label, value: row.value, color: row.color,
+            pct: Math.round(row.value / total * 100),
+            x1: cx + cos * r, y1: cy + sin * r,          // 扇区边缘
+            x2: cx + cos * outR, y2: cy + sin * outR,     // 折线拐点
+            side: right ? 1 : -1,
+            anchor: right ? 'start' : 'end',
+            ty: cy + sin * outR,
+          };
+        });
+        // 同侧按 y 排序后做防重叠：与上一个标签至少间隔 13px
+        [1, -1].forEach(side => {
+          const group = labels.filter(l => l.side === side).sort((a, b) => a.ty - b.ty);
+          let last = -Infinity;
+          group.forEach(l => {
+            if (l.ty - last < 13) l.ty = last + 13;
+            last = l.ty;
+          });
+        });
+        labels.forEach(l => { l.x3 = l.side > 0 ? cx + outR + 6 : cx - outR - 6; });
+        return labels;
+      },
       piePath(cx, cy, r, a0, a1) {
         if (a1 - a0 >= 359.999) return 'M ' + (cx - r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx + r) + ' ' + cy + ' A ' + r + ' ' + r + ' 0 1 1 ' + (cx - r) + ' ' + cy + ' Z';
         const p0 = [cx + r * Math.cos(a0 * Math.PI / 180), cy + r * Math.sin(a0 * Math.PI / 180)];
@@ -19281,11 +19425,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               </svg>
             </div>
             <div v-else-if="vizType === 'pie'" class="fin-chart">
-              <svg viewBox="0 0 320 180" class="fin-svg" v-if="vizPie.rows.length">
-                <g v-for="(r, i) in vizPie.rows" :key="i" :transform="'translate(160,90)'"><path :d="piePath(0, 0, 78, pieCum(vizPie.rows, i - 1), pieCum(vizPie.rows, i - 1) + 360 * r.value / vizPie.total)" :fill="r.color" /></g>
+              <svg viewBox="0 0 320 184" class="fin-svg" v-if="vizPie.rows.length">
+                <g v-for="(r, i) in vizPie.rows" :key="i" :transform="'translate(160,92)'"><path :d="piePath(0, 0, 70, pieCum(vizPie.rows, i - 1), pieCum(vizPie.rows, i - 1) + 360 * r.value / vizPie.total)" :fill="r.color" /></g>
+                <g v-for="(l, i) in pieLabels(vizPie.rows, vizPie.total)" :key="'cl'+i" class="pie-lb">
+                  <polyline :points="l.x1+','+l.y1+' '+l.x2+','+l.y2+' '+l.x3+','+l.ty" fill="none" :stroke="l.color" stroke-width="1" />
+                  <circle :cx="l.x1" :cy="l.y1" r="1.6" :fill="l.color" />
+                  <text :x="l.x3 + (l.side>0?2:-2)" :y="l.ty + 3" :text-anchor="l.anchor" font-size="8.5" fill="var(--text)">{{ l.label }} {{ l.value }}</text>
+                </g>
               </svg>
               <div v-else class="empty-tip">暂无数据</div>
-              <div class="fin-legend" v-if="vizPie.rows.length"><span v-for="r in vizPie.rows" :key="r.label" class="fin-lg"><i :style="{ background: r.color }"></i>{{ r.label }} {{ r.value }}</span></div>
+              <div class="fin-legend" v-if="vizPie.rows.length"><span v-for="r in vizPie.rows" :key="r.label" class="fin-lg"><i :style="{ background: r.color }"></i>{{ r.label }} {{ r.value }} · {{ Math.round(r.value/vizPie.total*100) }}%</span></div>
             </div>
             <div v-else-if="vizType === 'board'" class="car-board">
               <div v-if="!vizBoard" class="empty-tip">请先在「JD 智能匹配」解析并选中一个 JD</div>
@@ -20226,7 +20375,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
           <button :class="{on: vizDim==='year'}" @click="setVizDim('year')">年</button>
         </div>
-        <div class="viz-filter-note" v-if="filterTags.length" style="font-size:12px;color:var(--primary);background:#eef0ff;border:1px solid #dfe3ff;border-radius:8px;padding:7px 10px;margin-bottom:10px;">🏷️ 已按编排表标签筛选：{{ filterTags.join(' · ') }}（在「编排表」🏷️ 可调整/清除）</div>
         <div class="viz-period-nav">
           <button class="icon-btn" @click="prev" title="更早时段">‹</button>
           <span class="viz-period-label">{{ vizWindow.title }} · {{ vizWindow.label }}</span>
