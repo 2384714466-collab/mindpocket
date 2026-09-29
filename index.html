@@ -120,6 +120,7 @@ body {
 .ab-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .ab-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; color: var(--text); }
 .ab-new { margin-left: 6px; font-style: normal; font-size: 10px; color: #fff; background: var(--no, #2ecc71); padding: 1px 6px; border-radius: 8px; }
+.ab-slim { margin-right: 6px; font-style: normal; font-size: 10px; color: #fff; background: #e8862b; padding: 1px 6px; border-radius: 8px; }
 /* 快照描述（任务 / 标签 / 习惯）：位于时间下方，单行呈现，超宽时省略 */
 .ab-meta { flex: 0 0 auto; min-width: 0; line-height: 1.5; color: var(--sub); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ab-ops { flex: 0 0 auto; display: flex; gap: 6px; align-self: center; }
@@ -520,6 +521,9 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .ai-batch-list { display: flex; flex-direction: column; gap: 8px; margin: 2px 0; }
 .ai-batch-row { margin: 0; }
 .ai-batch-text { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; background: #fff; min-width: 0; }
+/* 批量行内识别预览（日期前缀 / 行内标签） */
+.ai-batch-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 3px; padding-left: 2px; font-size: 11px; color: var(--sub); }
+.ai-batch-meta .meta-tag { color: #6a7bff; }
 .ai-batch-row .ai-check { flex: 0 0 auto; }
 .ai-batch-add { display: flex; gap: 8px; align-items: flex-start; margin-top: 8px; }
 .ai-batch-folder { margin-top: 8px; }
@@ -2001,7 +2005,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function _normSnap(s) {
     s = s || {};
     const ts = s.ts || Date.now();
-    return { id: s.id || (String(ts) + '_' + Math.random().toString(36).slice(2, 7)), ts: ts, data: s.data || {} };
+    // _slim：由 tryWriteBackups 的配额降级产生（已剔除 BACKUP_HEAVY_KEYS）。
+    // 必须原样保留该标记：精简快照缺失 projects/finance/career 等字段，
+    // 若允许其执行「覆盖式恢复」会把这些模块的数据静默清空（见 restoreAutoBackup 的保护）。
+    return { id: s.id || (String(ts) + '_' + Math.random().toString(36).slice(2, 7)), ts: ts, data: s.data || {}, _slim: !!s._slim };
   }
   function _localLoadAll() {
     try { const raw = localStorage.getItem(AUTO_BACKUP_KEY); const arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; }
@@ -2214,6 +2221,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   /* ----------------------------- 响应式状态 ----------------------------- */
   const state = reactive({ revision: 0, habits: [], tasks: [], categories: [], settings: { quickToQuickView: true, autoExtend: false },
+    backupError: null,   // 最近一次自动备份失败原因（reactive：供统计页告警框响应式展示）
     projects: [], project_subs: [], project_records: [], project_ideas: [], project_folders: [], sub_custom_statuses: [],
     // 任务表：子任务每日打卡实例（按日期独立生成，历史实例完整留存）
     taskBoard: { instances: [] },
@@ -2691,16 +2699,43 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (inHolidayRanges(r.date, [{ start, end }]) && (r.status === 'success' || r.status === 'fail')) {
         // 批量转跳过：同样走统一清算入口（跳过本身不加不扣，此处仅清退改为跳过前已得积分）
         reverseHabitDayPoints(h, r.date, r.status, 'holiday');
+        // 留存原状态：删除请假区间时据此还原（否则该日会永久停留在「跳过」，
+        // 打卡痕迹与积分都无法恢复）
+        r._holidayPrevStatus = r.status;
         r.status = 'holiday';
       }
     });
     persist();
   }
 
+  // 删除请假区间：把区间内「因请假而被置为 holiday」的记录还原回原状态，
+  // 并重新结算这些日期的积分（否则移除请假的语义不完整：记录永久停留在跳过、积分不回来）
   function removeHolidayRange(id, index) {
     const h = findHabit(id);
     if (!h) return;
+    const removed = h.holiday_ranges[index];
     h.holiday_ranges.splice(index, 1);
+    if (removed) {
+      let changed = false;
+      h.records.forEach(r => {
+        // 仅还原「确实落在本区间内 + 由请假流程改写 + 有原状态留存」的记录
+        if (r.status !== 'holiday' || !r._holidayPrevStatus) return;
+        if (!inHolidayRanges(r.date, [{ start: removed.start, end: removed.end }])) return;
+        // 若仍处于其它请假区间内，则保持跳过（多区间重叠场景）。
+        // ⚠ 这里必须直接查 holiday_ranges，不能调 isHoliday()：本函数已把 removed 从
+        // holiday_ranges 里摘掉，而当前这条记录本身仍是 status='holiday' 且带 _holidayPrevStatus，
+        // 若走 isHoliday 就会因「待还原记录」被判为仍在请假 → 每次都在此处提前 return，
+        // 原状态与积分永远无法还原（正是「移除请假区间后记录停留在跳过」的根因）。
+        // 只看区间后，多区间重叠依然正确：日期仍在别的区间里时 inHolidayRanges 为 true。
+        if (inHolidayRanges(r.date, h.holiday_ranges)) return;
+        r.status = r._holidayPrevStatus;
+        delete r._holidayPrevStatus;
+        changed = true;
+        // 重新结算该日积分（settleHabitPoints 幂等：原记录已 reversed，可重新发放）
+        settleHabitPoints(r.date);
+      });
+      if (changed) persist();
+    }
     persist();
   }
 
@@ -2778,11 +2813,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
 
   // 该习惯某日是否处于请假状态
+  // 判定口径（与「移除请假区间」严格互逆，否则会出现「区间已删、记录永远停在跳过」的僵尸日）：
+  //   ① 记录 status='holiday' 且「标记了 _holidayPrevStatus」（= 由请假流程写入，原状态待还原）→ 一定算请假；
+  //   ② 否则只看当前 holiday_ranges —— 不再让裸的 status='holiday' 记录单独决定结果。
+  //   为什么必须这样：removeHolidayRange 会把区间从 holiday_ranges 里摘掉，若此处仍仅凭记录状态返回 true，
+  //   它内部那句「若仍处于其它请假区间内则保持跳过」的自检就会误判为「仍在请假」而提前 return，
+  //   造成原状态不还原、积分不回补。改由「区间 + 待还原标记」共同判定后，该自检恢复真实语义，
+  //   同时仍能正确处理多区间重叠（此时日期仍落在别的区间里，inHolidayRanges 为 true）。
+  //   注：若某日确因「手工置为跳过」而后被并入请假区间（无 _holidayPrevStatus），它的跳过语义
+  //   本就不来自请假流程，区间删除时不应被擅自翻成「已完成」——因此只认标记，不认裸状态。
   function isHoliday(id, date) {
     const h = findHabit(id);
     if (!h) return false;
     const rec = h.records.find(r => r.date === date);
-    if (rec && rec.status === 'holiday') return true;
+    if (rec && rec.status === 'holiday' && rec._holidayPrevStatus) return true;
     return inHolidayRanges(date, h.holiday_ranges);
   }
 
@@ -3392,7 +3436,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!wasArchived && !t.cycle) {
       if (isCollectionTask(t)) addPoints(9, 'collection', '归档: ' + t.title, t._id);
       else if (t.category_id === QUICK_VIEW_ID) addPoints(5, 'temp_task', '完成临时任务: ' + t.title, t._id);
-      else addPoints(3, 'task_archive', '归档: ' + t.title, t._id);
+      else {
+        // 与 markCopyDone 延期衰减同规则：按时 +3，逾期按「延迟天数」递减（地板 0），修复逾期任务归档仍全额计分
+        const delay = delayDaysOf(t);
+        addPoints(Math.max(0, 3 - delay), 'task_archive', (delay > 0 ? '延期完成(' + delay + '天): ' : '归档: ') + t.title, t._id);
+      }
     }
   }
 
@@ -3408,7 +3456,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!t.cycle) {
       if (isCollectionTask(t)) addPoints(9, 'collection', '归档: ' + t.title, t._id);
       else if (t.category_id === QUICK_VIEW_ID) addPoints(5, 'temp_task', '完成临时任务: ' + t.title, t._id);
-      else addPoints(3, 'task_archive', '归档: ' + t.title, t._id);
+      else {
+        // 与 markCopyDone 延期衰减同规则：按时 +3，逾期按「延迟天数」递减（地板 0），修复逾期任务归档仍全额计分
+        const delay = delayDaysOf(t);
+        addPoints(Math.max(0, 3 - delay), 'task_archive', (delay > 0 ? '延期完成(' + delay + '天): ' : '归档: ') + t.title, t._id);
+      }
     }
   }
 
@@ -4053,6 +4105,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }
       // 「所有日期副本全部完成自动归档母本」：非周期任务全部窗口副本完成后归档母本
       if (copiesAllDone(t)) { t.is_archived = true; t.archived_at = today; t.autoArchivedByCopies = true; }
+      // 逾期标签自愈（就地清除，不依赖下次启动）：
+      // 顺延后的单点/区间任务一旦完成，会立刻满足 copiesAllDone 并被自动归档；
+      // 而 autoRollOverdueSpecified 的考虑范围排除 is_archived 任务，
+      // 于是「清除 overdueUnfinished」的那条自愈分支永远不会再被走到 ——
+      // 标记便永久残留在一个「已完成且已归档」的任务上（状态自相矛盾，
+      // 若日后取消归档，还会立刻显示成「⚠ 逾期未完成」）。
+      // 因此在此处（完成即清）直接收口，与自愈分支形成双保险。
+      if (t.overdueUnfinished && copyDoneForWindow(t, ws, we)) t.overdueUnfinished = false;
       // 积分联动：普通单点任务「完成」（非周期/非区间/非学习工作类/非收藏）→ 基础分 +3；
       // 仅首次完成发放（newlyDone 守卫），避免重复完成重复加分。
       // 延期完成按「延迟天数」递减：按时 +3，逾期 1 天 +2，逾期 2 天 +1，逾期 ≥3 天 +0（地板不为负）。
@@ -4196,9 +4256,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const key = copyKey(s, ws);
       s.doneDates = s.doneDates || [];
       if (!s.doneDates.includes(key)) s.doneDates.push(key);
-      // 积分联动：普通子任务完成 → sub_task 基础分 +3（与父任务 task_archive 独立，互不影响；学习工作类子任务走下方 study_work）
+      // 积分联动：普通子任务完成 → sub_task 基础分 +3（与父任务 task_archive 对齐：延期按「延迟天数」递减，地板 0；
+      // 修复「子任务逾期完成仍全额计分且明细不区分延期」的问题）
       if (!isStudyWorkTask(s) && !isStudyWorkTask(t)) {
-        addPoints(3, 'sub_task', '子任务完成: ' + s.title, t._id + '_' + subId);
+        const subDelay = delayDaysOf(s); // 子任务截止日：单点 execute_date / 区间 date_end（与主任务同口径）
+        const subPts = Math.max(0, 3 - subDelay);
+        addPoints(subPts, 'sub_task', (subDelay > 0 ? '子任务延期完成(' + subDelay + '天): ' : '子任务完成: ') + s.title, t._id + '_' + subId);
       }
       // 子任务全部日期副本完成 → 自动归档子任务母本（与主任务 markCopyDone 口径一致）
       if (copiesAllDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
@@ -4214,9 +4277,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           addPoints(pts, 'study_work', '子任务专注完成: ' + s.title + ' (' + focusMin + '分钟)', t._id + '_' + subId, focusMin);
         }
       } else {
-        // 子任务延期判定：按子任务自身截止日判定；延期按「延迟天数」递减（地板 0）
-        const subDeadline = s.sub_deadline || '';
-        const subDelay = subDeadline ? Math.max(0, dateDiffDays(subDeadline, today)) : 0;
+        // 子任务延期判定：优先子任务自身截止日 sub_deadline；未设时回落到子任务时间体系字段
+        // （单点 execute_date / 区间 date_end，与主任务 delayDaysOf 同口径），
+        // 修复「子任务带执行日期逾期完成仍按按时完成全额计分」的问题；延期按「延迟天数」递减（地板 0）
+        const subDelay = s.sub_deadline ? Math.max(0, dateDiffDays(s.sub_deadline, today)) : delayDaysOf(s);
         const subPts = Math.max(0, 7 - subDelay);
         addPoints(subPts, 'study_work', (subDelay > 0 ? '子任务延期完成(' + subDelay + '天): ' : '子任务按时完成: ') + s.title, t._id + '_' + subId);
       }
@@ -4503,7 +4567,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   //   t          : 待判定实体（主任务 or 子任务）
   //   d          : 目标日期
   //   master     : 母本（子任务传父任务；主任务传 null → 自身即母本）
-  //   allowOverdue: 是否允许「逾期滞留」（仅主任务待办页；且仅当 viewDate === 系统真实今日 才滞留，浏览其它日期不滞留；今日页子任务副本严格要求日期命中，传 false）
+  //   allowOverdue: 是否允许「逾期滞留」（主任务待办页与子任务副本同口径；且仅当 viewDate === 系统真实今日 才滞留，浏览其它日期不滞留）
   // 统一约束：① 副本未归档 ② 副本 date 严格等于 d（单点精确 / 区间含该日 / 周期命中当日）③ 母本未归档且副本未失效
   function taskCopyVisibleOnDate(t, d, master, allowOverdue) {
     if (!t || t.is_archived) return false;                                    // ① 副本未归档
@@ -4517,8 +4581,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 周期漏卡滞留今日：独立固定/机制1·2 存在过去未完成发生日即滞留今日（即便调用方传 allowOverdue=false 的子任务副本亦如此），
     // 使漏卡可被「延期到今日」补卡（修复独立固定仅打标签不滞留、漏卡凭空消失的问题）
     if (d === todayStr() && t.cycle && cycleStuckOverdue(t)) return true;
-    // 主任务专用：逾期停留——仅允许在真实当日视图展示（viewDate === 系统真实今日），浏览其它日期（含未来）不滞留
-    if (allowOverdue && d === todayStr() && (isOverdueTask(t, d) || cycleStuckOverdue(t))) return true; // 主任务专用：逾期停留（单点过期 / 机制1·2 漏卡滞留「延期」）
+    // 逾期停留（主任务与子任务副本同口径）：仅允许在真实当日视图展示（viewDate === 系统真实今日），浏览其它日期（含未来）不滞留
+    if (allowOverdue && d === todayStr() && (isOverdueTask(t, d) || cycleStuckOverdue(t))) return true;
     return false;
   }
 
@@ -4613,8 +4677,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (isCollectionTask(t)) return; // 收藏夹任务（含子任务）不参与今日副本同步
       (t.sub_tasks || []).forEach(s => {
         if (copyDoneForWindow(s, d, d)) return;            // 子任务副本「本条完成」也消失（与主任务一致）
-        // 复用统一可见性规则：严格日期命中，不含逾期（allowOverdue=false）
-        if (taskCopyVisibleOnDate(s, d, t, false)) out.push(mkSubProxy(s, t));
+        // 复用统一可见性规则：与主任务同口径（真实今日视图允许逾期停留，allowOverdue=true；
+        // 4524 行自带 d===todayStr() 保护：按日查看其它日期时不滞留，仅真实今日停留）
+        if (taskCopyVisibleOnDate(s, d, t, true)) out.push(mkSubProxy(s, t));
       });
     });
     // 子任务副本：紧急同样强制置顶，其余维持原优先级（提醒时间升序 → 任务日期由早到晚）
@@ -4684,21 +4749,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return d > 0 ? d : 0;
   }
 
-  // 过期任务自动延期：开关开启时，将逾期且未被手动改过截止日期的任务推延到今天
+  // 过期任务自动延期：开关开启时，将逾期且未被手动改过截止日期的任务（含子任务）推延到今天
   function autoExtendOverdue() {
     if (!state.settings.autoExtend) return;
     const today = todayStr();
     let changed = false;
-    state.tasks.forEach(t => {
-      if (isOverdueTask(t) && !t.deadline_manual) {
-        if (t.date_mode === 'range' && t.date_start && t.date_end) {
-          const span = dateDiffDays(t.date_start, t.date_end);
-          t.date_start = today; t.date_end = addDays(today, span); t.execute_date = today;
+    const roll = (obj) => {
+      if (isOverdueTask(obj) && !obj.deadline_manual) {
+        if (obj.date_mode === 'range' && obj.date_start && obj.date_end) {
+          const span = dateDiffDays(obj.date_start, obj.date_end);
+          obj.date_start = today; obj.date_end = addDays(today, span); obj.execute_date = today;
         } else {
-          t.execute_date = today; t.date_start = today; t.date_end = today;
+          obj.execute_date = today; obj.date_start = today; obj.date_end = today;
         }
         changed = true;
       }
+    };
+    state.tasks.forEach(t => {
+      roll(t);
+      if (t.is_archived || isCollectionTask(t)) return; // 归档/收藏夹父任务：子任务不参与自动延期（与今日页子任务口径一致）
+      (t.sub_tasks || []).forEach(roll);                // 子任务同规则顺延到今日（区间保跨度；指定周/月子任务无 execute_date 天然不命中，由 autoRollOverdueSpecified 负责）
     });
     if (changed) persist();
   }
@@ -4723,13 +4793,29 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // - 指定周 / 指定月：time_mode==='week'/'month' 且冻结了绝对目标周/月 → 标记 overdueUnfinished 并 extendSpecified 顺延一窗口（周→下一周、月→下一月）；
   // - 单点 / 区间（年月日任务）：date_mode==='single'/'range' 且截止日已过期未完成 → 标记 overdueUnfinished 并整体顺延到本周一（区间保持原跨度）；
   // - 顺延后自然落入本周（周/月看板可见窗口），不再滞留过期窗口而「消失」；
-  // - 自愈：未过期窗口已完成（指定周/月副本完成、单点/区间 done_at 已置）则清除标记（任务已补完，恢复正常）。
+  // - 自愈：未过期窗口已完成（指定周/月副本完成、单点/区间副本已打卡）则清除标记（任务已补完，恢复正常）。
+  //   注：完成时 markCopyDone 也会就地清除（见该函数内注释）——两条路互补，
+  //   因为「完成即自动归档」会使任务从此不再被本函数考虑（下方 consider 过滤 is_archived）。
+  //   此处额外做一次「遗留数据兜底」：已归档任务若带着已完成窗口却仍保留标记，一并清掉。
   function autoRollOverdueSpecified() {
     const today = todayStr();
     let changed = false;
+    // 遗留标记兜底：早期版本在「完成→自动归档」路径上没能清掉 overdueUnfinished，
+    // 使一批已归档且副本早已完成的任务永久带着「逾期未完成」标记（取消归档会立刻误显示）。
+    // 启动时顺手清一遍（幂等、只做减法，不影响任何未完成任务的标记）。
+    state.tasks.forEach(t => {
+      const objs = [t].concat(t.sub_tasks || []);
+      objs.forEach(obj => {
+        if (!obj || !obj.overdueUnfinished) return;
+        const ws = obj.execute_date || obj.date_start || '';
+        if (!ws) return;
+        const we = obj.date_mode === 'range' ? (obj.date_end || ws) : ws;
+        if (copyDoneForWindow(obj, ws, we)) { obj.overdueUnfinished = false; changed = true; }
+      });
+    });
     const consider = (t, subId) => {
       const obj = subId ? (t.sub_tasks || []).find(s => s._id === subId) : t;
-      if (!obj || obj.cycle) return;
+      if (!obj || obj.cycle || obj.is_archived) return;  // 归档子任务不参与顺延/打标（与主任务归档过滤对齐）
       // 指定周 / 指定月：窗口已过期且本窗口仍未完成 → 标记「逾期未完成」并顺延一个窗口（周→下一周、月→下一月）
       if (obj.time_mode === 'week' || obj.time_mode === 'month') {
         const win = specifiedWindowOf(obj);
@@ -4749,12 +4835,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const deadline = obj.date_mode === 'range' ? (obj.date_end || '') : (obj.execute_date || '');
         if (!deadline) return;
         if (deadline >= today) {                                      // 未过期：已完成则清除标记（自愈）
-          if (obj.overdueUnfinished && obj.done_at) { obj.overdueUnfinished = false; changed = true; }
+          // 自愈判定必须用「该副本是否已完成」的真实口径：主任务/分类子任务完成时写的是
+          // doneDates（副本窗口键），从不写 done_at（该字段只属于项目子任务），
+          // 此前用 obj.done_at 判断导致逾期标签永久残留。
+          if (obj.overdueUnfinished && copyDoneForWindow(obj, obj.execute_date || deadline, obj.execute_date || deadline)) { obj.overdueUnfinished = false; changed = true; }
           return;
         }
         if (!obj.overdueUnfinished) { obj.overdueUnfinished = true; changed = true; }
-        const d0 = new Date(today + 'T00:00:00Z');
-        const cw = isoWeek(d0);
+        // 本周一：用本地日期口径解析（parseDate），不可用 new Date(today+'T00:00:00Z')——
+        // 那是 UTC 午夜，在 UTC 负偏移时区会被 isoWeek 当作前一天，算出「上周一」，
+        // 使顺延目标落在已过期窗口（任务看似消失，实则仍逾期）。
+        const cw = isoWeek(parseDate(today));
         const cws = weekRange(cw.year, cw.week).start;
         const ymd = dt => dt.getUTCFullYear() + '-' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dt.getUTCDate()).padStart(2, '0');
         const wsd = ymd(cws);                                         // 本周一（周/月看板可见窗口起点）
@@ -4800,8 +4891,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const obj = subId ? (t.sub_tasks || []).find(s => s._id === subId) : t;
     if (!obj) return;
     if (obj.time_mode === 'week' && obj.plan_year != null && obj.plan_week != null) {
-      const sunday = weekRange(obj.plan_year, obj.plan_week).end;     // 目标周周日
-      const next = new Date(sunday); next.setDate(next.getDate() + 7); // 下一周周一
+      const sunday = weekRange(obj.plan_year, obj.plan_week).end;     // 目标周周日（UTC 口径的 Date）
+      // 必须全程用 UTC 方法：weekRange 返回的是 UTC 日历日期，若混用本地 setDate/getDate，
+      // 在 UTC 负偏移时区会偏移一天，isoWeek 再把结果算到再下一周（顺延跳两周）。
+      const next = new Date(sunday); next.setUTCDate(next.getUTCDate() + 7); // 下一周周一
       const nw = isoWeek(next);
       obj.plan_year = nw.year; obj.plan_week = nw.week;
     } else if (obj.time_mode === 'month' && obj.plan_year != null && obj.plan_month != null) {
@@ -4839,8 +4932,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const obj = subId ? (t.sub_tasks || []).find(s => s._id === subId) : t;
     if (!obj || obj.time_mode !== 'week') return;
     if (obj.plan_year == null || obj.plan_week == null) return;
-    const sunday = weekRange(obj.plan_year, obj.plan_week).end;     // 目标周周日
-    const next = new Date(sunday); next.setDate(next.getDate() + (n || 1) * 7);
+    const sunday = weekRange(obj.plan_year, obj.plan_week).end;     // 目标周周日（UTC 口径的 Date）
+    // 同 extendSpecified：全程 UTC 方法，避免与 weekRange 的 UTC 口径混用产生偏移
+    const next = new Date(sunday); next.setUTCDate(next.getUTCDate() + (n || 1) * 7);
     const nw = isoWeek(next);
     const patch = { plan_year: nw.year, plan_week: nw.week };
     if (subId) updateSubTask(id, subId, patch);
@@ -5362,15 +5456,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const fallbackPid = c.parent || null;
     const fallbackCat = fallbackPid ? findCategory(fallbackPid) : null;
     state.categories = state.categories.filter(c => allIds.indexOf(c._id) < 0);
+    // 清理归属引用：主任务与子任务都要处理。
+    // 子任务同样带 category_id / parent_category（见 addSubTask），此前只遍历 state.tasks，
+    // 导致删除分类后子任务留下指向已删对象的悬空引用（标签渲染与收藏夹判定异常）。
+    const cleanRef = (obj) => {
+      const hit = fieldHitsDeleted(obj.category_id, idset, nameset)
+        || fieldHitsDeleted(obj.category, idset, nameset)
+        || fieldHitsDeleted(obj.parent_category, idset, nameset);
+      if (!hit) return;
+      obj.category_id = fallbackPid;
+      obj.category = fallbackCat ? fallbackCat.name : '';
+      if (fieldHitsDeleted(obj.parent_category, idset, nameset)) obj.parent_category = fallbackPid || '';
+    };
     state.tasks.forEach(t => {
-      const hit = fieldHitsDeleted(t.category_id, idset, nameset)
-        || fieldHitsDeleted(t.category, idset, nameset)
-        || fieldHitsDeleted(t.parent_category, idset, nameset);
-      if (hit) {
-        t.category_id = fallbackPid;
-        t.category = fallbackCat ? fallbackCat.name : '';
-        if (fieldHitsDeleted(t.parent_category, idset, nameset)) t.parent_category = fallbackPid || '';
-      }
+      cleanRef(t);
+      (t.sub_tasks || []).forEach(cleanRef);   // 子任务引用同步清理
     });
     persist();
     return true;
@@ -5879,11 +5979,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 积分联动：项目填报基础分 —— 每填报一次即 +7（与专注时长 / 标签积分彼此独立，按记录独立计入、可独立撤销）
     addPoints(7, 'project_report', '项目填报: ' + (s ? s.title : sid), rec.rid);
     // 积分联动：子任务专注时长 25min=6分，线性折算（project_sub，与 study_work / 基础分 独立并行）
+    // refId 采用「记录级」sid + '_' + rid：同一次填报的多类积分必须能独立撤销，
+    // 若沿用子任务级 refId(sid) 则删除任意一条填报会把该子任务历史全部填报的积分一次性清掉。
     if (sp > 0) {
       const pts = Math.round(sp / 25 * 6);
       if (pts > 0) {
         const sub = state.project_subs.find(x => x.sid === sid);
-        addPoints(pts, 'project_sub', '子任务专注: ' + (sub ? sub.title : '') + ' (' + sp + '分钟)', sid, sp);
+        addPoints(pts, 'project_sub', '子任务专注: ' + (sub ? sub.title : '') + ' (' + sp + '分钟)', sid + '_' + rec.rid, sp);
       }
     }
     // 积分联动：学习工作类标签项目子任务 → study_work 积分（仅「有专注时长」时按 25min=7分 线性叠加，与基础分独立并行）
@@ -5891,9 +5993,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const hasStudyTag = (s.tags || []).some(tag => STUDY_WORK_TAGS.includes(tag));
       if (hasStudyTag && sp > 0) {
         // 有专注时长：25min=7分线性（study_work 基准，与 project_sub 的 25min=6分 独立发放）
+        // 同样使用记录级 refId，保证逐条撤销精确
         const pts = Math.round(sp / 25 * 7 * 10) / 10;
         if (pts > 0) {
-          addPoints(pts, 'study_work', '项目子任务专注: ' + s.title + ' (' + sp + '分钟)', sid + '_study', sp);
+          addPoints(pts, 'study_work', '项目子任务专注: ' + s.title + ' (' + sp + '分钟)', sid + '_study_' + rec.rid, sp);
         }
       }
     }
@@ -5908,11 +6011,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!s || !rec) return;
     const amt = Number(rec.actualNum) || 0;
     if ((Number(s.finished) || 0) - amt < 0) return;
-    // 积分联动：撤销填报，收回积分（project_sub + study_work 各自独立收回）
+    // 积分联动：撤销填报，收回积分（各类积分按「记录级 refId」独立精确收回）
+    // 旧数据兼容：历史版本的 project_sub / study_work 使用子任务级 refId（sid / sid+'_study'），
+    // 这类记录无法定位到具体哪一条填报，仅在「该子任务只剩这一条有效填报」时精确撤销，
+    // 多条填报并存时不整族回滚（宁可少收回，也不误删其它填报的积分）。
     const sp = Number(rec.spentMin) || 0;
-    if (sp > 0) { reversePoints(sid, 'project_sub'); }
+    const restRecs = state.project_records.filter(r => r.sid === sid && r.rid !== rid && !r.deleted_at).length;
+    if (sp > 0) {
+      if (!reversePoints(sid + '_' + rid, 'project_sub') && restRecs === 0) reversePoints(sid, 'project_sub');
+    }
     const hasStudyTag = (s.tags || []).some(tag => STUDY_WORK_TAGS.includes(tag));
-    if (hasStudyTag) { reversePoints(sid + '_study', 'study_work'); }
+    if (hasStudyTag) {
+      if (!reversePoints(sid + '_study_' + rid, 'study_work') && restRecs === 0) reversePoints(sid + '_study', 'study_work');
+    }
     // 收回「项目填报基础分」（每条记录独立计入、独立撤销）
     reversePoints(rec.rid, 'project_report');
     rec.deleted_at = Date.now();
@@ -6242,13 +6353,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
 
   // 集中式积分撤销：查找并标记所有相关记录为 reversed
+  // 返回是否命中（有记录被撤销）——调用方据此判断「记录级 refId 是否命中」，
+  // 未命中时可决定是否回退旧的子任务级 refId 口径（历史数据兼容）。
   function reversePoints(refId, category) {
     const records = state.wish_records.filter(r =>
       r.refId === refId && r.category === category && r.status === 'normal'
     );
-    if (!records.length) return;
+    if (!records.length) return false;
     records.forEach(r => { r.status = 'reversed'; });
     persist();
+    return true;
   }
 
   // 撤销归档积分：归档时按「当时任务状态」打标签发放（collection / temp_task / task_archive），
@@ -7216,7 +7330,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   window.MPStore = {
     state,
-    util: { uid, todayStr, fmt, parseDate, addDays, weekdayName, inHolidayRanges, cycleHits, parseWeekday, parseCycleRule, normalizeCycleRule, isoWeek, weekRange, validateDateInput, autoFormatDate, validateMonthInput, autoFormatMonth },
+    util: { uid, todayStr, fmt, parseDate, addDays, dateDiffDays, weekdayName, inHolidayRanges, cycleHits, parseWeekday, parseCycleRule, normalizeCycleRule, isoWeek, weekRange, validateDateInput, autoFormatDate, validateMonthInput, autoFormatMonth },
     // 习惯
     findHabit, getHabitRecord, markHabitRecord, removeHabitRecord, settleHabitPoints,
     setHolidayRange, removeHolidayRange, isHoliday,
@@ -7281,7 +7395,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // Function.prototype 上的同名成员，返回 function () { [native code] }（恒为真），
     // 使「本地存储空间不足」红色告警框永远显示。此处补上显式实现。
     // （listAutoBackups / restoreAutoBackup / doAutoBackup 已在上方作为对象方法定义，无需重复）
-    lastBackupError() { return this._lastBackupError || null; },
+    lastBackupError() { return state.backupError || null; },
     // —— 数据备份 / 恢复（P0：零依赖本地备份，配合多设备迁移 / 刷新数据）——
     exportAll() {
       // 与 persist() 写入结构完全一致，保证可原样还原
@@ -7300,13 +7414,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       });
     },
     // 按 _id（兼容 id/pid/sid）去重合并两个数组：本地优先保留，导入项按 id 覆盖同名、新增追加
+    // 缺 id 的导入项会补发一个 _id：否则以 _id 作渲染 key 的列表会出现重复 key（状态错乱），
+    // 且这类条目无法被后续的编辑/删除/撤销精确定位。
     _mergeArr(local, inc) {
       const idOf = x => { if (!x || typeof x !== 'object') return null; return x._id != null ? x._id : (x.id != null ? x.id : (x.pid != null ? x.pid : (x.sid != null ? x.sid : null))); };
       const out = (local || []).map(x => JSON.parse(JSON.stringify(x)));
       (inc || []).forEach(x => {
         const k = idOf(x);
         const item = JSON.parse(JSON.stringify(x));
-        if (k == null) { out.push(item); return; }
+        if (k == null) { if (item && typeof item === 'object' && item._id == null) item._id = uid('imp'); out.push(item); return; }
         const i = out.findIndex(y => idOf(y) === k);
         if (i >= 0) out[i] = item; else out.push(item);
       });
@@ -7332,6 +7448,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (o.settings && typeof o.settings === 'object') state.settings = Object.assign({}, o.settings, state.settings);
       if (o.finance) state.finance = this._mergeModuleObj(state.finance, o.finance);
       if (o.career) state.career = this._mergeModuleObj(state.career, o.career);
+      // 模版归档永久流水：与其它数组字段同口径合并（此前漏掉，导致合并导入静默丢弃备份里的归档留痕）
+      if (o.archive_ledger !== undefined) state.archive_ledger = this._mergeArr(Array.isArray(state.archive_ledger) ? state.archive_ledger : [], o.archive_ledger);
     },
     // 合并导入：本地数据 + 导入数据综合（按 _id 去重，导入覆盖同名、新增追加，绝不丢本地既有条目）
     // 全量：覆盖式（默认）；mode==='merge'：合并式
@@ -7345,9 +7463,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return;
       }
       // 逐字段防御性合并：缺失字段回退默认值，避免导入畸形文件导致渲染崩溃
-      state.habits = Array.isArray(o.habits) ? o.habits : [];
-      state.tasks = Array.isArray(o.tasks) ? o.tasks : [];
-      state.categories = Array.isArray(o.categories) ? o.categories : [];
+      // normArr：确保是数组，并为缺 _id 的对象补发 id（避免列表重复 key / 后续无法精确定位条目）
+      const normArr = (v) => {
+        if (!Array.isArray(v)) return [];
+        return v.map(x => {
+          if (!x || typeof x !== 'object') return x;
+          if (x._id == null && x.id == null && x.pid == null && x.sid == null) return Object.assign({}, x, { _id: uid('imp') });
+          return x;
+        });
+      };
+      state.habits = normArr(o.habits);
+      state.tasks = normArr(o.tasks);
+      state.categories = normArr(o.categories);
       const s = (o.settings && typeof o.settings === 'object') ? o.settings : {};
       const n = (s && s.notify && typeof s.notify === 'object') ? s.notify : {};
       state.settings = {
@@ -7355,16 +7482,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
         notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
       };
-      state.projects = Array.isArray(o.projects) ? o.projects : [];
-      state.project_subs = Array.isArray(o.project_subs) ? o.project_subs : [];
-      state.project_records = Array.isArray(o.project_records) ? o.project_records : [];
-      state.project_ideas = Array.isArray(o.project_ideas) ? o.project_ideas : [];
-      state.project_folders = Array.isArray(o.project_folders) ? o.project_folders : [];
+      state.projects = normArr(o.projects);
+      state.project_subs = normArr(o.project_subs);
+      state.project_records = normArr(o.project_records);
+      state.project_ideas = normArr(o.project_ideas);
+      state.project_folders = normArr(o.project_folders);
       state.sub_custom_statuses = Array.isArray(o.sub_custom_statuses) ? o.sub_custom_statuses : [];
       state.taskBoard = (o.taskBoard && Array.isArray(o.taskBoard.instances)) ? o.taskBoard : { instances: [] };
-      state.wish_items = Array.isArray(o.wish_items) ? o.wish_items : [];
-      state.wish_records = Array.isArray(o.wish_records) ? o.wish_records : [];
-      state.archive_ledger = Array.isArray(o.archive_ledger) ? o.archive_ledger : [];
+      state.wish_items = normArr(o.wish_items);
+      state.wish_records = normArr(o.wish_records);
+      state.archive_ledger = normArr(o.archive_ledger);
       state.progressUnits = (o.progressUnits && Array.isArray(o.progressUnits) && o.progressUnits.length) ? o.progressUnits : DEFAULT_PROGRESS_UNITS.map(u => ({ ...u }));
       state.finance = (o.finance && typeof o.finance === 'object') ? o.finance : { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] };
       state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
@@ -7375,7 +7502,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 触发方式：① 固定每 30 分钟一份（启动时 setInterval）；② 切后台 / 关闭页面立即补一份（_onPageHide）。
     // 保留最近 AUTO_BACKUP_MAX（5）份快照，存于独立 key，与主数据隔离，即便主数据被清空也可恢复。
     _autoBackupLast: 0,
-    _lastBackupError: null,
+    // 备份失败原因存放在 reactive state 内（state.backupError）：挂在 store 普通属性上不会触发
+    // 统计页 backupError computed 重算，导致「空间不足」红色告警永不显示。
     _autoBackups: [],            // 内存镜像（最新在前）：UI 直接读取，避免模板依赖同步读盘
     _autoBackupsReady: false,
     // 从存储后端加载全部快照（最新在前）；首次启动顺带把旧 localStorage 快照迁移进 IndexedDB
@@ -7423,12 +7551,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (arr.length > AUTO_BACKUP_MAX) arr = arr.slice(0, AUTO_BACKUP_MAX);
       this._autoBackups = arr;
       const ok = await this._persistBackups();
-      this._lastBackupError = ok ? null : '本地存储空间不足，自动备份未能保存（请到浏览器设置清理站点数据，或改用「导出文件备份」）';
+      // 写入 reactive state，触发统计页 backupError computed 重算（普通属性无法触发）
+      state.backupError = ok ? null : '本地存储空间不足，自动备份未能保存（请到浏览器设置清理站点数据，或改用「导出文件备份」）';
       if (!ok) console.warn('[MP] autobackup write failed');
       return ok;
     },
     // 最近一次自动备份是否失败（UI 用于展示提示，避免静默空白让用户误以为没功能）
-    lastBackupError() { return this._lastBackupError || null; },
+    // 注：实现在上方「本地自动备份对外 API」段落，此处不再重复定义（重复定义会遮蔽前者）。
     listAutoBackups() {
       // 最新快照排在最前（倒序），与统计页「最新备份在最上面」的展示一致
       return this._autoBackups.slice();
@@ -7438,9 +7567,27 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       return this._saveAutoBackupNow();
     },
     // 从指定快照恢复（等价于 importAll 覆盖，但来源是本地快照）
+    // —— 安全闸门（防止「恢复」变成「清空」）——
+    //   ① 精简快照（_slim）不完整：其 data 已被剔除 projects/finance/career 等重型字段，
+    //      执行覆盖式恢复会把这些模块静默清空 → 直接拒绝，并提示改用完整快照；
+    //   ② 空快照（data 无任何有效字段，如 {}）会使全部 state 回退默认空值 → 拒绝；
+    //   ③ 恢复是破坏性操作，执行前先自动存一份「当前数据」快照，误恢复后仍可回退。
     restoreAutoBackup(idx) {
       const snap = this._autoBackups[idx];
       if (!snap || !snap.data) throw new Error('快照不存在或已损坏');
+      if (snap._slim) throw new Error('该快照为空间不足时的精简备份（不含项目/财务/职业数据），不支持恢复，请改用其它完整快照');
+      if (!Object.keys(snap.data).length) throw new Error('该快照内容为空，无法恢复（已阻止以防数据被清空）');
+      // 恢复前留档：把「当前状态」追加为一份快照，保证误恢复后仍可回到恢复前
+      try {
+        let cur; try { cur = JSON.parse(this.exportAll()); } catch (e) { cur = null; }
+        if (cur && Object.keys(cur).length) {
+          const arr = this._autoBackups.slice();
+          arr.unshift(_normSnap({ ts: Date.now(), data: cur }));
+          if (arr.length > AUTO_BACKUP_MAX) arr = arr.slice(0, AUTO_BACKUP_MAX);
+          this._autoBackups = arr;
+          this._persistBackups();
+        }
+      } catch (e) { /* 留档失败不阻断恢复本身 */ }
       this.importAll(snap.data);
     },
     async deleteAutoBackup(idx) {
@@ -9732,6 +9879,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       doSubOccurrence(date, done, onTime) {
         const s = this.sub;
         if (!s) return;
+        const t = this.$store.findTask(this.taskId);       // 父任务：用于积分归因与标签追溯
+        const S = this.$store;
         if (done) {
           if (!this.$store.cycleArchivedToday(s, date)) {
             const today = this.$store.util.todayStr();
@@ -9739,10 +9888,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             const real = onTime ? date : (isPast ? today : date);   // 真实完成日：按时补卡记原日期，否则逾期记今天
             const overdue = !onTime && isPast;
             s.cycle_history.push({ execute_date: date, is_archived: true, overdue, real_done: real });
+            // 积分联动：补齐许愿池积分（与主任务 toggleOccurrence / 子任务 subCopyDone 同口径）。
+            // 修复前此处只写 cycle_history 不计分，导致「滑动打卡给分、执行历史打卡不给分」的路径不对称。
+            // 出现日级 refId（taskId_subId_日期），撤销一次仅回滚该次，不影响其它出现日。
+            // 按时完成（onTime）不计延期衰减（delay=0），归因落原日期。
+            const delay = onTime ? 0 : (isPast ? Math.max(0, this.$store.util.dateDiffDays(date, today)) : 0);
+            const pts = Math.max(0, 12 - delay);
+            S.addPoints(pts, 'cycle_task', (onTime ? '子任务按时完成: ' : (delay > 0 ? '子任务延期完成(' + delay + '天): ' : '子任务正常完成: ')) + s.title, this.taskId + '_' + s._id + '_' + date);
           }
         } else {
           const idx = s.cycle_history.map(h => h.execute_date).lastIndexOf(date);
           if (idx >= 0) s.cycle_history.splice(idx, 1);
+          // 积分联动：撤销执行历史打卡（出现日级 refId，精准回滚本次，不影响其它出现日）
+          S.reversePoints(this.taskId + '_' + s._id + '_' + date, 'cycle_task');
         }
         if (!onTime) this.$store.syncCycleAnchor(s);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算（按时完成·补卡不重算）
         // 全部完成 → 自动归档子任务母本（先写快照，保证撤销按历史打卡日期完整恢复）
@@ -12576,6 +12734,47 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * AiTaskPreviewModal —— AI 自然语言解析结果预览（绝不自动写库）
    * 表单字段与任务详情【高级设置】面板保持完全对齐
    * ===================================================================== */
+  // —— 批量行内解析辅助（悬浮球多行批量：日期前缀 + 行内 # 标签；前端确定性解析，不依赖 AI）——
+  // 日期前缀识别：支持 2026.9.7 / 2026-9-7 / 2026/9/7 / 2026年9月7日（显式年份）
+  // 与 9.7 / 9月7日 / 9/7（缺省按当年）。仅认「行首前缀」且剥离后仍有标题才生效；
+  // 形似日期但非法（如 13.40 / 9.32）不误剥，保留原文作标题。
+  function extractInlineDate(text) {
+    const s = (text || '').trim();
+    if (!s) return null;
+    const pad = n => String(n).padStart(2, '0');
+    const tryYmd = (y, mo, d) => {
+      if (mo < 1 || mo > 12) return null;
+      const max = new Date(y, mo, 0).getDate();
+      if (d < 1 || d > max) return null;
+      return y + '-' + pad(mo) + '-' + pad(d);
+    };
+    const now = new Date();
+    let m = /^(\d{4})\s*[.年/\-]\s*(\d{1,2})\s*[.月/\-]\s*(\d{1,2})\s*日?/.exec(s);
+    if (m) {
+      const date = tryYmd(+m[1], +m[2], +m[3]);
+      if (!date) return null;
+      const rest = s.slice(m[0].length).trim();
+      return rest ? { date, rest } : null;
+    }
+    // 无年份：M[.月/]D日?（不含「-」分隔，避免「2-3人」类区间歧义）
+    m = /^(\d{1,2})\s*[.月/]\s*(\d{1,2})\s*日?/.exec(s);
+    if (m) {
+      const date = tryYmd(now.getFullYear(), +m[1], +m[2]);
+      if (!date) return null;
+      const rest = s.slice(m[0].length).trim();
+      return rest ? { date, rest } : null;
+    }
+    return null;
+  }
+  // 行内标签剥离：仅剥离「以 # 开头的独立 token」（#一级##二级###父任务 连续写法视为一个 token），
+  // 不误伤标题中含 # 的词（如 C#学习 不以 # 开头，不剥）。返回 { rest, tagStr }。
+  function extractInlineTags(text) {
+    const tokens = (text || '').trim().split(/\s+/).filter(Boolean);
+    const tagTokens = tokens.filter(t => t.charAt(0) === '#');
+    const rest = tokens.filter(t => t.charAt(0) !== '#').join(' ');
+    return { rest, tagStr: tagTokens.join(' ') };
+  }
+
   C.AiTaskPreviewModal = {
     name: 'AiTaskPreviewModal',
     // 第 3 层模块 1：批量解析预览。items = 解析后的结构化候选数组；truncated = 是否超出 50 条上限
@@ -12620,8 +12819,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         //          单条模式沿用 AI 提炼后的核心标题（it.title）
         const rawTitle = (it.raw || it.title || '').trim();
         const aiTitle = (it.title || '').trim();
+        // 批量(>1)模式行内确定性解析（不依赖 AI，均为用户显式输入的前缀）：
+        //   ① 行内 # 标签 token（#工作###本周完成，支持 #一级##二级###父任务 连续写法）→ 该行专属归属（优先于批量统一标签）；
+        //   ② 日期前缀（9.7拍视频 / 2026.9.7拍视频 / 9月7日拍视频）→ 该行执行日期。
+        //   先剥标签再剥日期（两种先后顺序均可），剥离后仅保留纯标题；识别结果在列表行内以小字预览。
+        let batchTitle = rawTitle, inlineDate = null, hasInlineTags = false;
+        let lineParsedTags = [], lineLevel3Chain = null, lineCatId = null, lineParentCat = '', lineFolder = null, inlineTagPreview = '';
+        if (!isSingle) {
+          const S1 = window.MPStore;
+          let restText = rawTitle;
+          const tg = extractInlineTags(restText);
+          if (tg.tagStr) {
+            // 行内标签探测：首个一级名若已有分类 → 按其归属文件夹解析（复用既有分类，不重复新建同名分类）；
+            // 否则按本条默认文件夹（fFolder）解析
+            const l1Name = tg.tagStr.replace(/^#+/, '').split(/[##\s]/)[0] || '';
+            const existed = l1Name ? S1.state.categories.find(c => c.name === l1Name && !c.parent) : null;
+            lineFolder = existed ? S1.folderOfCat(existed._id) : fFolder;
+            const pr = S1.parseTagString(tg.tagStr, lineFolder);
+            lineParsedTags = pr.parsed; lineLevel3Chain = pr.level3Chain;
+            lineCatId = pr.category_id; lineParentCat = pr.parent_category;
+            hasInlineTags = true;
+            inlineTagPreview = tg.tagStr;
+            restText = tg.rest;
+          }
+          const dt = extractInlineDate(restText);
+          if (dt) { inlineDate = dt.date; restText = dt.rest; }
+          batchTitle = restText.trim() || rawTitle;
+        }
+        const finalTitle = (isSingle ? aiTitle : batchTitle) || '未命名任务';
         return {
-          title: (isSingle ? aiTitle : rawTitle) || '未命名任务',
+          title: finalTitle,
           desc: it.desc || '',
           material_notes: it.material_notes || '',
           material_link: it.material_link || '',
@@ -12630,12 +12857,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           folderType: fFolder, tagInput, parsedTags, hasLevel3, level3Chain,
           date_mode: it.date_mode || (it.date_start ? 'range' : (it.execute_date ? 'day' : '')),
           week_offset: (it.week_offset != null) ? it.week_offset : null,
-          plan_year: it.plan_year || null, plan_month: it.plan_month || '', execute_date: it.execute_date || null, date_start: it.date_start || '', date_end: it.date_end || '',
+          // 批量(>1)：执行日期仅来自行内日期前缀（9.7 → 当年 09-07），不采纳 AI 派生日期（原规则）
+          execute_date: isSingle ? (it.execute_date || null) : (inlineDate || null),
+          date_start: it.date_start || '', date_end: it.date_end || '',
           enable_remind: !!(it.remind || it.enable_remind),
           remind_time: it.remind_time || '',
           cycle: cy,
           progress_info: it.progress_info ? JSON.parse(JSON.stringify(it.progress_info)) : { enable: false, media_type: '', progress_value: '' },
           isEmergency: !!it.isEmergency, // 紧急标记：默认不勾选
+          // —— 批量行内识别结果（仅 >1 模式使用；单条模式恒为空值）——
+          inlineDate, hasInlineTags, lineParsedTags, lineLevel3Chain, lineCatId, lineParentCat, lineFolder, inlineTagPreview,
         };
       });
       // 注：不再将「无标签且无日期」的 AI 解析结果强制归入「临时任务」；
@@ -12668,12 +12899,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.newTitle = '';
       },
       // 归属标签解析（#一级 ##二级 ###三级）：统一委托 Store.parseTagString（解析模块独立封装，所有录入入口共用，行为一致）
+      // 既有分类探测：首个一级名若已存在分类 → 按其归属文件夹解析（复用既有分类，不在所选文件夹重复建同名分类）
       parseBatchTags() {
         const text = (this.batchTagInput || '').trim();
-        if (!text) { this.batchParsedTags = []; this.batchLevel3Chain = null; return; }
-        const pr = this.$store.parseTagString(text, this.folderType || 'task');
+        if (!text) { this.batchParsedTags = []; this.batchLevel3Chain = null; this._batchTagFolder = null; return; }
+        const S1 = this.$store;
+        const l1Name = text.replace(/^#+/, '').split(/[##\s]/)[0] || '';
+        const existed = l1Name ? S1.state.categories.find(c => c.name === l1Name && !c.parent) : null;
+        const folder = existed ? S1.folderOfCat(existed._id) : (this.folderType || 'task');
+        const pr = S1.parseTagString(text, folder);
         this.batchParsedTags = pr.parsed;
         this.batchLevel3Chain = pr.level3Chain;
+        this._batchTagFolder = folder;   // confirmBatch 判定 is_collection / is_template 时使用
       },
       // 单条：完整可编辑详情确认 → 在待归档生成 1 条（含全部高级设置）
       confirmSingle() {
@@ -12724,7 +12961,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 多条：批量确认 → 在待归档生成顶层任务（或三级标签下绑定父任务的子任务）
       // 需求：识别条数 > 1 时，AI 仅识别「任务名称」，绝不带入自然语言解析出的
       //       日期 / 提醒时间 / 描述 / 标签 / 周期 / 紧急等高级设置。
-      //       仅保留用户手动填写的「批量归属标签」（batchCat/batchParent），其余一律留空。
+      //       仅保留：① 用户手动填写的「批量归属标签」（batchTagInput）② 行内显式前缀——
+      //       行内日期（9.7 → 当年 09-07）与行内标签（#工作###本周完成，含 ### 父任务链），
+      //       行内有标签时该行优先用自己的归属（含对应文件夹），无行内标签的行走批量统一标签。
       confirmBatch() {
         const chain = this.batchLevel3Chain || null;
         const last = this.batchParsedTags[this.batchParsedTags.length - 1];
@@ -12736,16 +12975,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (!this.checked[i]) return;
           const title = (d.title || '').trim();
           if (!title) return;
-          // 批量（>1）模式：AI 只识别名称，丢弃全部 AI 派生的高级设置，仅保留手动批量标签
+          // 行内标签优先：该行带 # 标签 → 用行内解析结果（含 ### 父任务链与对应文件夹）；
+          // 否则回落到批量统一标签 / 无标签（统一标签解析时记忆的既有分类文件夹优先，避免同名分类重复建）
+          const useLine = !!d.hasInlineTags;
+          const lineChain = useLine ? (d.lineLevel3Chain || null) : null;
+          const effChain = lineChain || chain;
+          const effParent = useLine ? (d.lineParentCat || '') : batchParent;
+          const effCat = useLine ? (d.lineCatId || null) : batchCat;
+          let folder = useLine ? (d.lineFolder || 'task') : (this._batchTagFolder || this.folderType || 'task');
+          // 收藏夹任务强制无时间（产品硬规则，addTask 会清空 execute_date）：
+          // 行内识别出日期但归属收藏夹时，自动改归属任务夹，保住用户显式输入的日期；
+          // 无日期的行保持原归属（批量 >1 默认收藏夹规则不变）
+          if (d.execute_date && folder === 'collection') folder = 'task';
+          // 批量（>1）模式：AI 只识别名称，丢弃全部 AI 派生的高级设置；执行日期仅来自行内日期前缀
           const fields = {
             title,
             desc: '',
             material_notes: '',
             material_link: '',
-            category_id: batchCat || null,
-            parent_category: batchParent || '',
-            is_template: this.folderType === 'template',
-            is_collection: this.folderType === 'collection',
+            category_id: effCat || null,
+            parent_category: effParent || '',
+            is_template: folder === 'template',
+            is_collection: folder === 'collection',
             enable_remind: false,
             remind_time: '',
             cycle: null,
@@ -12757,10 +13008,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             progress_info: { enable: false, media_type: '', progress_value: '' },
             isEmergency: false,
             date_mode: 'single', plan_year: null, plan_month: null, plan_week: null,
-            execute_date: null, date_start: '', date_end: '', week_offset: null, time_mode: null,
+            execute_date: d.execute_date || null, date_start: '', date_end: '', week_offset: null, time_mode: null,
           };
-          if (chain) {
-            const r = this.$store.addTaskUnderLevel3(fields, chain);
+          if (effChain) {
+            const r = this.$store.addTaskUnderLevel3(fields, effChain);
             created.push(r.parentId);
           } else {
             const t = this.$store.addTask(fields);
@@ -12794,7 +13045,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="ai-batch-list">
               <div class="row ai-batch-row" v-for="(d,i) in drafts" :key="i">
                 <label class="ai-check"><input type="checkbox" v-model="checked[i]" /></label>
-                <div class="row-main"><input class="ai-batch-text" v-model="d.title" placeholder="任务内容" /></div>
+                <div class="row-main">
+                  <input class="ai-batch-text" v-model="d.title" placeholder="任务内容" />
+                  <!-- 行内识别预览：日期前缀 / 行内标签（#一级##二级###父任务） -->
+                  <div class="ai-batch-meta" v-if="d.inlineDate || d.inlineTagPreview">
+                    <span v-if="d.inlineDate" class="meta-date">📅 {{ d.inlineDate }}</span>
+                    <span v-if="d.inlineTagPreview" class="meta-tag">🏷 {{ d.inlineTagPreview }}</span>
+                  </div>
+                </div>
                 <button class="icon-btn" @click="removeItem(i)" title="删除">✕</button>
               </div>
             </div>
@@ -12812,7 +13070,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               </label>
             </div>
             <div class="ai-batch-tag">
-              <div class="fld" style="margin-bottom:4px"><input v-model="batchTagInput" @blur="parseBatchTags" @keyup.enter="parseBatchTags" placeholder="归属标签（#一级 ##二级，空格分隔；批量任务统一打该标签）" /></div>
+              <div class="fld" style="margin-bottom:4px"><input v-model="batchTagInput" @blur="parseBatchTags" @keyup.enter="parseBatchTags" placeholder="统一归属标签（#一级 ##二级 ###父任务，空格分隔；行内已带 # 标签的条目优先用行内归属）" /></div>
               <div class="tag-edit" v-if="batchParsedTags.length">
                 <span class="ptag" v-for="(p,idx) in batchParsedTags" :key="idx">#{{ p.l1.name }}<template v-if="p.l2"> ##{{ p.l2.name }}</template></span>
               </div>
@@ -14105,13 +14363,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             || (p.desc || '').toLowerCase().includes(k) || (p.material_notes || '').toLowerCase().includes(k) || (p.material_link || '').toLowerCase().includes(k)
             || (Array.isArray(p.tags) && p.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k))))));
       },
-      // 归档列表（UI 展示）：基础列表 + 日期/区间筛选 + 关键词（关键词已在 buildArchBase 应用）
+      // 归档列表（UI 展示）：基础列表 + 日期/月份/年/区间筛选 + 关键词（关键词已在 buildArchBase 应用）
       archList() {
         let out = this.buildArchBase(this.archKeyword);
-        // 搜索关键词非空时跨全部日期范围查询（不受 archSelDate 当日限制）；无搜索词时才按选中日期/区间筛选
+        // 搜索关键词非空时跨全部日期范围查询（不受选中日期/年/月限制）；无搜索词时才按选中粒度筛选
         if (this.archKeyword.trim()) return out;
+        // 月份（YYYY-MM）与日期（YYYY-MM-DD）共用 archSelDate，startsWith 前缀匹配天然覆盖两种粒度：
+        // 年视图点月份传 'YYYY-MM' → 命中该月全部日期；月视图点某天传 'YYYY-MM-DD' → 命中当天。
         if (this.archSelDate) return out.filter(t => t._date && t._date.startsWith(this.archSelDate));
         if (this.archRange.start && this.archRange.end) return out.filter(t => t._date && t._date >= this.archRange.start && t._date <= this.archRange.end);
+        // 年视图未选月份时按「当前浏览年份」收敛：否则点 ‹ 切到往年，列表仍混入其它年份的条目，
+        // 与上方写着「2025年」、格子也只统计 2025 的日历自相矛盾。
+        if (this.archView === 'year') return out.filter(t => t._date && t._date.slice(0, 4) === String(this.archYear));
         return out;
       },
       // —— 纵向时间线（统计页 · 全局已归档仓库）：选中日期 + 配置了提醒时间的归档任务/子任务 ——
@@ -14666,20 +14929,59 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       onArchSelect(date) {
         this.archSelDate = (this.archSelDate === date) ? null : date; // 再次点击取消
         if (this.archSelDate) this.archRange = { start: '', end: '' };
+        // 选中具体日期时清掉「年视图月份」筛选：两个筛选态共用一个 archSelDate，
+        // 若残留 archSelMonth，会出现「列表按天筛选、饼图仍按月统计」的口径不一致。
+        this.archSelMonth = null;
       },
-      onRangeChange() { if (this.archRange.start || this.archRange.end) this.archSelDate = null; },
-      clearArchDate() { this.archSelDate = null; this.archRange = { start: '', end: '' }; },
+      onRangeChange() {
+        if (this.archRange.start || this.archRange.end) { this.archSelDate = null; this.archSelMonth = null; }
+      },
+      clearArchDate() { this.archSelDate = null; this.archRange = { start: '', end: '' }; this.archSelMonth = null; },
+      // 年视图「默认选中当月」的月份键（YYYY-MM）；仅当浏览的是当前年份才返回，往年返回 ''（不预选，避免无意义筛选）
+      _defaultYearMonthSel() {
+        const now = new Date();
+        if (this.archYear !== now.getFullYear()) return '';
+        return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+      },
+      // 年/月视图切换：集中处理默认选中，避免模板内联逻辑分散导致行为不一致
+      switchArchView(v) {
+        this.archView = v;
+        this.archSelDate = null;
+        this.archSelMonth = null;
+        this.archRange = { start: '', end: '' };
+        if (v === 'year') {
+          // 年视图：默认选中当月（仅当前年份），进入即可见本月归档；再点该月份格可取消
+          const ms = this._defaultYearMonthSel();
+          if (ms) { this.archSelMonth = ms; this.archSelDate = ms; }
+        } else {
+          // 月视图：维持既有默认——展开时选中今日
+          this.archSelDate = this.today;
+        }
+      },
       // MiniCal 月/年导航（与习惯统计 navHabit 同逻辑）
       navArchCalendar(dir) {
-        if (this.archView === 'year') { this.archYear += dir; this.archSelDate = null; this.archSelMonth = null; return; }
+        if (this.archView === 'year') {
+          this.archYear += dir;
+          this.archSelDate = null;
+          this.archSelMonth = null;
+          // 切回当前年份时恢复「默认选中当月」，与进入年视图行为保持一致
+          const ms = this._defaultYearMonthSel();
+          if (ms) { this.archSelMonth = ms; this.archSelDate = ms; }
+          return;
+        }
         let y = this.archYear, m = this.archMonth + dir;
         if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
         this.archYear = y; this.archMonth = m;
         this.archSelDate = null;
       },
+      // 年视图点击月份：既驱动「当月饼图」，也驱动下方归档列表按【整月】筛选。
+      // 此前只写 archSelMonth（仅供饼图），而 archList 只认 archSelDate → 列表完全不联动。
+      // 这里复用 archSelDate 承载 YYYY-MM 前缀（archList 的 startsWith 天然覆盖整月），无需新增第三套筛选态。
       onYearMonthSelect(m) {
-        // 年视图点击月份：仅用于饼图可视化，不影响 archSelDate 和时间线
-        this.archSelMonth = (this.archSelMonth === m.monthStr) ? null : m.monthStr;
+        const willSelect = (this.archSelMonth !== m.monthStr);
+        this.archSelMonth = willSelect ? m.monthStr : null;
+        this.archSelDate = willSelect ? m.monthStr : null;
+        if (willSelect) this.archRange = { start: '', end: '' };  // 与 onArchSelect 一致：清区间筛选，避免互相干扰
       },
       // —— 演示数据模式（本地持久化）——
       toggleDemo() {
@@ -14915,10 +15217,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!this.collapsed.hasOwnProperty(key)) return;
         const expanding = this.collapsed[key]; // 当前为折叠态 → 本次点击将展开
         this.collapsed = { ...this.collapsed, [key]: !this.collapsed[key] };
-        // 全局已归档仓库展开时，默认按「今日」筛选，直接呈现当日归档情况；
-        // 若已选中某日期 / 区间则保留用户选择，不强制覆盖
-        if (key === 'arch' && expanding && !this.archSelDate && !(this.archRange.start || this.archRange.end)) {
-          this.archSelDate = this.today;
+        // 全局已归档仓库展开时给出合理默认筛选，直接呈现有数据的时段；
+        // 若已选中某日期 / 区间 / 月份则保留用户选择，不强制覆盖。
+        // 口径随视图区分：月视图默认「今日」；年视图默认「当月」（与 switchArchView 保持一致，
+        // 否则年视图会被写成完整日期，与月份筛选态打架、月份格子也不高亮）。
+        if (key === 'arch' && expanding && !this.archSelDate && !this.archSelMonth && !(this.archRange.start || this.archRange.end)) {
+          if (this.archView === 'year') {
+            const ms = this._defaultYearMonthSel();
+            if (ms) { this.archSelMonth = ms; this.archSelDate = ms; }
+          } else {
+            this.archSelDate = this.today;
+          }
         }
         this.saveCol();
       },
@@ -14947,8 +15256,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button type="button" @click="navArchCalendar(1)">›</button>
             </div>
             <div class="mc-tabs">
-              <button type="button" :class="{on:archView==='month'}" @click="archView='month'; archSelDate=null; archSelMonth=null">月</button>
-              <button type="button" :class="{on:archView==='year'}" @click="archView='year'; archSelDate=null; archSelMonth=null">年</button>
+              <button type="button" :class="{on:archView==='month'}" @click="switchArchView('month')">月</button>
+              <button type="button" :class="{on:archView==='year'}" @click="switchArchView('year')">年</button>
             </div>
           </div>
           <!-- 月视图日历点阵 -->
@@ -15156,12 +15465,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <div class="ab-main">
                 <span class="ab-time">{{ autoBackupTime(s.ts) }}<em v-if="i === 0" class="ab-new">最新</em></span>
                 <span class="ab-meta">
-                  <template v-if="autoBackupCount(s.data).empty">空快照</template>
+                  <template v-if="s._slim"><em class="ab-slim">精简备份</em>不含项目/财务/职业，仅存 任务 {{ autoBackupCount(s.data).t }} · 标签 {{ autoBackupCount(s.data).c }} · 习惯 {{ autoBackupCount(s.data).h }}</template>
+                  <template v-else-if="autoBackupCount(s.data).empty">空快照</template>
                   <template v-else>任务 {{ autoBackupCount(s.data).t }} · 标签 {{ autoBackupCount(s.data).c }} · 习惯 {{ autoBackupCount(s.data).h }}</template>
                 </span>
               </div>
               <span class="ab-ops">
-                <button class="btn-mini" @click="restoreAutoBackup(i)">恢复</button>
+                <button class="btn-mini" :disabled="s._slim || autoBackupCount(s.data).empty"
+                        :title="s._slim ? '精简备份（空间不足时生成）不完整，不支持恢复' : (autoBackupCount(s.data).empty ? '空快照不支持恢复' : '恢复此快照')"
+                        @click="restoreAutoBackup(i)">恢复</button>
               </span>
             </li>
           </ul>
@@ -20355,6 +20667,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           pct: max > 0 ? Math.round(map[k] / max * 100) : 0,
         }));
       },
+      // ★ 项目配色唯一来源（「同种同色」的根基）★
+      // 饼图（专注时长占比）与打卡完成量堆叠柱状图必须对同一项目使用同一颜色。
+      // 此前两图各自按「自己的排序」分配 palette 下标：饼图按专注时长降序、柱状图按完成量降序，
+      // 两种排序不一致时同一项目就会拿到不同颜色（甲：饼图蓝 / 柱状绿），观感上「串色」。
+      // 这里统一为：按项目名称的稳定字典序分配（不随时段/数值变化），
+      // 颜色只由「项目身份」决定，任何图表、任何时段都一致且可预测。
+      // 注：palette 长度与已用色数无关，取模不会退化成「全部同色」，仅当项目数超过色板长度才循环复用。
+      projColors() {
+        const names = Object.keys(this.subProjName).map(sid => this.subProjName[sid]);
+        // 去重：多个子任务同属一个项目，避免同名占据多个色位
+        const uniq = []; names.forEach(n => { if (uniq.indexOf(n) < 0) uniq.push(n); });
+        // 兜底名一并纳入，保证两图对「未关联项目」也用同一颜色
+        if (uniq.indexOf('未关联项目') < 0) uniq.push('未关联项目');
+        uniq.sort();
+        const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
+        const out = {}; uniq.forEach((n, i) => { out[n] = palette[i % palette.length]; });
+        return out;
+      },
+      // 取某项目名对应的固定颜色（未登记时兜底到调色板首色，避免出现 undefined 背景）
+      // ⚠ 注意：本函数必须定义在 methods 中（以项目名为参数逐项调用），不能留在 computed ——
+      // 否则 this.projColor(name) 会先命中同名 computed 取值器（拿到字符串）再尝试调用，
+      // 抛 TypeError: Cannot convert object to primitive value，整页图表白屏。
       // 饼图：各项目专注分钟占比
       pieData() {
         const win = this.vizWindow; const map = {};
@@ -20364,13 +20698,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const name = this.subProjName[r.sid] || '未关联项目';
           map[name] = (map[name] || 0) + (Number(r.spentMin) || 0);
         });
-        const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
         const arr = Object.keys(map).map(n => ({ name: n, min: map[n] })).sort((a, b) => b.min - a.min);
         const total = arr.reduce((a, x) => a + x.min, 0);
         let acc = 0;
-        return arr.map((x, i) => {
+        return arr.map((x) => {
           const ratio = total > 0 ? x.min / total : 0;
-          const slice = { name: x.name, min: x.min, pct: total > 0 ? Math.round(ratio * 100) : 0, color: palette[i % palette.length], ratio };
+          const slice = { name: x.name, min: x.min, pct: total > 0 ? Math.round(ratio * 100) : 0, color: this.projColor(x.name), ratio };
           acc += ratio; return slice;
         });
       },
@@ -20442,14 +20775,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cell[k][name] = (cell[k][name] || 0) + amt;
           projTotals[name] = (projTotals[name] || 0) + amt;
         });
-        const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
         const projNames = Object.keys(projTotals).sort((a, b) => projTotals[b] - projTotals[a]);
-        const projColor = {}; projNames.forEach((n, i) => { projColor[n] = palette[i % palette.length]; });
+        // 颜色一律取自共享的 projColors（按项目名稳定分配），与饼图严格同种同色；
+        // 此处的 projNames 仅用于控制堆叠顺序与图例排序（按完成量降序），不再参与配色。
         const CHART_H = 108; // 堆积柱形图固定像素高度，避免百分比高度在弹性容器内无法解析（留出顶部数值与底部标签空间）
         const maxTotal = Math.max.apply(null, win.keys.map(k => { let s = 0; for (const n in cell[k]) s += cell[k][n]; return s; }).concat([0]));
         const dayMap = {}; this.checkinBuckets.forEach(b => { dayMap[b.key] = b.days; });
         const buckets = win.keys.map(k => {
-          const segs = projNames.filter(n => cell[k][n]).map(n => ({ name: n, amount: cell[k][n], color: projColor[n] }));
+          const segs = projNames.filter(n => cell[k][n]).map(n => ({ name: n, amount: cell[k][n], color: this.projColor(n) }));
           const total = segs.reduce((a, s) => a + s.amount, 0);
           segs.sort((a, b) => b.amount - a.amount);
           const stackPx = maxTotal > 0 ? Math.round(total / maxTotal * CHART_H) : 0;
@@ -20460,7 +20793,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         });
         return {
           maxTotal,
-          palette: projNames.map((n, i) => ({ name: n, color: palette[i % palette.length], total: projTotals[n] })),
+          palette: projNames.map(n => ({ name: n, color: this.projColor(n), total: projTotals[n] })),
           buckets,
         };
       },
@@ -20474,6 +20807,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       prev() { this.vizOffset = this.vizOffset + 1; },
       next() { this.vizOffset = Math.max(0, this.vizOffset - 1); },
       back() { if (window.history.length > 1) history.back(); else location.hash = '#/projects'; },
+      // 取某项目名对应的固定颜色（与 computed.projColors 配套；详见 projColors 注释）
+      // 放在 methods：以项目名为参数逐项调用，保证饼图与完成量柱状图「同种同色」。
+      projColor(name) {
+        const c = this.projColors[name];
+        return c || '#6a7bff';
+      },
       // 专注时长计量：小时用 h、分钟用 min（如 45 → 45min，60 → 1h，90 → 1h30min）
       fmtH(m) {
         m = Math.max(0, Math.round(Number(m) || 0));
