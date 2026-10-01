@@ -681,6 +681,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .progress select, .progress input { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px; }
 /* 进度记录：进度单位自由输入框（替代原预设下拉 + 自定义单位列表） */
 .prog-value { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; margin-bottom: 2px; }
+/* 启动进度记录入口定位高亮：闲趣卡启动后弹窗自动滚动聚焦进度值输入框，金色描边闪两下指示位置 */
+.prog-value.prog-locate { border-color: #f0b429; animation: progLocate 1.1s ease 2; }
+@keyframes progLocate { 0%, 100% { box-shadow: 0 0 0 3px rgba(240, 180, 41, .28); } 50% { box-shadow: 0 0 0 7px rgba(240, 180, 41, .10); } }
 .unit-input { width: 100%; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 9px; font-size: 14px; color: var(--text); font-family: inherit; margin-top: 4px; }
 .material pre { white-space: pre-wrap; background: #f7f8fc; border-radius: var(--radius-sm); padding: 10px; font-size: 12px; color: var(--sub); max-height: 120px; overflow-y: auto; }
 /* 素材备注（主描述）：可编辑多行文本 */
@@ -1214,7 +1217,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .gantt-bar.done .gantt-pct { color: #4a4f5e; }
 .gantt-none { position: absolute; top: 14px; left: 6px; font-size: 11px; color: var(--sub); }
 .gantt-empty { padding: 28px 12px; font-size: 14px; }
-.gantt-tip { margin: 10px 2px 2px; }
+/* ProjectSubTotals —— 子任务累计打卡/完成量行列表 */
+.pst-rows { margin-top: 8px; }
+.pst-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.pst-row:last-child { border-bottom: none; }
+.pst-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+.pst-nums { color: var(--sub); font-size: 12px; flex-shrink: 0; }
+.pst-nums b { color: var(--primary); }
+.pst-row.idle { opacity: .45; }
 
 .rec-hist { max-height: 200px; overflow-y: auto; margin: 8px 0; }
 .rec-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 7px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
@@ -1404,7 +1414,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .lz-check.sub .lz-check-name { color: var(--sub); }
 /* 随机卡片本体：复用任务卡基础结构，配色与主应用统一 */
 .lz-card-wrap { position: relative; overflow: hidden; border-radius: var(--radius-md); }
-.lz-card-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 18px; background: #e8f6ee; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; color: var(--ok); }
 .lz-card {
   position: relative; background: #fafbff; border: 1px solid var(--line); border-radius: var(--radius-md);
   padding: 12px 13px; touch-action: pan-y; -webkit-user-select: none; user-select: none;
@@ -1415,12 +1424,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .lz-card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .lz-cat { font-size: 11px; padding: 1px 8px; border-radius: var(--radius-sm); background: #eef0ff; color: var(--primary); }
 .lz-desc { font-size: 12px; color: var(--sub); margin-top: 6px; line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.lz-hint { font-size: 11px; color: var(--sub); margin-top: 8px; }
-/* 卡片操作区：全部操作在面板内完成，不额外跳页；按钮配色与主应用 .btn-mini 一致 */
-.lz-acts { display: flex; gap: 6px; margin-top: 10px; }
-.lz-btn { flex: 1; font-size: 12px; font-weight: 600; padding: 8px 4px; border-radius: var(--radius-sm); background: #eef0ff; color: var(--primary); border: none; white-space: nowrap; }
+/* 卡片操作区：全部操作在面板内完成，不额外跳页；按钮配色与主应用 .btn-mini 一致。
+   三键（换一件 / 安排 / 启动进度记录）用 Grid 三等列强制等宽等高并排（flex 均分会受
+   WeekScheduleBtn 弹层按钮内容 min-content 干扰，宽度差数像素不齐） */
+.lz-acts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; align-items: stretch; }
+.lz-btn { flex: 1; display: flex; align-items: center; justify-content: center; height: 34px; padding: 0 4px; font-size: 12px; font-weight: 600; border-radius: var(--radius-sm); background: #eef0ff; color: var(--primary); border: none; white-space: nowrap; }
 .lz-btn.main { background: var(--primary); color: #fff; }
 .lz-btn.warm { background: #fff3e0; color: #e08e0b; }
+/* 闲趣卡操作区内复用任务行的「安排」弹层按钮：与 lz-btn 同高同形（去边框胶囊、统一圆角与行高）；
+   WeekScheduleBtn 根是 span.wk-sched（grid item 默认 stretch 撑满格子，内部按钮 width:100% 填满） */
+.lz-acts .wk-sched { display: flex; }
+.lz-acts .row-sched-btn { width: 100%; height: 34px; padding: 0 4px; font-size: 12px; border: none; border-radius: var(--radius-sm); line-height: 1.2; }
 .lz-empty { text-align: center; font-size: 13px; color: var(--sub); padding: 22px 12px; line-height: 1.8; }
 .lz-toast { margin-top: 10px; font-size: 12px; color: var(--ok); background: #e8f6ee; border-radius: var(--radius-sm); padding: 8px 12px; text-align: center; touch-action: pan-y; -webkit-user-select: none; user-select: none; will-change: transform; }
 /* —— 项目列表：累计专注时长整体时间条（复用子任务时间条 .tbar 蓝紫渐变） —— */
@@ -1491,15 +1505,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-body { margin-top: 10px; }
 .wp-add-btn { width: 100%; background: #eef0ff; color: var(--primary); font-weight: 600; font-size: 13px; padding: 10px; border-radius: var(--radius-sm); border: 1px dashed #dde4ff; cursor: pointer; }
 .wp-add-btn:active { filter: brightness(0.93); }
-.wp-list { display: flex; flex-direction: column; gap: 6px; }
+.wp-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .wp-row-wrap { position: relative; overflow: hidden; border-radius: var(--radius-md); }
 .wp-row-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 16px; background: #e8f6ee; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; color: var(--ok); pointer-events: none; }
 .wp-row { position: relative; background: #fafbff; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; display: flex; align-items: center; gap: 8px; touch-action: pan-y; user-select: none; will-change: transform; transition: transform .18s ease; }
 .wp-row.dragging { transition: none; }
 .wp-row-affordable { border-color: #cceede; background: #f6fdf8; }
 .wp-row-unaffordable { opacity: 0.65; }
-.wp-row-drag { flex: none; color: var(--sub); cursor: grab; user-select: none; font-size: 15px; line-height: 1; padding: 0 2px; opacity: 0.55; touch-action: none; }
-.wp-row-drag:active { opacity: 1; cursor: grabbing; }
 .wp-row-main { flex: 1; min-width: 0; }
 .wp-row-name { font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wp-row-info { display: flex; align-items: center; gap: 6px; margin-top: 2px; flex-wrap: wrap; }
@@ -1518,9 +1530,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-hist-cost { color: var(--sub); white-space: nowrap; }
 .wp-hist-time { color: var(--sub); font-size: 11px; white-space: nowrap; }
 .wp-hist-status { font-size: 10px; padding: 1px 5px; border-radius: var(--radius-sm); white-space: nowrap; }
-.wp-hist-status.pending { background: #fff4e0; color: #c77800; }
-.wp-hist-status.verified { background: #e8f6ee; color: #1f9d57; }
-.wp-hist-status.expired { background: #f0f0f3; color: #8a8f9c; }
 .wp-hist-status.cancelled { background: #ffeaea; color: #c0443c; }
 .wp-hist-acts { display: inline-flex; gap: 4px; white-space: nowrap; }
 .wp-hist-act { font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: #fff; color: var(--text); cursor: pointer; }
@@ -1528,7 +1537,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-hist-act.undo:hover { background: #ffeaea; }
 .wp-undo-warn { font-size: 14px; line-height: 1.6; color: var(--text); margin: 4px 0 8px; }
 .wp-undo-warn strong { color: #c77800; }
-.wp-undo-tip { font-size: 12px; color: var(--sub); margin: 0 0 12px; }
 .btn.danger { background: #c0443c; color: #fff; border-color: #c0443c; }
 .btn.danger:hover { background: #a8382f; }
 .wp-balance { text-align: center; padding: 12px; background: #f7f8fc; border-radius: var(--radius-md); margin-bottom: 10px; }
@@ -1544,6 +1552,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-quota { font-size: 11px; color: var(--sub); margin: 0 0 8px; }
 .wp-quota strong { color: var(--primary); }
 .wp-quota.closed { color: #d9534f; }
+
+/* —— 许愿池赊账（打欠条）——
+ * 配色自洽：负余额/欠款 = 红（危险），欠条提示 = 橙（警告），不引入新色。
+ */
+.wp-head-points.debt { color: #c0443c; }
+.wp-head-debt { font-size: 11px; font-weight: 700; color: #e08e0b; margin-left: 2px; white-space: nowrap; }
+.wp-row-bg.debt { background: #fff4e0; color: #e08e0b; }
+.wp-hist-tag.debt { font-size: 10px; padding: 1px 6px; border-radius: var(--radius-sm);
+                    background: #fff4e0; color: #c77800; font-weight: 700; white-space: nowrap; flex: none; }
+.wp-detail-value.debt { color: #c0443c; font-weight: 700; }
+.wp-detail-pts.debt { color: #c77800; }
+.wp-detail-rev.debt-note { color: #c77800; }
+.wp-balance-num.debt { color: #c0443c; }
+.wp-balance.debt .wp-balance-label { color: #c0443c; }
+.wp-debt-calc { background: #fff8ee; border: 1px solid #ffe0b2; border-radius: var(--radius-md); padding: 10px 12px; margin: 10px 0; }
+.wp-debt-calc-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text); padding: 3px 0; }
+.wp-debt-calc-row.total { border-top: 1px dashed #ffd18a; margin-top: 4px; padding-top: 6px; font-weight: 700; color: #c77800; }
+.wp-debt-calc-row .neg { color: #c0443c; font-weight: 700; }
 
 /* —— 积分明细分类展示 —— */
 .wp-detail-value.penalty { color: var(--no); font-weight: 700; }
@@ -1809,6 +1835,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .tag.cat { background: #eef2ff; color: #6a7bff; border: 1px solid #e0e7ff; }
 .modal-x { border: none; background: transparent; font-size: 18px; color: var(--sub); }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+/* 编辑愿望弹窗：删除按钮靠左与取消/确认分离（危险操作远离高频确认键，防误触） */
+.wp-edit-acts .del-wish-btn { margin-right: auto; }
   /* ============ 职业 Tab ============ */
   .car-tabs { display: flex; gap: 8px; padding: 10px 16px 4px; }
   .car-tabs button { flex: 1; padding: 10px 8px; border: 1px solid var(--line); background: #fff; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; color: var(--sub); cursor: pointer; }
@@ -4942,6 +4970,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     persist();
   }
   // 无日期任务「安排」：快捷安排到某天单点执行日（不改变原无日期语义；仅追加单点日期）
+  // 闲趣收藏任务「安排到某天」：先转正（脱离收藏池），再设置单点执行日。
+  // 收藏任务按既有规则无法绑定时间（updateTask 会强制清除时间字段），故必须先转正再安排；
+  // 转正后任务进入正式日程（今日/周看板按日期可见），并随 isCollectionTask=false 退出随机候选池。
+  function scheduleCollectionToDay(id, ds) {
+    if (!ds) return;
+    const t = findTask(id);
+    if (!t) return;
+    if (t.is_collection) t.is_collection = false;
+    scheduleTaskToDate(id, null, ds);
+    persist();
+  }
   function scheduleTaskToDate(id, subId, dateStr) {
     if (!dateStr) return;
     const t = findTask(id);
@@ -6170,8 +6209,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* ----------------------------- 许愿池 ----------------------------- */
   function addWishItem(obj) {
     const maxOrder = state.wish_items.reduce((m, w) => Math.max(m, w.sort_order || 0), 0);
-    // validity_days: 兑换后「待核销」记录的有效期（天）。null/0/缺省 = 永久有效，不会自动过期。
-    const vd = obj.validity_days !== undefined ? parseInt(obj.validity_days, 10) : NaN;
     state.wish_items.push({
       _id: uid('wish'),
       name: String(obj.name || '').trim(),
@@ -6179,7 +6216,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       count_type: obj.count_type === 'repeatable' ? 'repeatable' : 'one_time',
       repeat_count: 0,
       is_archived: false,
-      validity_days: (isNaN(vd) || vd <= 0) ? null : vd,
       sort_order: maxOrder + 1,
       created_at: todayStr(),
     });
@@ -6191,10 +6227,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (patch.name !== undefined) item.name = String(patch.name).trim();
     if (patch.cost !== undefined) item.cost = Math.max(1, parseInt(patch.cost, 10) || 0);
     if (patch.count_type !== undefined) item.count_type = patch.count_type === 'repeatable' ? 'repeatable' : 'one_time';
-    if (patch.validity_days !== undefined) {
-      const vd = parseInt(patch.validity_days, 10);
-      item.validity_days = (isNaN(vd) || vd <= 0) ? null : vd;
-    }
     persist();
   }
   function removeWishItem(id) {
@@ -6203,18 +6235,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     state.wish_items.splice(idx, 1);
     persist();
   }
-  function redeemWish(id) {
-    const item = state.wish_items.find(w => w._id === id);
-    if (!item) return null;
-    if (item.is_archived) return null;
-    const pts = availablePoints();
-    if (pts < item.cost) return null;
+  // 兑换落库公共逻辑：正常兑换（recordType:'redeem'）与赊账（recordType:'debt'）共用。
+  // cost 一律存正值，收支方向只由 recordType 决定（遵循既有账务约定）。
+  // 返回新建记录的 _id，供撤销时精确回滚。
+  function _applyWishRedeemed(item, recordType, cost, extra) {
     const recordId = uid('wrec');
-    state.wish_records.push({
-      _id: recordId, wish_id: id, wish_name: item.name, cost: item.cost,
-      time: new Date().toISOString(), status: 'normal', recordType: 'redeem',
+    state.wish_records.push(Object.assign({
+      _id: recordId, wish_id: item._id, wish_name: item.name, cost: cost,
+      time: new Date().toISOString(), status: 'normal', recordType: recordType,
       verify: 'verified',  // 兑换即核销：兑换视为已使用权益，无需再手动核销；如实际未用可「撤销兑换」返还积分
-    });
+    }, extra || {}));
     if (item.count_type === 'one_time') {
       item.is_archived = true;
       item.completed_at = todayStr();
@@ -6228,37 +6258,62 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         material_notes: '', cycle_history: [], create_at: Date.now(),
         is_template: false, is_collection: false, isEmergency: false,
         tags: ['#许愿'],
+        wish_record_id: recordId,   // 精确回滚锚点：撤销时按此匹配，兼容旧数据回退标题匹配
       });
     } else {
       item.repeat_count = (item.repeat_count || 0) + 1;
     }
+    return recordId;
+  }
+
+  function redeemWish(id) {
+    const item = state.wish_items.find(w => w._id === id);
+    if (!item) return null;
+    if (item.is_archived) return null;
+    const pts = availablePoints();
+    if (pts < item.cost) return null;   // 门禁不变：买不起不许直接兑换（应改走赊账）
+    // 欠款未还清（真实余额为负）：任何愿望都不能再兑换，防止负数越滚越大。
+    // 注意赊账后 availablePoints 不含欠款扣减、仍可能显示正值（看似「买得起」），
+    // 故必须用 netPoints 判定，不能用 availablePoints。
+    if (netPoints() < 0) return null;
+    const recordId = _applyWishRedeemed(item, 'redeem', item.cost);
     persist();
     return recordId;
   }
-  // 兑换记录核销状态（与 cancel 标记 status 正交）：
-  //   'verified' 已核销（兑换即核销：兑换视为已使用）→ 可撤销（实际未用可返还积分）
-  //   'pending'  待核销（仅旧数据：已扣积分、权益尚未领取）→ 可撤销
-  //   'expired'  已过期（旧数据待核销超有效期未核销）→ 不可撤销；此状态由本函数动态计算，不落库
+
+  // 赊账兑换（打欠条）：三重门禁必须落在 store，UI 仅做提前提示。
+  //   门禁1 买得起不许赊账（否则等价于绕过 1.5 倍溢价）
+  //   门禁2 同时最多 1 张未还清欠条
+  //   门禁3 每自然月最多 1 张
+  function redeemWishOnCredit(id) {
+    const item = state.wish_items.find(w => w._id === id);
+    if (!item || item.is_archived) return null;
+    if (availablePoints() >= item.cost) return null;
+    if (getActiveDebt()) return null;
+    if (getWishDebtCountThisMonth() >= 1) return null;
+    const recordId = _applyWishRedeemed(item, 'debt', calcDebtCost(item.cost), {
+      isDebt: true, redeemCost: item.cost,   // redeemCost 留痕原价，明细可展示「原价 21 → 欠 32」
+    });
+    persist();
+    return recordId;
+  }
+  // 兑换记录状态（与撤销标记 status 正交）：
+  //   'verified' 已兑换（兑换即生效）→ 可撤销返还积分
   //   'cancelled' 已撤销（被 undoRedeem 标记 status='reversed'）
+  // 说明：愿望「使用即兑换」，兑换记录不再有有效期概念。
+  // 旧数据里历史遗留的「待核销 pending / 已过期 expired」不再单独判定，
+  // 一律视作已兑换（均可撤销），避免旧记录被永久锁死无法返还积分。
   function redeemState(r) {
-    if (!r) return 'pending';
+    if (!r) return 'verified';
     if (r.status === 'reversed') return 'cancelled';
-    if (r.verify === 'verified') return 'verified';
-    // 待核销：若所属愿望设了有效期且已超期 → 已过期
-    const item = state.wish_items.find(w => w._id === r.wish_id);
-    if (item && item.validity_days && item.validity_days > 0) {
-      const t = new Date(r.time).getTime();
-      if (!isNaN(t) && (Date.now() - t) > item.validity_days * 86400000) return 'expired';
-    }
-    return 'pending';
+    return 'verified';
   }
 
-  // 手动核销：待核销 → 已核销（权益已领取）。已核销/已过期/已撤销均不可再核销。
+  // 手动核销：保留导出以兼容旧调用方。新流程下兑换即已核销，无需再手动核销。
   function verifyRedeem(recordId) {
     const rec = state.wish_records.find(r => r._id === recordId);
     if (!rec || rec.status === 'reversed') return false;
     if (rec.verify === 'verified') return false;
-    if (redeemState(rec) === 'expired') return false;   // 已过期不可核销
     rec.verify = 'verified';
     persist();
     return true;
@@ -6267,17 +6322,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function undoRedeem(recordId) {
     const rec = state.wish_records.find(r => r._id === recordId);
     if (!rec || rec.status === 'reversed') return false;
-    // 「兑换即核销」后，已核销（含刚兑换）同样可撤销（实际没用就撤销返还积分）；
-    // 仅已过期 / 已撤销不可撤销（二次确认由 UI 层负责）。旧数据的待核销态仍可撤销。
-    const st = redeemState(rec);
-    if (st !== 'pending' && st !== 'verified') return false;
+    // 兑换即生效：任何未撤销的兑换记录都可撤销（实际没用就撤销返还积分）；
+    // 仅已撤销不可重复撤销（二次确认由 UI 层负责）。
     const cost = Number(rec.cost) || 0;
     const wishId = rec.wish_id, wishName = rec.wish_name || '未知愿望';
-    // 1) 原兑换记录置 reversed → 自动退出 getPointsSpent 汇总，积分即时返还（余额口径只统计 normal）
+    // 欠条与普通兑换走同一套回滚，仅流水文案不同：
+    // 欠条置 reversed 后自动退出 getPointsDebtOwed 汇总，netPoints 即刻复原（欠款清零）。
+    const isDebt = rec.recordType === 'debt' || rec.isDebt === true;
+    // 1) 原兑换记录置 reversed → 自动退出 getPointsSpent / getPointsDebtOwed 汇总，
+    //    普通兑换为积分即时返还，欠条为欠款即时清零（余额口径只统计 normal）
     rec.status = 'reversed';
     // 2) 写一条「撤销兑换」流水（recordType:'undo'，纯展示、不计入任何余额，与习惯撤销一致）
     const recordId2 = uid('wrec');
-    const desc = '撤销兑换｜愿望「' + wishName + '」返还 ' + cost + ' 积分';
+    const desc = isDebt
+      ? '撤销欠条｜愿望「' + wishName + '」欠款 ' + cost + ' 积分已清除'
+      : '撤销兑换｜愿望「' + wishName + '」返还 ' + cost + ' 积分';
     state.wish_records.push({
       _id: recordId2, wish_id: '', wish_name: desc, cost: cost,
       time: new Date().toISOString(), status: 'normal',
@@ -6293,9 +6352,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (item.count_type === 'one_time') {
         item.is_archived = false;
         item.completed_at = '';
-        // 移除归档同步条目
+        // 移除归档同步条目：优先按 wish_record_id 精确匹配（新数据），
+        // 旧数据无该字段时回退标题匹配
         state.tasks = state.tasks.filter(t =>
-          !(t.is_archived && t.title === '已兑换愿望: ' + item.name && t.tags && t.tags.includes('#许愿'))
+          !(t.is_archived && t.tags && t.tags.includes('#许愿') &&
+            (t.wish_record_id ? t.wish_record_id === rec._id
+                              : t.title === '已兑换愿望: ' + item.name))
         );
       } else { item.repeat_count = Math.max(0, (item.repeat_count || 1) - 1); }
     }
@@ -6333,6 +6395,55 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       .reduce((a, r) => a + (r.cost || 0), 0);
   }
   function availablePoints() { return Math.max(0, getPointsEarned() - getPointsPenalty() - getPointsSpent()); }
+
+  /* ---------- 许愿池 · 赊账（打欠条）----------
+   * 规则：积分不足时可「打欠条」赊账兑换，欠条金额 = 愿望原价 × 1.5（四舍五入）。
+   * 欠条在账面上直接扣款，因此许愿池余额可为负数；之后每笔加分自然把负数填平
+   * （netPoints 对 earn 的偏导恒为 +1），无需任何「还款」函数或还款流水。
+   * 台账复用 wish_records 单条记录（recordType:'debt'），撤销即整条 reversed，
+   * 天然成对回滚 —— 无独立 state、无迁移、持久化 5 处零改动。
+   */
+  var WISH_DEBT_RATE = 1.5;
+
+  // 欠条金额：原价 × 1.5，四舍五入（21→32、30→45、1→2、3→5）
+  function calcDebtCost(price) { return Math.round((Number(price) || 0) * WISH_DEBT_RATE); }
+
+  // 当前未撤销的欠款总额
+  function getPointsDebtOwed() {
+    return state.wish_records
+      .filter(r => r.status === 'normal' && r.recordType === 'debt')
+      .reduce((a, r) => a + (r.cost || 0), 0);
+  }
+
+  // 真实余额（可为负）：仅在「确有欠条」时供许愿池头部展示用。
+  // 其它 5 个模块（习惯/任务/项目/财务/职业）只写不读余额，一律继续走 availablePoints()。
+  function netPoints() {
+    return getPointsEarned() - getPointsPenalty() - getPointsSpent() - getPointsDebtOwed();
+  }
+
+  // 本月欠条数（自然月，跨月自动恢复；已撤销的不计）
+  // 注意：记录 time 存的是 new Date().toISOString()（UTC），故比较口径必须同用 UTC，
+  // 否则在东八区凌晨 0–8 点期间「本地年月」会比「记录 UTC 年月」大一个月，
+  // 导致计数恒为 0 —— 月度额度限制会被绕过（月初凌晨可无限赊账）。
+  function getWishDebtCountThisMonth() {
+    const now = new Date();
+    const ym = now.getUTCFullYear() + '-' + String(now.getUTCMonth() + 1).padStart(2, '0');
+    return state.wish_records.filter(r =>
+      r.recordType === 'debt' && r.status === 'normal' && r.time && r.time.slice(0, 7) === ym
+    ).length;
+  }
+
+  // 当前未还清的欠条：存在 normal 的 debt 记录 且 netPoints < 0，否则 null。
+  // 注意：netPoints < 0 但无 debt 记录（纯粹被惩罚扣穿）时返回 null，
+  // 避免把「惩罚扣分」误报成「欠款」，此时 inDebt=false，头部回落显示 availablePoints。
+  function getActiveDebt() {
+    if (getPointsDebtOwed() <= 0) return null;
+    if (netPoints() >= 0) return null;   // 已被加分抵消完 → 视为已还清
+    return state.wish_records
+      .filter(r => r.status === 'normal' && r.recordType === 'debt')
+      .sort((a, b) => new Date(b.time) - new Date(a.time))[0] || null;
+  }
+  function isWishInDebt() { return !!getActiveDebt(); }
 
   // 集中式积分发放/扣除：所有模块统一入口
   function addPoints(amount, category, detail, refId, focusMin) {
@@ -6957,19 +7068,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   /* ============================ 闲趣随机卡：收藏候选池 ============================
    * 数据源规则（PRD 二.1）：仅取「已收藏 且 未归档」任务，过滤已完成 / 已归档内容。
+   * 已启动进度记录（progress_info.enable）的任务不再参与随机：说明用户已正式开始执行，
+   * 应留在收藏/今日等列表里推进度，而不是继续占着随机卡位（各 tab 数据层天然同步）。
    * 收藏与归档均复用现有字段，不新增并行状态，收藏池与其它模块天然实时同步。 */
   function getLeisurePool() {
     return state.tasks.filter(t =>
-      t && !t.is_archived && !t.is_template && isCollectionTask(t)
+      t && !t.is_archived && !t.is_template && isCollectionTask(t) &&
+      !(t.progress_info && t.progress_info.enable)
     );
   }
-  // 某任务所属分类链上的全部名称（一级 → 末级），供闲趣随机卡标签筛选做归属判定
+  // 某任务所属分类链上的全部名称（一级 → 末级），供闲趣随机卡标签筛选做归属判定。
+  // 注意：必须按分类 _id 去重（防父链循环访问），绝不能按名字去重 ——
+  // 否则「运动 > 运动」这类同名父子会被折叠成单层，层级标签筛选随之失效。
   function categoryChainNames(t) {
     const out = [];
+    const seen = {};
     let c = t && t.category_id ? findCategory(t.category_id) : null;
     let guard = 0;
     while (c && guard++ < 10) {
-      if (c.name && out.indexOf(c.name) < 0) out.unshift(c.name);
+      if (c.name && !seen[c._id]) { seen[c._id] = true; out.unshift(c.name); }
       c = c.parent ? findCategory(c.parent) : null;
     }
     return out;
@@ -7342,7 +7459,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
     // 模版归档永久流水（每次「完成归档一次」追加一条，重置不清）
     ledgerAdd, ledgerRemove, ledgerList,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
@@ -7371,9 +7488,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 统计
     dayCompletion, habitCount,
     // 许愿池
-    addWishItem, updateWishItem, removeWishItem, redeemWish, undoRedeem, verifyRedeem, redeemState,
+    addWishItem, updateWishItem, removeWishItem, redeemWish, redeemWishOnCredit, undoRedeem, verifyRedeem, redeemState,
     getWishEditCountThisMonth, incrementEditCount, wishEditWindowOpen,
     getPointsEarned, getPointsPenalty, getPointsSpent, availablePoints, getWishSorted, setWishOrder,
+    WISH_DEBT_RATE, calcDebtCost, netPoints, getPointsDebtOwed, getWishDebtCountThisMonth,
+    getActiveDebt, isWishInDebt,
     addPoints, reversePoints,
     rollbackEntityPoints, collectEntityPointRecords, POINT_ROLLBACK_CAT,
     swipeLock, swipeUnlock, swipeCleanup,
@@ -7679,7 +7798,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     // 派生导出：月度复盘报告（仅导出，不可导入恢复）
     // 汇总「当月」三块用于对账复盘的数据：
-    //   ① 统计页 📦 全局已归档仓库的当月归档事件（逐日归属展开）；② 当月习惯统计；③ 项目 tab 当月项目专注时长可视化。
+    //   ① 统计页 📦 全局已归档仓库的当月归档事件（逐日归属展开）；② 当月习惯统计；
+    //   ③ 项目 tab 当月项目专注时长可视化（累计分钟 + 打卡天数 + 完成量 + 每日明细 + 子任务明细）。
     _buildReviewExport() {
       const monthStr = todayStr().slice(0, 7);          // YYYY-MM（当前月份）
       const monthPrefix = monthStr + '-';               // 日期前缀（YYYY-MM-）
@@ -7705,14 +7825,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         recs.forEach(r => { if (r.status === 'success') success++; else if (r.status === 'fail') fail++; else if (r.status === 'record') record++; });
         return { name: h.name || '', type: h.type || '', total: recs.length, success, fail, record };
       }).filter(x => x.total > 0);
-      // ③ 项目专注时长（当月）：仅统计当月 project_records 的 spentMin 之和
+      // ③ 项目专注时长（当月）：累计分钟 + 打卡天数（跨子任务按日期去重）+ 完成量 + 每日明细 + 子任务明细；
+      //    打卡天数 / 完成量与项目页「子任务打卡 / 完成量」可视化同口径（软删子任务与软删记录排除、行内按日期去重）
       const projSids = {};
-      (state.project_subs || []).forEach(s => { (projSids[s.pid] = projSids[s.pid] || {})[s.sid] = true; });
+      (state.project_subs || []).forEach(s => {
+        if (s && s.sid && !s.deleted_at) (projSids[s.pid] = projSids[s.pid] || {})[s.sid] = (s.title || '未命名');
+      });
       const projectFocus = (state.projects || []).filter(p => !p.deleted_at).map(p => {
         const sids = projSids[p.pid] || {};
-        const minutes = (state.project_records || []).filter(r => !r.deleted_at && sids[r.sid] && inMonth(r.recordDate)).reduce((a, r) => a + (Number(r.spentMin) || 0), 0);
-        return { pid: p.pid, name: p.name || '未命名', minutes, display: this.fmtSpent(minutes) };
-      }).filter(x => x.minutes > 0).sort((a, b) => b.minutes - a.minutes);
+        const byDay = {}, subAgg = {};
+        let minutes = 0;
+        (state.project_records || []).forEach(r => {
+          if (!r || r.deleted_at || !sids[r.sid] || !inMonth(r.recordDate)) return;
+          const m = Number(r.spentMin) || 0, a = Number(r.actualNum) || 0, d = r.recordDate;
+          minutes += m;
+          const day = byDay[d] || (byDay[d] = { date: d, minutes: 0, amount: 0 });
+          day.minutes += m; day.amount += a;
+          const sa = subAgg[r.sid] || (subAgg[r.sid] = { sid: r.sid, title: sids[r.sid], daysSet: {}, minutes: 0, amount: 0 });
+          sa.daysSet[d] = true; sa.minutes += m; sa.amount += a;
+        });
+        const daily = Object.keys(byDay).sort().map(d => byDay[d]);
+        const subs = Object.keys(subAgg).map(sid => {
+          const sa = subAgg[sid];
+          return { sid: sa.sid, title: sa.title, days: Object.keys(sa.daysSet).length, minutes: sa.minutes, amount: sa.amount };
+        }).sort((a, b) => (b.amount - a.amount) || (b.minutes - a.minutes));
+        return { pid: p.pid, name: p.name || '未命名', minutes, display: this.fmtSpent(minutes),
+                 days: daily.length, amount: subs.reduce((a, s) => a + s.amount, 0), daily, subs };
+      }).filter(x => x.minutes > 0 || x.amount > 0).sort((a, b) => b.minutes - a.minutes);
       return { month: monthStr, archivedEvents: events, habitStats, projectFocus };
     },
     // 选择性恢复：仅覆盖文件中「被勾选」且「文件里确实存在」的模块；其余模块与当前数据互不影响
@@ -10375,6 +10514,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       task: { type: Object, required: true },   // 主任务或子任务对象
       subId: { type: String, default: '' },       // 子任务时填其 _id
       parentId: { type: String, default: '' },     // 主任务=task._id；子任务=父任务 _id（缺省回退 task._id）
+      // 强制显示（闲趣随机卡复用）：收藏任务经数据迁移后普遍带 time_mode（如 'month'），
+      // 按场景判定会被拦掉；force=true 跳过场景限制，恒走「无日期」安排分支（安排到某周某天）
+      force: { type: Boolean, default: false },
+      // 安排即转正（闲趣随机卡复用）：收藏任务按既有规则无法绑定时间，选日期时先转正
+      // （is_collection=false，脱离收藏池/随机池）再写入执行日，任务进入正式日程
+      convertCollection: { type: Boolean, default: false },
     },
     data() { return { open: false, pop: { top: 0, left: 0 }, weekOffset: 0 }; },
     computed: {
@@ -10394,8 +10539,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       showArrange() { return this.task ? (this.task.showArrangeBtn !== false) : false; },
       // 临时任务（速看标签）强制无时间，不提供「安排」按钮
       isQuickView() { return !!(this.task && this.task.category_id === 'cat_quickview'); },
-      // 仅当「指定周」或「无日期」且允许展现、且非临时任务时才显示按钮
-      visible() { return (this.isSpecWeek || this.noDate) && this.showArrange && !this.isQuickView; },
+      // 仅当「指定周」或「无日期」且允许展现、且非临时任务时才显示按钮；force 时跳过场景判定
+      visible() { return ((this.isSpecWeek || this.noDate) || this.force) && this.showArrange && !this.isQuickView; },
       // 目标周（冻结的绝对 ISO 周）→ { y, w, start(Date) }
       targetWeek() {
         const t = this.task;
@@ -10504,7 +10649,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       pickNoDateDay(ds) {
         const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
-        this.$store.scheduleTaskToDate(pid, this.subId || null, ds);
+        if (this.convertCollection) this.$store.scheduleCollectionToDay(pid, ds);
+        else this.$store.scheduleTaskToDate(pid, this.subId || null, ds);
         this.open = false;
       },
       // 双击周标签：将无日期任务「指定」到该整周（本/下周/下下周），不绑定具体日期
@@ -10843,7 +10989,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * ===================================================================== */
   C.TaskDetailModal = {
     name: 'TaskDetailModal',
-    props: { taskId: { type: String, required: true }, isCopy: { type: Boolean, default: false } },
+    props: { taskId: { type: String, required: true }, isCopy: { type: Boolean, default: false }, // focusProgress：闲趣卡「启动进度记录」入口传入 → 弹窗打开后自动定位并聚焦进度值输入框
+    focusProgress: { type: Boolean, default: false } },
     components: { TaskFormCore: C.TaskFormCore },
     data() {
       return {
@@ -10919,6 +11066,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const t = this.task;
         return !!(t && t.autoArchivedByCopies);
       },
+    },
+    // —— 启动进度记录入口（闲趣卡）：打开后自动定位并聚焦「进度值」输入框，滚动到可见并短暂高亮 ——
+    mounted() {
+      if (!this.focusProgress) return;
+      this.$nextTick(() => {
+        setTimeout(() => {
+          const input = document.querySelector('.modal-mask .prog-value') || document.querySelector('.prog-value');
+          if (!input) return;
+          try { input.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { try { input.scrollIntoView(); } catch (e2) {} }
+          setTimeout(() => { try { input.focus({ preventScroll: true }); } catch (e) { input.focus(); } }, 380);
+          input.classList.add('prog-locate');
+          setTimeout(() => { input.classList.remove('prog-locate'); }, 2200);
+        }, 60);
+      });
     },
     created() {
       const t = this.task;
@@ -11165,12 +11326,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * LeisureCard —— 闲趣随机卡（今日页底部休闲专属模块）
    * ---------------------------------------------------------------------
    * 定位：所有正式待办列表最底部、底部导航之上，低饱和柔和配色弱化紧迫感。
-   * 数据源：仅「已收藏 且 未归档」任务（store.getLeisurePool），完成 / 归档内容自动过滤；
+   * 数据源：仅「已收藏 且 未归档 且 未启动进度记录」任务（store.getLeisurePool），
+   *        完成 / 归档内容自动过滤；已启动进度记录的视为正式进行中，退出随机池；
    *        收藏新增、取消、改标签后候选池随响应式状态实时刷新，无需手动同步。
-   * 交互：标签筛选 → 单条随机 → 三种去向（左滑归档 / 换一件 / 领用项目），全部在面板内完成。
+   * 交互：标签筛选（层级键，父子同名互不联动）→ 单条随机 → 去向（左滑归档 / 换一件 /
+   *        安排到某天 / 启动进度记录），全部在面板内完成；数据走 store，各 tab 实时同步。
    * ===================================================================== */
   C.LeisureCard = {
     name: 'LeisureCard',
+    components: { WeekScheduleBtn: C.WeekScheduleBtn },
     data() {
       return {
         collapsed: true,                          // 整卡默认收起；切 tab 重新挂载即回到默认折叠态
@@ -11205,18 +11369,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         });
         return tree;
       },
-      // 当前标签下的候选（空数组 = 全域随机「全部收藏」；多选时按「任一命中」缩窄候选池）
+      // 当前标签下的候选（空数组 = 全域随机「全部收藏」；多选时按「任一命中」缩窄候选池）。
+      // 筛选键为「层级键」：一级 '1:名字'，二级 '2:一级名>二级名' —— 父子同名 /
+      // 不同父的同名二级互不联动（修复：此前按纯名字匹配，同名标签勾选一个全亮且串池）。
       filtered() {
         if (!this.filterTags.length) return this.pool;
         return this.pool.filter(t => {
           const chain = this.$store.categoryChainNames(t);
-          return this.filterTags.some(tag => chain.indexOf(tag) >= 0);
+          if (!chain.length) return false;
+          const l1 = chain[0], l2 = chain.length > 1 ? chain[1] : '';
+          return this.filterTags.some(k => k === '1:' + l1 || (!!l2 && k === '2:' + l1 + '>' + l2));
         });
       },
       current() { return this.filtered.find(t => t._id === this.currentId) || null; },
       catChips() { return this.current ? this.$catTagList(this.current) : []; },
-      // 左滑达到阈值时的归档预告
-      willArchive() { return this.dragX <= -60; },
     },
     created() {
       // 折叠状态不持久化：每次进入页面默认折叠（与全局规则一致）
@@ -11233,11 +11399,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // —— 标签多选悬浮窗口：点击筛选条打开；窗口内可勾选多个标签，确定/点遮罩关闭 ——
       openTagPicker() { this.tagPickerOpen = true; },
       closeTagPicker() { this.tagPickerOpen = false; },
-      // —— 标签筛选：多选，可同时勾选任意个标签；再次勾选取消 ——
-      toggleTag(t) {
-        const i = this.filterTags.indexOf(t);
+      // —— 标签筛选：多选，可同时勾选任意个标签；再次勾选取消；存取均为层级键 ——
+      toggleTag(k) {
+        const i = this.filterTags.indexOf(k);
         if (i >= 0) this.filterTags.splice(i, 1);
-        else this.filterTags.push(t);
+        else this.filterTags.push(k);
         this.recent = [];
         this.pickRandom();
       },
@@ -11288,19 +11454,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.showToast('已归档「' + this.shortName(t.title) + '」', 'archive', t._id);
         this.pickRandom();
       },
-      // —— 编辑：面板内唤起任务详情弹窗，修改后收藏数据同步 ——
-      editCurrent() { if (this.current) this.$emit('edit', this.current._id); },
-      // —— 领用项目：复制到项目 Tab，转为可拆解规划的项目任务（原收藏保留） ——
-      claimProject() {
+      // —— 启动当前任务的进度记录：开启 progress_info.enable，任务随即退出随机池 ——
+      // 数据走 store（reactive + persist），收藏 / 今日 / 详情等各 tab 实时同步；
+      // 启动后直接打开任务编辑弹窗（emit → TodayPage detailId）：弹窗 created 快照时 enable 已为 true，进度记录编辑区自动展开，可立即填写。
+      startProgress() {
         const t = this.current;
         if (!t) return;
-        const name = (t.title || '').trim() || '闲趣项目';
-        if (this.$store.getProjects('running').some(p => p.name === name)) {
-          this.showToast('项目 Tab 已有同名项目，未重复创建');
-          return;
-        }
-        this.$store.addProject({ name, tags: this.$store.categoryChainNames(t), status: 'running' });
-        this.showToast('已领用到项目 Tab，可去拆解子任务');
+        this.$store.setProgress(t._id, { enable: true });
+        this.showToast('已启动进度记录「' + this.shortName(t.title) + '」，请填写进度单位与当前进度');
+        this.$emit('open-detail', t._id);
       },
       shortName(s) { const x = String(s || ''); return x.length > 10 ? x.slice(0, 10) + '…' : x; },
       showToast(msg, type, undoId) {
@@ -11372,12 +11534,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="lz-picker-body">
               <div class="lz-check-group" v-for="node in tagTree" :key="'p'+node.name">
                 <label class="lz-check">
-                  <input type="checkbox" :checked="filterTags.indexOf(node.name) >= 0" @change="toggleTag(node.name)" />
+                  <input type="checkbox" :checked="filterTags.indexOf('1:' + node.name) >= 0" @change="toggleTag('1:' + node.name)" />
                   <span class="lz-check-name">{{ node.name }}</span>
                 </label>
                 <div class="lz-check-subs" v-if="node.subs.length">
                   <label class="lz-check sub" v-for="sub in node.subs" :key="'ps'+sub">
-                    <input type="checkbox" :checked="filterTags.indexOf(sub) >= 0" @change="toggleTag(sub)" />
+                    <input type="checkbox" :checked="filterTags.indexOf('2:' + node.name + '>' + sub) >= 0" @change="toggleTag('2:' + node.name + '>' + sub)" />
                     <span class="lz-check-name">{{ sub }}</span>
                   </label>
                 </div>
@@ -11390,9 +11552,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           </div>
         </div>
 
-        <!-- 随机卡片：单次只展示 1 条 -->
+        <!-- 随机卡片：单次只展示 1 条（左滑归档手势保留，仅移除提示字样） -->
         <div class="lz-card-wrap" v-if="current">
-          <div class="lz-card-bg">{{ willArchive ? '松手归档 ✓' : '← 左滑归档' }}</div>
           <div class="lz-card" :class="{dragging: dragging && moved}"
                :style="{ transform: 'translateX(' + dragX + 'px)' }"
                @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
@@ -11401,7 +11562,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <span class="lz-cat" v-for="c in catChips" :key="'cc'+c">{{ c }}</span>
             </div>
             <div class="lz-desc" v-if="current.desc">{{ current.desc }}</div>
-            <div class="lz-hint">左滑归档 · 换一件重抽 · 领用后可在项目 Tab 拆解</div>
           </div>
         </div>
 
@@ -11413,11 +11573,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           收藏池还空着呢<br />把想读的书、想看的影片、想去的地方收藏起来，闲下来就能随机抽一件
         </div>
 
-        <!-- 卡片配套操作：全部在面板内完成 -->
+        <!-- 卡片配套操作：换一件 / 安排到某天（复用任务行弹层；force 显示、convertCollection 安排即转正）/ 启动进度记录 -->
         <div class="lz-acts" v-if="current">
           <button class="lz-btn main" @click="reroll">🔄 换一件</button>
-          <button class="lz-btn" @click="editCurrent">✎ 编辑</button>
-          <button class="lz-btn warm" @click="claimProject">📁 领用项目</button>
+          <WeekScheduleBtn :task="current" force convert-collection />
+          <button class="lz-btn warm" @click="startProgress">▶ 启动进度记录</button>
         </div>
 
         <div class="lz-toast" v-if="toast"
@@ -11436,19 +11596,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       histOpen: false,
       swipeId: null, swipeStartX: 0, swipeX: 0, swipeDragging: false, swipeMoved: false,
       pressId: null, pressStartX: 0, pressStartY: 0, pressTimer: null, pressLongFired: false, pressSuppress: false,
-      dragFromId: null, dragOverId: null,
-      showDetailModal: false, showEditModal: false, editWishId: null, editName: '', editCost: '', editCountType: 'one_time', editValidity: '',
-      showAddModal: false, addName: '', addCost: '', addCountType: 'one_time', addValidity: '',
-      showUndoModal: false, confirmUndoId: null, confirmUndoName: '', confirmUndoCost: 0,
+      showDetailModal: false, showEditModal: false, editWishId: null, editName: '', editCost: '', editCountType: 'one_time', delWishConfirm: false,
+      showAddModal: false, addName: '', addCost: '', addCountType: 'one_time',
+      showUndoModal: false, confirmUndoId: null, confirmUndoName: '', confirmUndoCost: 0, confirmUndoIsDebt: false,
+      showDebtModal: false, debtWishId: null, debtWishName: '', debtPrice: 0, debtAmount: 0,
       toast: '', toastTimer: null, undoRecordId: null,
-      _vizDim: 'week',
+      _vizDim: 'week', histOffset: 0,
     }; },
     created() {
       // 折叠状态不持久化：每次进入页面默认折叠（与全局规则一致）
-      // vizDim 保留本地记忆（用户偏好，非折叠状态）
+      // vizDim 保留本地记忆（用户偏好，非折叠状态）；仅接受 周/月/年 白名单，
+      // 旧记忆 'day'（日维度已下线）或非法值一律回退默认 'week'
       try {
         const d = localStorage.getItem('mindpocket:wishPool:vizDim');
-        if (d) this._vizDim = d;
+        if (d === 'week' || d === 'month' || d === 'year') this._vizDim = d;
       } catch (e) {}
     },
     computed: {
@@ -11457,6 +11618,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       totalEarned() { return this.$store.getPointsEarned(); },
       totalPenalty() { return this.$store.getPointsPenalty ? this.$store.getPointsPenalty() : 0; },
       totalSpent() { return this.$store.getPointsSpent(); },
+      // 赊账相关：netPoints 可为负，但仅在「确实存在未还清欠条」时才用于展示。
+      // 无欠条（含纯惩罚扣穿）时 inDebt=false，displayPoints 回落 points，显示与今天完全一致。
+      netPoints() { return this.$store.netPoints(); },
+      inDebt() { return this.$store.isWishInDebt(); },
+      displayPoints() { return this.inDebt ? this.netPoints : this.points; },
+      debtOwed() { return this.$store.getPointsDebtOwed(); },
+      debtCountThisMonth() { return this.$store.getWishDebtCountThisMonth(); },
       editWindowOpen() { return this.$store.wishEditWindowOpen(); },
       editCountThisMonth() { return this.$store.getWishEditCountThisMonth(); },
       editExhausted() { return !this.editWindowOpen; },
@@ -11487,35 +11655,77 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             if (!groups['_redeem']) groups['_redeem'] = { label: '愿望兑换', icon: '🌟', records: [] };
             groups['_redeem'].records.push(r);
           }
+          else if (r.recordType === 'debt') {
+            // 赊账欠条必须单独成组：此前无匹配分支会被静默丢弃，明细里看不到欠条
+            if (!groups['_debt']) groups['_debt'] = { label: '赊账欠条', icon: '🧾', records: [] };
+            groups['_debt'].records.push(r);
+          }
         });
         return Object.values(groups).filter(g => g.records.length > 0);
       },
       redemptionRecords() {
         return (this.$store.state.wish_records || [])
-          .filter(r => !r.recordType || r.recordType === 'redeem')
+          // 赊账欠条也计入兑换记录，使其在「兑换记录」区可见、可撤销
+          .filter(r => !r.recordType || r.recordType === 'redeem' || r.recordType === 'debt')
           .sort((a, b) => new Date(b.time) - new Date(a.time));
       },
       vizDim() { return this._vizDim || 'week'; },
+      // 周/月/年 时间计量窗口（与记录 time 的 UTC ISO 串同口径：记录日期一律取 time.slice，
+      // 窗口 keys 也按 UTC 计算——若用本地时区，东八区 0–8 点的记录 UTC 日期仍属昨天/上月，
+      // 会被窗口漏掉（与欠条月度门禁同源的时区坑）。列表展示的 time.slice(0,10) 即 UTC 日期，口径自洽。
+      vizWindow() {
+        const dim = this.vizDim, off = this.histOffset || 0;
+        const pad = n => String(n).padStart(2, '0');
+        const now = new Date();
+        if (dim === 'year') {
+          const y = now.getUTCFullYear() - off;
+          const keys = []; for (let m = 1; m <= 12; m++) keys.push(y + '-' + pad(m));
+          return { dim, label: off === 0 ? '今年' : y + '年', keys };
+        }
+        if (dim === 'week') {
+          const mon = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (now.getUTCDay() + 6) % 7 - off * 7));
+          const keys = [];
+          for (let i = 0; i < 7; i++) { const dd = new Date(mon.getTime() + i * 86400000); keys.push(dd.toISOString().slice(0, 10)); }
+          return { dim, label: off === 0 ? '本周' : off + '周前', keys };
+        }
+        const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - off, 1));
+        const y = base.getUTCFullYear(), m = base.getUTCMonth() + 1;
+        const cnt = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        const keys = []; for (let i = 1; i <= cnt; i++) keys.push(y + '-' + pad(m) + '-' + pad(i));
+        return { dim, label: off === 0 ? '本月' : y + '年' + m + '月', keys };
+      },
+      // 当前计量窗口内的兑换记录（含已撤销，列表需展示撤销状态与撤销入口）
+      periodRecords() {
+        const win = this.vizWindow;
+        return this.redemptionRecords.filter(r => {
+          if (!r.time) return false;
+          const k = win.dim === 'year' ? r.time.slice(0, 7) : r.time.slice(0, 10);
+          return win.keys.indexOf(k) >= 0;
+        });
+      },
       barBuckets() {
-        const dim = this.vizDim; const map = {}, order = [];
-        this.redemptionRecords.filter(r => r.status === 'normal').forEach(r => {
-          const date = r.time.slice(0, 10); let k;
-          if (dim === 'month') k = date.slice(0, 7);
-          else if (dim === 'week') { const d = new Date(date); const dow = (d.getDay() + 6) % 7; const mon = new Date(d); mon.setDate(d.getDate() - dow); k = mon.toISOString().slice(0, 10); }
-          else k = date;
-          if (!map[k]) { map[k] = 0; order.push(k); }
-          map[k] += (r.cost || 0);
+        const win = this.vizWindow;
+        const map = {};
+        this.periodRecords.filter(r => r.status === 'normal').forEach(r => {
+          const k = win.dim === 'year' ? r.time.slice(0, 7) : r.time.slice(0, 10);
+          map[k] = (map[k] || 0) + (r.cost || 0);
         });
-        const max = order.reduce((m, k) => Math.max(m, map[k]), 0);
-        return order.slice().sort().map(k => {
-          const label = dim === 'month' ? (k.slice(0,7) + '月') : (dim === 'week' ? k + ' 周' : k);
-          return { key: k, label, min: map[k], pct: max > 0 ? Math.round(map[k] / max * 100) : 0 };
-        });
+        if (win.dim === 'month') {
+          // 月维度按天稀疏分桶：只显示当月实际有兑换的日期，避免 28–31 根空柱
+          const keys = Object.keys(map).sort();
+          const max = keys.reduce((m, k) => Math.max(m, map[k]), 0);
+          return keys.map(k => ({ key: k, label: k.slice(8), min: map[k], pct: max > 0 ? Math.round(map[k] / max * 100) : 0 }));
+        }
+        const labels = win.dim === 'week'
+          ? ['一', '二', '三', '四', '五', '六', '日']
+          : win.keys.map(k => k.slice(5) + '月');
+        const max = win.keys.reduce((m, k) => Math.max(m, map[k] || 0), 0);
+        return win.keys.map((k, i) => ({ key: k, label: labels[i], min: map[k] || 0, pct: max > 0 ? Math.round((map[k] || 0) / max * 100) : 0 }));
       },
       pieData() {
         const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
         const map = {};
-        this.redemptionRecords.filter(r => r.status === 'normal').forEach(r => { const n = r.wish_name || '未知'; map[n] = (map[n] || 0) + (r.cost || 0); });
+        this.periodRecords.filter(r => r.status === 'normal').forEach(r => { const n = r.wish_name || '未知'; map[n] = (map[n] || 0) + (r.cost || 0); });
         const arr = Object.entries(map).map(([name, min]) => ({ name, min }));
         const total = arr.reduce((a, x) => a + x.min, 0);
         let acc = 0;
@@ -11531,11 +11741,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const parts = this.pieData.map(s => { const a0 = acc * 360, a1 = (acc + s.ratio) * 360; acc += s.ratio; return s.color + ' ' + a0.toFixed(2) + 'deg ' + a1.toFixed(2) + 'deg'; });
         return 'conic-gradient(' + parts.join(', ') + ')';
       },
-      vizHasData() { return this.redemptionRecords.filter(r => r.status === 'normal').length > 0; },
+      vizHasData() { return this.periodRecords.filter(r => r.status === 'normal').length > 0; },
     },
     methods: {
       toggleCard() { this.cardOpen = !this.cardOpen; this.saveCard(); },
       saveCard() { try { localStorage.setItem('mindpocket:wishPool:vizDim', this._vizDim); } catch (e) {} },
+      // 切换 周/月/年 维度时回到当前时段（避免带着旧偏移翻进更早时段造成困惑）
+      setVizDim(d) { this._vizDim = d; this.histOffset = 0; this.saveCard(); },
+      // 时段翻页：‹ 更早时段；› 更近时段（回到当前后禁用）
+      prevPeriod() { this.histOffset++; },
+      nextPeriod() { this.histOffset = Math.max(0, this.histOffset - 1); },
       // 兑换可视化（柱状/饼图）中把消耗积分格式化为「X 积分」；此前漏定义导致首次兑换后整块渲染抛错、模块消失
       fmtH(m) { return (Number(m) || 0) + ' 积分'; },
       // 滑动兑换（全局互斥锁：动画与数据同步期间禁止重复触发）
@@ -11577,11 +11792,39 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       doRedeem(wishId) {
         const item = this.$store.state.wish_items.find(w => w._id === wishId);
         if (!item) return;
-        if (this.points < item.cost) { this.showToast('积分不足，无法兑换「' + item.name + '」', 2500); return; }
+        if (this.points < item.cost) { this.openDebtConfirm(item); return; }   // 买不起 → 引导打欠条
         const recordId = this.$store.redeemWish(wishId);
-        if (!recordId) return;
+        if (!recordId) {
+          // 买得起却被拒 → 只可能是欠款未还清（积分为负）
+          if (this.netPoints < 0) this.showToast('欠款还清前不能兑换', 2600);
+          return;
+        }
         const extra = item.count_type === 'repeatable' ? ' (第' + (item.repeat_count) + '次)' : '';
         this.showToast('已兑换「' + item.name + '」' + extra, 5000, recordId);
+      },
+      // 赊账（打欠条）：前置门禁在此做友好提示，最终门禁仍在 store
+      openDebtConfirm(item) {
+        if (!item) return;
+        if (this.inDebt) {
+          this.showToast('已有未还清的欠条，还清后才能再赊账', 2600);
+          return;
+        }
+        if (this.debtCountThisMonth >= 1) {
+          this.showToast('本月欠条额度已用完（每自然月 1 张）', 2600);
+          return;
+        }
+        this.debtWishId = item._id; this.debtWishName = item.name;
+        this.debtPrice = item.cost; this.debtAmount = this.$store.calcDebtCost(item.cost);
+        this.showDebtModal = true;
+      },
+      closeDebtModal() { this.showDebtModal = false; this.debtWishId = null; this.debtWishName = ''; this.debtPrice = 0; this.debtAmount = 0; },
+      confirmDebt() {
+        if (!this.debtWishId) return;
+        const name = this.debtWishName;
+        const recordId = this.$store.redeemWishOnCredit(this.debtWishId);
+        this.closeDebtModal();
+        if (recordId) { this.showToast('已打欠条兑换「' + name + '」，欠款 ' + this.$store.getPointsDebtOwed() + ' 积分', 5000, recordId); }
+        else { this.showToast('赊账失败：可能已有未还清欠条或本月额度已用完', 2600); }
       },
       // Toast + 撤销
       showToast(msg, dur, undoId) { this.toast = msg; this.undoRecordId = undoId || null; if (this.toastTimer) clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => { this.toast = ''; this.undoRecordId = null; }, dur || 2200); },
@@ -11596,38 +11839,37 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 仅当「非滑动手势」且「长按时长达标」时打开编辑（滑动兑换优先，绝不弹编辑页）
         if (id && this.pressLongFired && !this.swipeDragging && !this.swipeMoved) this.openEdit(id);
       },
-      // 拖拽排序
-      dragStart(item) { this.dragFromId = item._id; },
-      dragOver(item) { if (this.dragFromId && this.dragFromId !== item._id) { this.dragOverId = item._id; } },
-      dragEnd() { if (this.dragFromId && this.dragOverId) { const from = this.$store.state.wish_items.find(w => w._id === this.dragFromId); const to = this.$store.state.wish_items.find(w => w._id === this.dragOverId); if (from && to) { const tmp = from.sort_order; from.sort_order = to.sort_order; to.sort_order = tmp; this.$store.persist(); } } this.dragFromId = null; this.dragOverId = null; },
       // 弹窗
       openDetail() { this.showDetailModal = true; }, closeDetail() { this.showDetailModal = false; },
-      openAdd() { this.addName = ''; this.addCost = ''; this.addCountType = 'one_time'; this.addValidity = ''; this.showAddModal = true; this.$nextTick(() => { if (this.$refs.addNameInp) this.$refs.addNameInp.focus(); }); }, // 默认聚焦第一个输入框（愿望名称）
+      openAdd() { this.addName = ''; this.addCost = ''; this.addCountType = 'one_time'; this.showAddModal = true; this.$nextTick(() => { if (this.$refs.addNameInp) this.$refs.addNameInp.focus(); }); }, // 默认聚焦第一个输入框（愿望名称）
       closeAdd() { this.showAddModal = false; },
-      confirmAdd() { const name = (this.addName || '').trim(); const cost = parseInt(this.addCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.addWishItem({ name, cost, count_type: this.addCountType, validity_days: this.addValidity }); this.closeAdd(); },
-      openEdit(wishId) { const item = this.$store.state.wish_items.find(w => w._id === wishId); if (!item) return; this.editWishId = wishId; this.editName = item.name; this.editCost = String(item.cost); this.editCountType = item.count_type || 'one_time'; this.editValidity = item.validity_days ? String(item.validity_days) : ''; this.showEditModal = true; },
-      closeEdit() { this.showEditModal = false; this.editWishId = null; },
-      confirmEdit() { if (this.editExhausted) return; const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType, validity_days: this.editValidity }); this.$store.incrementEditCount(); this.closeEdit(); },
+      // 愿望「使用即兑换」：无需有效期，兑换立即生效
+      confirmAdd() { const name = (this.addName || '').trim(); const cost = parseInt(this.addCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.addWishItem({ name, cost, count_type: this.addCountType }); this.closeAdd(); },
+      openEdit(wishId) { const item = this.$store.state.wish_items.find(w => w._id === wishId); if (!item) return; this.editWishId = wishId; this.editName = item.name; this.editCost = String(item.cost); this.editCountType = item.count_type || 'one_time'; this.delWishConfirm = false; this.showEditModal = true; },
+      closeEdit() { this.showEditModal = false; this.editWishId = null; this.delWishConfirm = false; },
+      confirmEdit() { if (this.editExhausted) return; const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType }); this.$store.incrementEditCount(); this.closeEdit(); },
+      // —— 删除愿望（编辑弹窗内入口，二次确认防误触；不占用每月修改窗口的编辑次数，兑换历史记录仍保留可追溯）——
+      askDelWish() { this.delWishConfirm = true; },
+      doDelWish() { if (!this.delWishConfirm || !this.editWishId) return; this.$store.removeWishItem(this.editWishId); this.delWishConfirm = false; this.closeEdit(); },
       toggleHist() { this.histOpen = !this.histOpen; this.saveCard(); },
-      setVizDim(d) { this._vizDim = d; this.saveCard(); },
-      // 撤销兑换（兑换即核销：已核销/待核销均可撤销，仅已过期不可）
-      rstate(r) { return this.$store.redeemState(r); },
+      // 撤销兑换（兑换即生效：任何未撤销的兑换记录均可撤销返还积分）
       openUndoConfirm(r) {
         if (!r) return;
-        const st = this.$store.redeemState(r);
-        if (st !== 'pending' && st !== 'verified') return;   // 仅待核销/已核销可撤销
+        if (r.status === 'reversed') return;   // 已撤销不可重复撤销
         if (this.toastTimer) clearTimeout(this.toastTimer);
         this.toast = ''; this.undoRecordId = null;
         this.confirmUndoId = r._id; this.confirmUndoName = r.wish_name || ''; this.confirmUndoCost = r.cost || 0;
+        this.confirmUndoIsDebt = r.recordType === 'debt' || r.isDebt === true;
         this.showUndoModal = true;
       },
       confirmUndo() {
         if (!this.confirmUndoId) return;
+        const wasDebt = this.confirmUndoIsDebt;
         const ok = this.$store.undoRedeem(this.confirmUndoId);
         this.closeUndoModal();
-        if (ok) { this.toast = '已撤销兑换，积分已返还'; if (this.toastTimer) clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => { this.toast = ''; }, 2200); }
+        if (ok) { this.toast = wasDebt ? '已撤销欠条，欠款已清除' : '已撤销兑换，积分已返还'; if (this.toastTimer) clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => { this.toast = ''; }, 2200); }
       },
-      closeUndoModal() { this.showUndoModal = false; this.confirmUndoId = null; this.confirmUndoName = ''; this.confirmUndoCost = 0; },
+      closeUndoModal() { this.showUndoModal = false; this.confirmUndoId = null; this.confirmUndoName = ''; this.confirmUndoCost = 0; this.confirmUndoIsDebt = false; },
     },
     watch: { '$store.state.revision'() { this.$forceUpdate(); } },
     template: `
@@ -11635,8 +11877,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   <div class="wp-head" @click="toggleCard">
     <div class="wp-head-left">
       <span class="wp-head-title">🌟 许愿池</span>
-      <span class="wp-head-points">{{ points }}</span>
-      <span class="wp-head-meta">可用积分</span>
+      <span class="wp-head-points" :class="{ debt: inDebt }">{{ displayPoints }}</span>
+      <span class="wp-head-meta" v-if="!inDebt">可用积分</span>
+      <span class="wp-head-debt" v-if="inDebt">· 欠 {{ debtOwed }} 分</span>
     </div>
     <div class="wp-head-actions">
       <button class="wp-detail-btn" @click.stop="openDetail">积分明细</button>
@@ -11648,15 +11891,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     <button class="wp-add-btn" @click="openAdd">＋添加愿望</button>
     <div class="wp-list" v-if="items.length">
       <div class="wp-row-wrap" v-for="item in items" :key="item._id">
-        <div class="wp-row-bg">松手兑换 ✓</div>
+        <div class="wp-row-bg" :class="{ debt: inDebt || points < item.cost }">{{ inDebt ? '欠款未清 ✕' : (points >= item.cost ? '松手兑换 ✓' : '松手赊账 ⋯') }}</div>
         <div class="wp-row" :class="{
           'wp-row-affordable': points >= item.cost,
           'wp-row-unaffordable': points < item.cost,
           dragging: swipeId === item._id && swipeMoved
         }" :style="{ transform: swipeId === item._id ? 'translateX(' + swipeX + 'px)' : '' }"
            @pointerdown="swipeDown($event, item)" @pointermove="swipeMove" @pointerup="swipeUp" @pointercancel="swipeUp">
-          <span class="wp-row-drag" draggable="true"
-                @dragstart="dragStart(item)" @dragover.prevent="dragOver(item)" @drop.prevent="dragEnd">⠿</span>
           <div class="wp-row-main" @pointerdown="pressDown($event, item)" @pointermove="pressMove" @pointerup="pressUp" @pointercancel="pressUp">
             <div class="wp-row-name">{{ item.name }}</div>
             <div class="wp-row-info">
@@ -11676,9 +11917,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </div>
       <div v-show="histOpen">
         <div class="view-toggle" style="margin:8px 0;">
-          <button :class="{on: vizDim==='day'}" @click="setVizDim('day')">日</button>
           <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
           <button :class="{on: vizDim==='month'}" @click="setVizDim('month')">月</button>
+          <button :class="{on: vizDim==='year'}" @click="setVizDim('year')">年</button>
+        </div>
+        <div class="viz-period-nav">
+          <button class="icon-btn" @click="prevPeriod" title="更早时段">‹</button>
+          <span class="viz-period-label">{{ vizWindow.label }}</span>
+          <button class="icon-btn" :disabled="histOffset===0" @click="nextPeriod" title="更近时段">›</button>
         </div>
         <div class="chart-bars" v-if="vizHasData" style="height:120px;">
           <div class="chart-bar" v-for="b in barBuckets" :key="b.key">
@@ -11697,16 +11943,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
           </div>
         </div>
-        <p class="empty-tip" v-else>暂无兑换记录</p>
-        <div class="wp-hist-log" v-if="redemptionRecords.length">
-          <div class="wp-hist-row" v-for="r in redemptionRecords.slice(0, 20)" :key="r._id">
+        <p class="empty-tip" v-else>{{ redemptionRecords.length ? '本时段暂无兑换记录' : '暂无兑换记录' }}</p>
+        <div class="wp-hist-log" v-if="periodRecords.length">
+          <div class="wp-hist-row" v-for="r in periodRecords" :key="r._id">
             <span class="wp-hist-name">{{ r.wish_name }}</span>
+            <span class="wp-hist-tag debt" v-if="r.isDebt || r.recordType==='debt'">赊账</span>
             <span class="wp-hist-cost">-{{ r.cost }} 积分</span>
             <span class="wp-hist-time">{{ r.time.slice(0, 10) }}</span>
-            <span class="wp-hist-status" :class="r.status==='reversed' ? 'cancelled' : rstate(r)">
-              {{ r.status==='reversed' ? '已撤销' : (rstate(r)==='pending' ? '待核销' : rstate(r)==='verified' ? '已核销' : '已过期') }}
-            </span>
-            <span class="wp-hist-acts" v-if="r.status==='normal' && (rstate(r)==='pending' || rstate(r)==='verified')">
+            <span class="wp-hist-status cancelled" v-if="r.status==='reversed'">已撤销</span>
+            <span class="wp-hist-acts" v-if="r.status==='normal'">
               <button class="wp-hist-act undo" @click="openUndoConfirm(r)">撤销兑换</button>
             </span>
           </div>
@@ -11720,21 +11965,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 <div class="modal-mask" v-if="showDetailModal" @click.self="closeDetail">
   <div class="modal"><div class="modal-head"><h3>积分明细</h3><button class="x" @click="closeDetail">✕</button></div>
     <div class="modal-body">
-      <div class="wp-balance"><div class="wp-balance-num">{{ points }}</div><div class="wp-balance-label">当前可用积分</div></div>
+      <div class="wp-balance" :class="{ debt: inDebt }"><div class="wp-balance-num" :class="{ debt: inDebt }">{{ displayPoints }}</div><div class="wp-balance-label">{{ inDebt ? '当前余额（欠款中，可为负）' : '当前可用积分' }}</div></div>
       <div class="wp-detail-row"><span class="wp-detail-label">累计获得</span><span class="wp-detail-value earn">+{{ totalEarned }}</span></div>
       <div class="wp-detail-row"><span class="wp-detail-label">累计惩罚</span><span class="wp-detail-value penalty">-{{ totalPenalty }}</span></div>
       <div class="wp-detail-row"><span class="wp-detail-label">累计兑换</span><span class="wp-detail-value spend">-{{ totalSpent }}</span></div>
+      <div class="wp-detail-row" v-if="debtOwed > 0"><span class="wp-detail-label">累计欠款</span><span class="wp-detail-value debt">-{{ debtOwed }}</span></div>
       <div class="wp-detail-section" v-for="g in detailGroups" :key="g.label">
         <div class="wp-detail-cat">{{ g.icon }} {{ g.label }} ({{ g.records.length }})</div>
         <div class="wp-detail-item" v-for="r in g.records.slice(0, 30)" :key="r._id">
-          <span class="wp-detail-name">{{ r.detail || r.wish_name }}</span>
-          <span class="wp-detail-pts" :class="{ earn: r.recordType==='earn' || (r.recordType==='undo' && r.undoNet<0), penalty: r.recordType==='penalty' || (r.recordType==='undo' && r.undoNet>0), spend: r.recordType==='redeem' }">{{ (r.recordType==='earn' || (r.recordType==='undo' && r.undoNet<0))?'+':'-' }}{{ r.cost }}</span>
+          <span class="wp-detail-name">{{ r.detail || r.wish_name }}<span class="wp-hist-tag debt" v-if="r.isDebt || r.recordType==='debt'" style="margin-left:6px;">赊账</span></span>
+          <span class="wp-detail-pts" :class="{ earn: r.recordType==='earn' || (r.recordType==='undo' && r.undoNet<0), penalty: r.recordType==='penalty' || (r.recordType==='undo' && r.undoNet>0), spend: r.recordType==='redeem', debt: r.recordType==='debt' }">{{ (r.recordType==='earn' || (r.recordType==='undo' && r.undoNet<0))?'+':'-' }}{{ r.cost }}</span>
           <span class="wp-detail-time">{{ r.time.slice(0, 10) }}</span>
-          <span class="wp-detail-rev" v-if="r.status==='reversed'">已撤销，积分已返还</span>
+          <span class="wp-detail-rev" v-if="r.status==='reversed'">{{ (r.isDebt || r.recordType==='debt') ? '已撤销，欠款已清除' : '已撤销，积分已返还' }}</span>
           <span class="wp-detail-rev" v-else-if="r.rolledBackBy">原条目已删除，积分已回滚</span>
           <span class="wp-detail-rev" v-if="r.isHabitUndo">{{ r.undoNet>0 ? '已扣回该次完成积分' : '已返还该次扣减积分' }}</span>
           <span class="wp-detail-rev" v-if="r.isRedeemUndo">已返还该次兑换积分</span>
           <span class="wp-detail-rev" v-if="r.isRollback && r.rollbackCount">清算 {{ r.rollbackCount }} 条历史记录（得 {{ r.rollbackEarn }} / 罚 {{ r.rollbackPenalty }}）</span>
+          <span class="wp-detail-rev debt-note" v-if="r.isDebt || r.recordType==='debt'">赊账（原价 {{ r.redeemCost }} × 1.5）</span>
           <span class="wp-detail-focus" v-if="r.focusMin>0">专注{{ r.focusMin }}分钟</span>
         </div>
       </div>
@@ -11751,7 +11998,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="fld"><label>愿望类型</label>
         <select v-model="addCountType"><option value="one_time">一次性愿望（兑换后自动归档）</option><option value="repeatable">循环愿望（可重复兑换）</option></select>
       </div>
-      <div class="fld"><label>有效期（天，可选）</label><input v-model="addValidity" type="number" placeholder="留空 = 永久有效" min="1" /></div>
       <div class="modal-actions">
         <button class="btn ghost" @click="closeAdd">取消</button>
         <button class="btn primary" @click="confirmAdd" :disabled="!addName.trim() || !addCost || +addCost <= 0">确认添加</button>
@@ -11770,23 +12016,51 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="fld"><label>愿望类型</label>
         <select v-model="editCountType" :disabled="editExhausted"><option value="one_time">一次性愿望（兑换后自动归档）</option><option value="repeatable">循环愿望（可重复兑换）</option></select>
       </div>
-      <div class="fld"><label>有效期（天，可选）</label><input v-model="editValidity" type="number" placeholder="留空 = 永久有效" min="1" :disabled="editExhausted" /></div>
-      <div class="modal-actions">
+      <div class="modal-actions wp-edit-acts">
+        <button class="btn danger del-wish-btn" @click="askDelWish">删除愿望</button>
         <button class="btn ghost" @click="closeEdit">取消</button>
         <button class="btn primary" @click="confirmEdit" :disabled="editExhausted || !editName.trim() || !editCost || +editCost <= 0">确认修改</button>
+      </div>
+    </div>
+  </div>
+  <div class="chart-confirm" v-if="delWishConfirm" @click.self="delWishConfirm=false">
+    <div class="idea-choice-box" @click.stop>
+      <div class="idea-choice-title">确定要删除该愿望？删除后不可恢复（已有兑换记录仍会保留）。</div>
+      <div class="modal-actions">
+        <button class="btn ghost" @click="delWishConfirm=false">取消</button>
+        <button class="btn danger" @click="doDelWish">确定删除</button>
       </div>
     </div>
   </div>
   </div>
 
 <div class="modal-mask" v-if="showUndoModal" @click.self="closeUndoModal">
-  <div class="modal"><div class="modal-head"><h3>确认撤销兑换</h3><button class="x" @click="closeUndoModal">✕</button></div>
+  <div class="modal"><div class="modal-head"><h3>{{ confirmUndoIsDebt ? '确认撤销欠条' : '确认撤销兑换' }}</h3><button class="x" @click="closeUndoModal">✕</button></div>
     <div class="modal-body">
-      <p class="wp-undo-warn">确定撤销兑换「{{ confirmUndoName }}」？将返还 <strong>{{ confirmUndoCost }}</strong> 积分，原兑换记录保留并标记「已撤销」。</p>
-      <p class="wp-undo-tip">兑换即视为已使用；如实际未使用可撤销并返还积分。已过期的兑换不可撤销。</p>
+      <p class="wp-undo-warn" v-if="confirmUndoIsDebt">确定撤销欠条「{{ confirmUndoName }}」？将清除 <strong>{{ confirmUndoCost }}</strong> 积分的欠款，余额恢复到赊账前，愿望回到列表。原欠条记录保留并标记「已撤销」。</p>
+      <p class="wp-undo-warn" v-else>确定撤销兑换「{{ confirmUndoName }}」？将返还 <strong>{{ confirmUndoCost }}</strong> 积分，原兑换记录保留并标记「已撤销」。</p>
       <div class="modal-actions">
         <button class="btn ghost" @click="closeUndoModal">取消</button>
         <button class="btn danger" @click="confirmUndo">确认撤销</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 赊账（打欠条）确认弹窗 -->
+<div class="modal-mask" v-if="showDebtModal" @click.self="closeDebtModal">
+  <div class="modal"><div class="modal-head"><h3>打欠条兑换</h3><button class="x" @click="closeDebtModal">✕</button></div>
+    <div class="modal-body">
+      <p class="wp-undo-warn">当前积分 <strong>{{ points }}</strong>，不足兑换「{{ debtWishName }}」（需 {{ debtPrice }} 积分）。可打欠条先赊账，欠条金额 = 原价 × 1.5（四舍五入）。</p>
+      <div class="wp-debt-calc">
+        <div class="wp-debt-calc-row"><span>愿望原价</span><span>{{ debtPrice }} 积分</span></div>
+        <div class="wp-debt-calc-row"><span>欠条倍率</span><span>× 1.5</span></div>
+        <div class="wp-debt-calc-row total"><span>欠条金额（欠款）</span><span>{{ debtAmount }} 积分</span></div>
+        <div class="wp-debt-calc-row"><span>赊账后余额</span><span class="neg">{{ points - debtAmount }} 积分</span></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" @click="closeDebtModal">取消</button>
+        <button class="btn warn" @click="confirmDebt">确认打欠条</button>
       </div>
     </div>
   </div>
@@ -11812,7 +12086,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.TodayPage = {
     name: 'TodayPage',
     components: { HandCards: C.HandCards, HabitManageModal: C.HabitManageModal, HabitEditModal: C.HabitEditModal, HabitTypeChooseModal: C.HabitTypeChooseModal, TaskDetailModal: C.TaskDetailModal, TaskAddModal: C.TaskAddModal, ReadingSyncModal: C.ReadingSyncModal, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal, LeisureCard: C.LeisureCard, WishPool: C.WishPool, WeekScheduleBtn: C.WeekScheduleBtn },
-    data() { return { manageHabitId: null, manageFromEdit: false, showHabitEdit: false, editHabitId: null, detailId: null, quickCollapsed: false, addType: 'RECORD_HABIT', showTypeChoose: false, showTaskAdd: false, pressId: null, startY: 0, pressTimer: null, pendingUndo: null,
+    data() { return { manageHabitId: null, manageFromEdit: false, showHabitEdit: false, editHabitId: null, detailId: null,
+      // —— 启动进度记录 → 打开任务编辑时自动定位进度输入框（配合 TaskDetailModal focus-progress prop）——
+      focusProgressOn: false,
+      quickCollapsed: false, addType: 'RECORD_HABIT', showTypeChoose: false, showTaskAdd: false, pressId: null, startY: 0, pressTimer: null, pendingUndo: null,
       // —— 习惯 / 闲趣随机卡 区块折叠：默认全部收起；切 tab 重新挂载即回到默认折叠态 ——
       collapsed: { record: true, quit: true, leisure: true },
       // —— 滑动手势状态（与待归档页 / 今日页 HandCards 方向定义统一：左滑=完成，右滑=未完成，长按=详情）——
@@ -12437,8 +12714,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </section>
 
-      <!-- 闲趣随机卡：所有任务 / 习惯列表最底部，底部导航之上；编辑复用任务详情弹窗 -->
-      <LeisureCard @edit="id => detailId = id" />
+      <!-- 闲趣随机卡：所有任务 / 习惯列表最底部，底部导航之上；安排/进度记录均走 store，各 tab 实时同步 -->
+      <LeisureCard @open-detail="id => { detailId = id; focusProgressOn = true; }" />
 
       <!-- 许愿池：今日页底部，闲趣随机卡下方 -->
       <WishPool />
@@ -12458,7 +12735,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </div>
       <TaskAddModal v-if="showTaskAdd" :category-id="taskAddCat" :preset-mode="taskAddPreset" :folder-type="taskAddPreset" :default-date="taskAddDate || (taskAddWeek == null && taskAddMonth == null ? selectedDate : '')" :default-month="taskAddMonth" :default-week="taskAddWeek" @close="showTaskAdd=false" />
-      <TaskDetailModal v-if="detailId" :task-id="detailId" :is-copy="isCopyTask(detailId)" @close="detailId=null" />
+      <TaskDetailModal v-if="detailId" :task-id="detailId" :is-copy="isCopyTask(detailId)" :focus-progress="focusProgressOn" @close="() => { detailId = null; focusProgressOn = false; }" />
       <SubTaskEditModal v-if="showSubEdit" :task-id="editSubPid" :sub-id="editSubSid" @close="showSubEdit=false" />
 
       <!-- 阅读习惯打卡 → 书籍进度同步弹窗 -->
@@ -13336,7 +13613,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 收藏夹一级分组严格以 collectionCats 为准（仅 is_collection 标记或被收藏任务引用的分类）。
           // 不额外把「被收藏夹任务引用的任意一级分类」拉入——避免任务夹建的 #好物（无标记/is_task）
           // 因被收藏任务间接引用而误显示在收藏夹，保证跨文件夹标签互不干涉。
-          return this.collectionCats;
+          // 分组顺序：含「已开启进度记录」任务的分组前置（组内任务排序见 sortProgressTop），
+          // 其余分组保持原顺序（稳定排序）；关闭进度后组自动回落原位。
+          return this.collectionCats.slice().sort((a, b) =>
+            (this.catProgressOn(b._id) ? 1 : 0) - (this.catProgressOn(a._id) ? 1 : 0));
         }
         const qv = this.$store.getQuickViewCatId();
         // 内置「临时任务」仅任务夹展示：通用过滤中剔除 qv，仅任务夹单独置顶；模版夹/收藏夹不出现该内置标签
@@ -13599,6 +13879,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const pb = !!(b.progress_info && b.progress_info.enable);
           return (pb ? 1 : 0) - (pa ? 1 : 0);
         });
+      },
+      // 收藏夹分组前置：某一级分组（含其下二 / 三级子标签）内是否存在已开启进度记录的任务
+      catProgressOn(catId) {
+        const ids = [catId].concat(this.$store.descendantCategoryIds(catId));
+        return this.folderScopeTasks.some(t => ids.indexOf(t.category_id) >= 0 && !!(t.progress_info && t.progress_info.enable));
       },
       // 父任务下的子任务（三级标签语义：新任务归属为父任务的子任务）
       folderSubTasksOf(parentTask) {
@@ -16632,177 +16917,62 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     </div>`,
   };
 
-  /* -------- ProjectCheckinViz —— 项目级「打卡天数 / 完成量」可视化（与甘特图、标签耗时饼图并列） --------
-   * 维度：日 / 周 / 年，可上/下翻时段；
-   * 标题看「打卡了几天」（已打卡 X 天 / 共 Y 天 · 覆盖率 Z%）；
-   * 图形看「完成了多少」：堆积柱形图按【子任务】分色堆积完成量(actualNum)；
-   * 打卡天数按「当日有填报即记 1 天」统计（与编排表全局可视化口径一致）；仅做只读可视化。 */
-  C.ProjectCheckinViz = {
-    name: 'ProjectCheckinViz',
+  /* -------- ProjectSubTotals —— 项目级「子任务累计打卡 / 完成量」可视化（与甘特图、标签耗时饼图并列） --------
+   * 按子任务汇总到今天为止的累计数据：打卡天数（当日有填报即记 1 天，行内按日期去重）+ 完成量（actualNum 累加）；
+   * 合计打卡天数 = 跨子任务按日期去重（同一天多个子任务打卡只记 1 天，非各行相加）；完成量合计 = 各行求和；
+   * 仅统计 recordDate ≤ 今天的记录；行按完成量降序（零数据子任务垫底灰显）。仅做只读可视化。 */
+  C.ProjectSubTotals = {
+    name: 'ProjectSubTotals',
     props: { pid: { type: String, required: true } },
-    data() {
-      let dim = 'week';
-      try { const d = localStorage.getItem('mindpocket:pcvDim'); if (d === 'day' || d === 'week' || d === 'year') dim = d; } catch (e) {}
-      return { vizDim: dim, vizOffset: 0 };
-    },
     computed: {
       subs() { return this.$store.getSubsOrdered(this.pid); },
-      // sid → 子任务标题，用于完成量按子任务堆积的图例与明细
-      subTitle() {
-        const map = {};
-        this.subs.forEach(s => { if (s && s.sid) map[s.sid] = s.title || '未命名'; });
-        return map;
-      },
-      // 本项目所有子任务的填报记录
-      records() {
+      today() { return this.$store.util.todayStr(); },
+      // 一次遍历同时产出：每子任务累计行（days=recordDate 去重，当日有填报即记 1 天；amount=actualNum 求和）
+      // + 项目级日期并集（合计打卡天数=跨子任务去重，同一天多子任务打卡只记 1 天）；仅统计今天及以前
+      agg() {
         const set = {};
-        this.subs.forEach(s => { if (s && s.sid) set[s.sid] = true; });
-        return (this.$store.state.project_records || []).filter(r => !r.deleted_at && set[r.sid]);
-      },
-      vizWindow() {
-        const dim = this.vizDim, off = this.vizOffset || 0;
-        const pad = n => String(n).padStart(2, '0');
-        const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-        const todayStr = this.$store.util.todayStr();
-        if (dim === 'year') {
-          const y = new Date().getFullYear() - off;
-          const keys = []; for (let m = 1; m <= 12; m++) keys.push(y + '-' + pad(m));
-          return { dim, label: y + '年', title: '打卡天数 / 完成量', keys };
-        }
-        if (dim === 'week') {
-          const d = this.$store.util.parseDate(todayStr);
-          const wd = (d.getDay() + 6) % 7;
-          const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - wd - off * 7);
-          const keys = []; for (let i = 0; i < 7; i++) { const dd = new Date(mon); dd.setDate(mon.getDate() + i); keys.push(fmt(dd)); }
-          return { dim, label: '本周' + (off ? ' · ' + off + '周前' : ''), title: '打卡天数 / 完成量', keys };
-        }
-        const d = this.$store.util.parseDate(todayStr);
-        d.setDate(d.getDate() - off);
-        const k = fmt(d);
-        return { dim, label: k, title: '打卡天数 / 完成量', keys: [k] };
-      },
-      // 打卡天数：按窗口统计「有填报记录」的日期（当日有填报即记 1 天）
-      checkinBuckets() {
-        const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = {});
-        this.records.forEach(r => {
+        this.subs.forEach(s => { if (s && s.sid) set[s.sid] = { title: s.title || '未命名', daysSet: {}, amount: 0 }; });
+        const projDays = {};
+        (this.$store.state.project_records || []).forEach(r => {
+          if (!r || r.deleted_at) return;
           const d = r.recordDate || '';
-          if (!d) return;
-          const k = win.dim === 'year' ? d.slice(0, 7) : d;
-          if (win.keys.indexOf(k) < 0) return;
-          map[k][d] = true;
+          if (!d || d > this.today) return;
+          const row = set[r.sid];
+          if (!row) return;              // 非本项目子任务（含软删子任务）的记录不计入
+          row.daysSet[d] = true;
+          row.amount += Number(r.actualNum) || 0;
+          projDays[d] = true;            // 项目级去重：与行同口径（≤今天、未软删、属本项目子任务）
         });
-        if (win.dim === 'day') {
-          const k = win.keys[0];
-          const days = Object.keys(map[k]).length;
-          return [{ key: k, label: k.slice(5, 7) + '/' + k.slice(8, 10), days, pct: days > 0 ? 100 : 0 }];
-        }
-        if (win.dim === 'week') {
-          const wd = ['一', '二', '三', '四', '五', '六', '日'];
-          return win.keys.map(k => {
-            const days = Object.keys(map[k]).length;
-            return { key: k, label: wd[this._weekday(k)] || k.slice(8), days, pct: days > 0 ? 100 : 0 };
-          });
-        }
-        const max = Math.max.apply(null, win.keys.map(k => Object.keys(map[k]).length).concat([1]));
-        return win.keys.map(k => {
-          const days = Object.keys(map[k]).length;
-          return { key: k, label: k.slice(5) + '月', days, pct: max > 0 ? Math.round(days / max * 100) : 0 };
-        });
+        const rows = this.subs.map(s => set[s.sid]).filter(Boolean).map(row => ({
+          title: row.title,
+          days: Object.keys(row.daysSet).length,
+          amount: row.amount,
+        })).sort((a, b) => (b.amount - a.amount) || (b.days - a.days));
+        return { rows, totalDays: Object.keys(projDays).length, totalAmount: rows.reduce((a, r) => a + r.amount, 0) };
       },
-      checkinTotal() {
-        if (this.vizDim === 'year') return this.checkinBuckets.reduce((a, b) => a + b.days, 0);
-        return this.checkinBuckets.filter(b => b.days > 0).length;
-      },
-      checkinDenominator() {
-        if (this.vizDim === 'day') return 1;
-        if (this.vizDim === 'week') return 7;
-        const y = new Date().getFullYear() - (this.vizOffset || 0);
-        return (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 366 : 365;
-      },
-      checkinPct() { const den = this.checkinDenominator; return den > 0 ? Math.round(this.checkinTotal / den * 100) : 0; },
-      hasCheckinData() { return this.checkinTotal > 0; },
-      // 完成量堆积柱形图：各时段完成量(actualNum)按【子任务】分色堆积（单项目维度下按子任务分解）
-      checkinAmountBuckets() {
-        const win = this.vizWindow;
-        const cell = {}; win.keys.forEach(k => { cell[k] = {}; });
-        const subTotals = {};
-        this.records.forEach(r => {
-          const d = r.recordDate || '';
-          if (!d) return;
-          const k = win.dim === 'year' ? d.slice(0, 7) : d;
-          if (win.keys.indexOf(k) < 0) return;
-          const amt = Number(r.actualNum) || 0;
-          if (amt <= 0) return;
-          const name = this.subTitle[r.sid] || '未命名子任务';
-          cell[k][name] = (cell[k][name] || 0) + amt;
-          subTotals[name] = (subTotals[name] || 0) + amt;
-        });
-        const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
-        const subNames = Object.keys(subTotals).sort((a, b) => subTotals[b] - subTotals[a]);
-        const subColor = {}; subNames.forEach((n, i) => { subColor[n] = palette[i % palette.length]; });
-        const CHART_H = 108;
-        const maxTotal = Math.max.apply(null, win.keys.map(k => { let s = 0; for (const n in cell[k]) s += cell[k][n]; return s; }).concat([0]));
-        const dayMap = {}; this.checkinBuckets.forEach(b => { dayMap[b.key] = b.days; });
-        const buckets = win.keys.map(k => {
-          const segs = subNames.filter(n => cell[k][n]).map(n => ({ name: n, amount: cell[k][n], color: subColor[n] }));
-          const total = segs.reduce((a, s) => a + s.amount, 0);
-          segs.sort((a, b) => b.amount - a.amount);
-          const stackPx = maxTotal > 0 ? Math.round(total / maxTotal * CHART_H) : 0;
-          segs.forEach(s => { s.segPx = total > 0 ? Math.round(s.amount / total * stackPx) : 0; });
-          const label = win.dim === 'year' ? k.slice(5) + '月' : k.slice(5) + '/' + k.slice(8);
-          return { key: k, label, total, stackPx, segs, days: dayMap[k] || 0 };
-        });
-        return {
-          maxTotal,
-          palette: subNames.map((n, i) => ({ name: n, color: palette[i % palette.length], total: subTotals[n] })),
-          buckets,
-        };
-      },
-      hasCheckinAmountData() { return this.checkinAmountBuckets.buckets.some(b => b.total > 0); },
-    },
-    methods: {
-      _weekday(k) { const d = this.$store.util.parseDate(k); return (d.getDay() + 6) % 7; },
-      setVizDim(d) { this.vizDim = d; try { localStorage.setItem('mindpocket:pcvDim', d); } catch (e) {} },
-      prev() { this.vizOffset = this.vizOffset + 1; },
-      next() { this.vizOffset = Math.max(0, this.vizOffset - 1); },
+      rows() { return this.agg.rows; },
+      // 合计打卡天数：跨子任务按日期去重（同一天多个子任务打卡只记 1 天），而非各行相加
+      totalDays() { return this.agg.totalDays; },
+      totalAmount() { return this.agg.totalAmount; },
+      hasData() { return this.rows.some(r => r.days > 0 || r.amount > 0); },
     },
     template: `
-    <div class="pcv">
-      <div class="view-toggle">
-        <button :class="{on: vizDim==='day'}" @click="setVizDim('day')">日</button>
-        <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
-        <button :class="{on: vizDim==='year'}" @click="setVizDim('year')">年</button>
-      </div>
-      <div class="viz-period-nav">
-        <button class="icon-btn" @click="prev" title="更早时段">‹</button>
-        <span class="viz-period-label">{{ vizWindow.title }} · {{ vizWindow.label }}</span>
-        <button class="icon-btn" :disabled="vizOffset===0" @click="next" title="更近时段">›</button>
-      </div>
-      <div class="viz-checkin-wrap" style="margin-top:10px;">
-        <div class="viz-sec-title">📅 打卡天数 / 完成量（{{ vizWindow.label }}）</div>
-        <p class="viz-checkin-summary">已打卡 <b>{{ checkinTotal }}</b> 天 / 共 {{ checkinDenominator }} 天 · 覆盖率 <b>{{ checkinPct }}%</b></p>
-        <div class="chart-bars" v-if="hasCheckinAmountData" style="height:140px;margin-top:6px;">
-          <div class="chart-bar" v-for="b in checkinAmountBuckets.buckets" :key="b.key"
-               :title="b.total > 0 ? ('完成量 ' + b.total + ' · 已打卡 ' + b.days + ' 天') : ('已打卡 ' + b.days + ' 天 · 无完成量')">
-            <div class="bar-val">{{ b.total > 0 ? b.total : (b.days > 0 ? '✓' : '–') }}</div>
-            <div class="bar-stack" :style="{ height: b.stackPx + 'px' }">
-              <div class="bar-seg" v-for="s in b.segs" :key="s.name" :style="{ height: s.segPx + 'px', background: s.color }" :title="s.name + '：' + s.amount"></div>
-            </div>
-            <div class="bar-label">{{ b.label }}</div>
+    <div class="pst">
+      <div class="viz-checkin-wrap">
+        <div class="viz-sec-title">📊 子任务打卡 / 完成量（截至今天）</div>
+        <p class="viz-checkin-summary">合计：打卡 <b>{{ totalDays }}</b> 天 · 完成量 <b>{{ totalAmount }}</b></p>
+        <div class="pst-rows" v-if="rows.length">
+          <div class="pst-row" v-for="r in rows" :key="r.title" :class="{ idle: !r.days && !r.amount }"
+               :title="r.title + '：打卡 ' + r.days + ' 天 · 完成量 ' + r.amount">
+            <span class="pst-name">{{ r.title }}</span>
+            <span class="pst-nums">打卡 <b>{{ r.days }}</b> 天 · 完成 <b>{{ r.amount }}</b></span>
           </div>
         </div>
-        <p class="empty-tip" v-else>当前时段暂无完成量记录</p>
-        <div class="viz-legend" v-if="checkinAmountBuckets.palette.length" style="margin-top:10px;">
-          <div class="viz-leg-item" v-for="p in checkinAmountBuckets.palette" :key="p.name">
-            <span class="viz-dot" :style="{background: p.color}"></span>
-            <span class="viz-leg-name">{{ p.name }}</span>
-            <span class="viz-leg-pct">{{ p.total }}</span>
-          </div>
-        </div>
+        <p class="empty-tip" v-else>暂无子任务</p>
+        <p class="empty-tip" v-if="rows.length && !hasData">所有子任务均未打卡（统计截至今天）</p>
       </div>
     </div>`,
   };
-
   /* -------- ProjectGantt —— 项目子任务甘特图（只读可视化，不修改任何数据） -------- */
   C.ProjectGantt = {
     name: 'ProjectGantt',
@@ -16900,7 +17070,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
           </div>
         </div>
-        <p class="tip gantt-tip">甘特图仅可视化展示，点击色块可编辑子任务；子任务全部平级，不支持多层嵌套。</p>
       </div>
     </div>`,
   };
@@ -17755,7 +17924,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectDetailPage = {
     name: 'ProjectDetailPage',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
-    components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie, ProjectCheckinViz: C.ProjectCheckinViz },
+    components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie, ProjectSubTotals: C.ProjectSubTotals },
     props: { pid: { type: String, required: true }, ideaId: { type: String, default: '' }, subId: { type: String, default: '' } },
     data() {
       return {
@@ -18131,12 +18300,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <p v-if="!subs.length && filterTags.length" class="empty-tip clickable" @click="clearTag">所选 {{ filterTags.length }} 个标签下暂无子任务，点此清除筛选</p>
         <p v-else-if="!subs.length" class="empty-tip">还没有子任务，点「新增子任务」添加（全部平级，不支持多级嵌套）</p>
       </div>
-      <!-- 子任务「时间可视化」：甘特图（各子任务时间区间排布）+ 标签耗时饼图，进入后可下钻到子任务；
+      <!-- 子任务「时间可视化」：甘特图（各子任务时间区间排布）+ 标签耗时饼图 + 子任务累计打卡/完成量统计，进入后可下钻到子任务；
            属于子任务自身的时间维度可视化（非项目级大图表），与顶部 📅 时间胶囊并存 -->
       <div v-show="tab==='sub' && view==='gantt'">
         <ProjectGantt :pid="pid" :filter-tag="filterTags" @open-sub="openSubEditById" />
         <ProjectTagPie :pid="pid" @open-sub="openSubEditById" />
-        <ProjectCheckinViz :pid="pid" />
+        <ProjectSubTotals :pid="pid" />
       </div>
 
       <div v-if="tab==='idea'" class="idea-list2">
@@ -20924,7 +21093,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   app.component('ProjectsPage', C.ProjectsPage);
   app.component('ProjVizPage', C.ProjVizPage);
   app.component('ProjectDetailPage', C.ProjectDetailPage);
-  app.component('ProjectCheckinViz', C.ProjectCheckinViz);
+  app.component('ProjectSubTotals', C.ProjectSubTotals);
   app.component('InboxSubPage', C.InboxSubPage);
   app.component('QuickEntry', C.QuickEntry);
   app.component('WishPool', C.WishPool);
