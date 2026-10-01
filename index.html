@@ -10990,7 +10990,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.TaskDetailModal = {
     name: 'TaskDetailModal',
     props: { taskId: { type: String, required: true }, isCopy: { type: Boolean, default: false }, // focusProgress：闲趣卡「启动进度记录」入口传入 → 弹窗打开后自动定位并聚焦进度值输入框
-    focusProgress: { type: Boolean, default: false } },
+    focusProgress: { type: Boolean, default: false },
+    // prestart：闲趣卡「启动进度记录」预启动——仅在表单层把进度开关置为开启（不写库）：
+    // 点「确定」保存后才真正开启并退池；取消 / 关闭弹窗则还原快照，相当于没有开启成功。
+    prestart: { type: Boolean, default: false } },
     components: { TaskFormCore: C.TaskFormCore },
     data() {
       return {
@@ -11119,6 +11122,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         showArrangeBtn: t.showArrangeBtn !== false,
       };
       this.snapshot = JSON.parse(JSON.stringify(t));
+      // 闲趣卡「启动进度记录」预启动：仅在表单层开启（快照仍为未开启原值）——
+      // 点「确定」随保存落库生效；取消 / 关闭还原快照后等于未开启成功。
+      if (this.prestart) this.form.progress_info = Object.assign(
+        { enable: false, media_type: 'book', progress_value: '', done: 0, total: 0 },
+        this.form.progress_info, { enable: true });
       // 浮层栈：作为弹窗登记 dismiss，系统返回优先关闭本弹窗（返回来源页，不改写路由）
       this._overlayDismiss = () => this.$emit('close');
       this.$root.pushOverlay(this._overlayDismiss);
@@ -11460,9 +11468,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       startProgress() {
         const t = this.current;
         if (!t) return;
-        this.$store.setProgress(t._id, { enable: true });
-        this.showToast('已启动进度记录「' + this.shortName(t.title) + '」，请填写进度单位与当前进度');
-        this.$emit('open-detail', t._id);
+        // 预启动：不直接写库——打开任务编辑（表单层勾选开启进度记录），点「确定」保存后才算启动成功（退池）；
+        // 取消 / 关闭弹窗则还原快照，任务留在候选池，相当于没有开启成功。
+        this.showToast('已进入「' + this.shortName(t.title) + '」进度记录编辑，点「确定」完成启动');
+        this.$emit('open-detail', t._id, true);
       },
       shortName(s) { const x = String(s || ''); return x.length > 10 ? x.slice(0, 10) + '…' : x; },
       showToast(msg, type, undoId) {
@@ -12089,6 +12098,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() { return { manageHabitId: null, manageFromEdit: false, showHabitEdit: false, editHabitId: null, detailId: null,
       // —— 启动进度记录 → 打开任务编辑时自动定位进度输入框（配合 TaskDetailModal focus-progress prop）——
       focusProgressOn: false,
+      // —— 启动进度记录 → 预启动标记：仅表单层勾选开启，点「确定」保存后才真正开启；取消等于未开启 ——
+      preStartOn: false,
       quickCollapsed: false, addType: 'RECORD_HABIT', showTypeChoose: false, showTaskAdd: false, pressId: null, startY: 0, pressTimer: null, pendingUndo: null,
       // —— 习惯 / 闲趣随机卡 区块折叠：默认全部收起；切 tab 重新挂载即回到默认折叠态 ——
       collapsed: { record: true, quit: true, leisure: true },
@@ -12715,7 +12726,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </section>
 
       <!-- 闲趣随机卡：所有任务 / 习惯列表最底部，底部导航之上；安排/进度记录均走 store，各 tab 实时同步 -->
-      <LeisureCard @open-detail="id => { detailId = id; focusProgressOn = true; }" />
+      <LeisureCard @open-detail="(id, pre) => { detailId = id; focusProgressOn = !!pre; preStartOn = !!pre; }" />
 
       <!-- 许愿池：今日页底部，闲趣随机卡下方 -->
       <WishPool />
@@ -12735,7 +12746,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </div>
       <TaskAddModal v-if="showTaskAdd" :category-id="taskAddCat" :preset-mode="taskAddPreset" :folder-type="taskAddPreset" :default-date="taskAddDate || (taskAddWeek == null && taskAddMonth == null ? selectedDate : '')" :default-month="taskAddMonth" :default-week="taskAddWeek" @close="showTaskAdd=false" />
-      <TaskDetailModal v-if="detailId" :task-id="detailId" :is-copy="isCopyTask(detailId)" :focus-progress="focusProgressOn" @close="() => { detailId = null; focusProgressOn = false; }" />
+      <TaskDetailModal v-if="detailId" :task-id="detailId" :is-copy="isCopyTask(detailId)" :focus-progress="focusProgressOn" :prestart="preStartOn" @close="() => { detailId = null; focusProgressOn = false; preStartOn = false; }" />
       <SubTaskEditModal v-if="showSubEdit" :task-id="editSubPid" :sub-id="editSubSid" @close="showSubEdit=false" />
 
       <!-- 阅读习惯打卡 → 书籍进度同步弹窗 -->
