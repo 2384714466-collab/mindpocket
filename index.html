@@ -727,6 +727,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .cycle-chip.undone { background: #f5f5f7; color: var(--sub); }
 .chip-overdue { display: inline-block; margin-left: 4px; background: #fff3e3; color: #e8862b; font-weight: 600; padding: 0 5px; border-radius: var(--radius-sm); font-size: 11px; vertical-align: 1px; }
 .chip-overdue.done { background: #e8f7ee; color: #1f9d57; } /* 延期完成（已补卡）：绿色，区别于延期未完成 */
+/* 补位扩展（extend）漏卡：已整体后移的过去发生日 —— 灰显「已过期」，不再作为当前应打卡日 */
+.cycle-chip.expired { background: #f2f2f4; color: #b3b3ba; text-decoration: line-through; text-decoration-color: #d3d3d8; }
+.cycle-chip.expired:active { background: #ececef; }
+.chip-expired { display: inline-block; margin-left: 4px; background: #eeeff1; color: #9a9aa2; font-weight: 600; padding: 0 5px; border-radius: var(--radius-sm); font-size: 11px; vertical-align: 1px; }
 .undo-pop { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: var(--z-popover); background: #fff; border: 1px solid var(--line); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 4px; white-space: nowrap; }
 .undo-pop button { background: #fff; border: none; color: var(--no); font-size: 12px; padding: 6px 10px; border-radius: var(--radius-sm); width: 100%; text-align: left; }
 .undo-pop button:active { background: #fbeaea; }
@@ -1332,6 +1336,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* 子任务卡片：完成态整体弱化（配合「完成自动置后」，视觉上自然沉底） */
 .psub.done-sub { opacity: .72; }
 .psub.done-sub .psub-title { text-decoration: line-through; color: var(--sub); }
+/* —— 项目子任务已归档（已全部完成 / 已放弃）：整卡变灰置底，标题灰显；放弃的额外「已放弃」徽标 —— */
+.psub.archived { background: #f4f4f6; border-color: #e3e3e9; box-shadow: none; }
+.psub.archived .psub-title { color: var(--sub); }
+.psub.archived .psub-title.arch-abandon { text-decoration: line-through; }
+.psub.archived .psub-prog, .psub.archived .psub-time, .psub.archived .psub-span-wrap, .psub.archived .psub-cd { opacity: .55; }
+.abandon-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: #b3540b; background: #fdeee0; border: 1px solid #f3d4b8; vertical-align: 1px; }
+/* 过期未完成徽标（全局归档仓库 / 任务夹已归档列表）：指定月软性计划月末自动归档的条目标记 */
+.expire-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; color: #c0392b; background: #fdeaea; border: 1px solid #f5c6c6; vertical-align: 1px; }
 /* 填报弹窗：耗时输入（时 / 分） */
 .spent-row { display: flex; align-items: flex-end; gap: 8px; }
 .spent-row .fld { flex: 1; margin-bottom: 0; }
@@ -1567,6 +1579,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-balance-num.debt { color: #c0443c; }
 .wp-balance.debt .wp-balance-label { color: #c0443c; }
 .wp-debt-calc { background: #fff8ee; border: 1px solid #ffe0b2; border-radius: var(--radius-md); padding: 10px 12px; margin: 10px 0; }
+/* 欠条条目的逾期罚息提示（兑换记录行内小字，橙色警告） */
+.wp-hist-penalty { display: block; margin-top: 2px; font-size: 10px; font-weight: 700; color: #e08e0b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wp-debt-calc-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--text); padding: 3px 0; }
 .wp-debt-calc-row.total { border-top: 1px dashed #ffd18a; margin-top: 4px; padding-top: 6px; font-weight: 700; color: #c77800; }
 .wp-debt-calc-row .neg { color: #c0443c; font-weight: 700; }
@@ -2446,6 +2460,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (!Array.isArray(state.career.resumes)) state.career.resumes = [];
       if (!Array.isArray(state.career.tags)) state.career.tags = [];
       ensureCareerPresets();
+      ensureDebtPenalties(); // 欠条逾期罚息落账（每满 1 周未还清补记 原价×0.5，幂等；读取欠款口径时亦有惰性补记兜底）
       autoRollOverdueSpecified(); // 逾期「指定周/月」与单点/区间任务自动顺延到本周可见窗口并标记「逾期未完成」（先于 autoExtendOverdue，避免开关把已顺延日期覆盖到今天导致漏标/重复顺延）
       autoExtendOverdue(); // 过期任务自动延期（仅在开关开启时生效）
       autoArchiveExpiredCycles(); // 周期任务到期自动归档（母本归档，停止副本同步）
@@ -3202,10 +3217,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }
     }
     const start = cycleRollAnchor(t);
+    const todayS = todayStr();
     let occ = cycleHits(cycle, start, lower) ? start : nextCycleHit(cycle, addDays(start, -1), lower);
     let n = 0;
     while (occ && n < 4000) {
-      if (!cycleArchivedToday(t, occ)) return occ;  // 第一个未完成即「当前应打卡日」
+      if (!cycleArchivedToday(t, occ)) {
+        // 补位扩展（extend）：漏卡「直接忽视、整体后移一个周期」——过去的漏卡日不再作为「当前应打卡日」滞留，
+        // 否则当前日会被卡死在过去，导致下一个周期日（如下周五）在今日 tab 不出现副本。
+        // 漏卡日本身保留在执行历史里标为「已过期」灰显，次数由后续周期补上（次数守恒）。
+        if (mode === 'extend') {
+          const endD = t.cycle_end_date || '';
+          if (endD && occ > endD) return '';   // 已越过结束日：不再投射任何副本（按日期结束的过期任务）
+          if (occ < todayS) { occ = nextCycleHit(cycle, occ, lower); n++; continue; }
+        }
+        return occ;  // 第一个未完成即「当前应打卡日」
+      }
       occ = nextCycleHit(cycle, occ, lower);
       n++;
     }
@@ -3355,11 +3381,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 给发生日列表标注完成/延期状态（与 cycleArchivedToday 口径一致：execute_date 或 real_done 命中即完成）
   function annotateCycleDates(dates, t) {
     const hist = t.cycle_history || [];
-    return dates.map(ds => ({
-      execute_date: ds,
-      is_archived: hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds)),
-      overdue: hist.some(h => h.overdue && h.execute_date === ds),
-    }));
+    const mode = cycleMode(t);
+    const today = todayStr();
+    return dates.map(ds => {
+      const is_archived = hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds));
+      // 补位扩展（extend）：过去未打卡的发生日不再顺延补卡（也不滞留今日），恒为「已过期」灰显；
+      // 缺少的次数由后续周期补上（次数守恒：有效次数 = 设定次数 + 漏卡数）。
+      const expired = (mode === 'extend' && !is_archived && ds < today);
+      return {
+        execute_date: ds,
+        is_archived,
+        overdue: hist.some(h => h.overdue && h.execute_date === ds),
+        expired,
+      };
+    });
   }
   // 次数模式：已打卡次数（cycle_history 中 is_archived 的条数）
   function cycleDoneCount(t) {
@@ -3527,6 +3562,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       t.archived_at = '';                    // 清空归档日：重新归档时会按新归档当日重算归属
       t.autoArchivedByCopies = false;
       restoreArchiveSnapshot(t);
+      // ★ 指定月任务的撤销兜底：自动归档发生在「目标月已过期」（autoRollOverdueSpecified 月末归档），
+      // 若原样恢复（plan_month 仍指向过期月），下次启动会因窗口过期未完成被再次自动归档（撤销→归档死循环）。
+      // 撤销 = 用户想继续 → 自动顺延一个月（延续旧延期机制语义），并清掉过期标记重新开始。
+      // 窗口未过期的手动归档月任务不受影响。
+      const win = specifiedWindowOf(t);
+      if (t.time_mode === 'month' && win && win.we < todayStr()) {
+        extendSpecified(t._id);
+        t.overdueUnfinished = false;
+      }
       // restoreArchiveSnapshot 已从快照恢复 cycle_history，无需额外清空
     } else if (t.cycle) {
       const today = todayStr();
@@ -3899,11 +3943,32 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const s = t.sub_tasks.find(s => s._id === subId);
     if (s) { s.is_archived = true; s.archived_at = todayStr(); s.isEmergency = false; persist(); }
   }
-  function undoArchiveSubTask(id, subId) {
+  function undoArchiveSubTask(id, subId, date) {
     const t = findTask(id);
     if (!t) return;
     const s = t.sub_tasks.find(s => s._id === subId);
     if (s) {
+      // —— 按日撤销（全局已归档仓库）：周期/自定义区间子任务在仓库中按「每个已打卡日」展开为多条目，
+      // 撤销某日条目 = 仅删除该日的打卡记录并恢复子任务活跃态（今日可重新打卡）；
+      // 过往日期的打卡记录与对应积分完全不受影响。
+      // 此前不区分日期一律「整条重生」：无快照时清空全部 cycle_history + 积分全族回滚，
+      // 表现为「撤销今日的归档，把之前全部历史执行日期打卡记录都撤销了」。
+      if (date && (s.cycle || (s.date_mode === 'range' && s.date_start))) {
+        const hist = s.cycle_history || [];
+        // 定位该日记录：优先按出现日匹配；补卡场景归档条目按真实完成日展示，再按 real_done 匹配
+        let idx = hist.map(x => (x.is_archived ? x.execute_date : null)).lastIndexOf(date);
+        if (idx < 0) idx = hist.map(x => (x.is_archived ? (x.real_done || null) : null)).lastIndexOf(date);
+        if (idx >= 0) {
+          const hitDate = hist[idx].execute_date;
+          hist.splice(idx, 1);
+          // 积分联动：精准回滚该次出现的积分（refId = taskId_subId_出现日，与 subCopyDone 发放口径对称）
+          reversePoints(t._id + '_' + subId + '_' + hitDate, 'cycle_task');
+        }
+        s.is_archived = false; s.archived_at = ''; s.is_done = false; s.autoArchivedByCopies = false;
+        syncCycleAnchor(s);   // 撤销后按剩余打卡历史重算浮动锚点（最近真实完成日回退）
+        persist();
+        return;
+      }
       // 积分联动：撤销归档 = 子任务以「全新活跃态」重生（is_done/finishHistory/cycle_history/doneDates 全部清空），
       // 故其名下全部完成积分（sub_task +3 / study_work / cycle_task，refId = taskId_subId 族，含周期按发生日的后缀）
       // 须按净额一次回滚，避免「已完成被清零却仍计分 / 之后重新完成又加分」造成的积分重复累加。
@@ -3912,6 +3977,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       s.is_archived = false;
       s.archived_at = '';
       s.is_done = false;
+      // ★ 指定月子任务的撤销兜底：月末自动归档的子任务原样恢复会因窗口过期被再次自动归档
+      //（撤销→归档死循环），撤销 = 想继续 → 自动顺延一个月并清过期标记（与 undoArchive 主任务兜底同语义）。
+      const swin = specifiedWindowOf(s);
+      if (s.time_mode === 'month' && swin && swin.we < todayStr()) {
+        extendSpecified(t._id, subId);
+        s.overdueUnfinished = false;
+      }
       // 尝试从父任务归档快照中恢复子任务的打卡记录
       const snap = t.archive_snapshot;
       if (snap && snap.subSnaps) {
@@ -3942,7 +4014,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   //   archived=true → 归档；false → 撤销归档
   //   - 子任务归档：标记该子任务失效；若母本全部子任务均归档，则同步自动归档母本（含其全部周期副本）
   //   - 主任务归档：归档母本 + 批量失效其全部关联周期副本（archiveMasterCopies），同步所有副本 archived 状态
-  function setArchived(id, subId, archived) {
+  function setArchived(id, subId, archived, date) {
     const t = findTask(id);
     if (!t) return;
     if (subId) {
@@ -3953,7 +4025,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           archiveMasterCopies(t); t.is_archived = true; t.archived_at = todayStr(); persist(); // 母本随子任务全归档：记录实际归档当日，避免全局已归档仓库按创建日归属
         }
       } else {
-        undoArchiveSubTask(id, subId);
+        undoArchiveSubTask(id, subId, date);
       }
     } else {
       // 母本归档/撤销：模版任务走专属原子方法（撤销时批量恢复全部关联副本）；否则走通用归档
@@ -4818,7 +4890,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function setAutoExtend(v) { state.settings.autoExtend = !!v; persist(); }
 
   // 待归档看板：逾期任务/子任务，启动时自动顺延到「本周可见窗口」并打「逾期未完成」持久标记。
-  // - 指定周 / 指定月：time_mode==='week'/'month' 且冻结了绝对目标周/月 → 标记 overdueUnfinished 并 extendSpecified 顺延一窗口（周→下一周、月→下一月）；
+  // - 指定周：time_mode==='week' 且冻结了绝对目标周 → 标记 overdueUnfinished 并 extendSpecified 顺延一周；
+  // - 指定月：time_mode==='month' 且冻结了绝对目标月 → 「软性月计划」到期不再延期：标记 overdueUnfinished
+  //   并在月最后一天自动归档（archived_at=月末；未完成即过期，不计归档积分）；
   // - 单点 / 区间（年月日任务）：date_mode==='single'/'range' 且截止日已过期未完成 → 标记 overdueUnfinished 并整体顺延到本周一（区间保持原跨度）；
   // - 顺延后自然落入本周（周/月看板可见窗口），不再滞留过期窗口而「消失」；
   // - 自愈：未过期窗口已完成（指定周/月副本完成、单点/区间副本已打卡）则清除标记（任务已补完，恢复正常）。
@@ -4853,8 +4927,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return;
         }
         if (copyDoneForWindow(obj, win.ws, win.we)) return;          // 本窗口已完成 → 非逾期，跳过
+        // ★ 指定月（软性月计划）：到期不再延期——月最后一天自动归档。
+        // 「这个月的计划，没完成就过期，不一定要完成」：条目保留 overdueUnfinished 标记
+        // （任务夹归档列表 / 全局归档仓库显示「逾期未完成」），不顺延、不计归档积分
+        // （区别于手动归档的 delay 衰减计分——未完成即过期，不是完成）。
+        // 归档日归属 = 目标月最后一天（win.we），归档仓库按当月月末归属该条目。
+        if (obj.time_mode === 'month') {
+          obj.overdueUnfinished = true;
+          obj.is_archived = true;
+          obj.archived_at = win.we;
+          obj.isEmergency = false;
+          changed = true;
+          return;
+        }
         if (!obj.overdueUnfinished) { obj.overdueUnfinished = true; changed = true; }
-        extendSpecified(t._id, subId || null);                        // 顺延一个窗口（周→下一周、月→下一月）
+        extendSpecified(t._id, subId || null);                        // 指定周：保持原「顺延一周」延期机制
         changed = true;
         return;
       }
@@ -4870,18 +4957,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return;
         }
         if (!obj.overdueUnfinished) { obj.overdueUnfinished = true; changed = true; }
-        // 本周一：用本地日期口径解析（parseDate），不可用 new Date(today+'T00:00:00Z')——
-        // 那是 UTC 午夜，在 UTC 负偏移时区会被 isoWeek 当作前一天，算出「上周一」，
-        // 使顺延目标落在已过期窗口（任务看似消失，实则仍逾期）。
-        const cw = isoWeek(parseDate(today));
-        const cws = weekRange(cw.year, cw.week).start;
-        const ymd = dt => dt.getUTCFullYear() + '-' + String(dt.getUTCMonth() + 1).padStart(2, '0') + '-' + String(dt.getUTCDate()).padStart(2, '0');
-        const wsd = ymd(cws);                                         // 本周一（周/月看板可见窗口起点）
+        // 顺延目标 = 「今天」而非「本周一（周/月看板可见窗口起点）」：
+        //  · 原实现把过期任务拽回过去的窗口起点——周一创建、安排到周二的指定周任务，周三打开会被拽回周一，
+        //    恰逢创建日/原排期在周一（如 7-01）时看起来像「时间被重置成创建日」，用户安排/延期后的日期基准完全丢失；
+        //  · 今天必然仍在本周看板可见窗口内（分组归属不变），且今日 tab 可直接完成，顺延后不会产生「时间倒退」。
         if (obj.date_mode === 'range' && obj.date_start && obj.date_end) {
           const span = dateDiffDays(obj.date_start, obj.date_end);
-          obj.date_start = wsd; obj.date_end = addDays(wsd, span); obj.execute_date = wsd;
+          obj.date_start = today; obj.date_end = addDays(today, span); obj.execute_date = today;
         } else {
-          obj.execute_date = wsd; obj.date_start = wsd; obj.date_end = wsd;
+          obj.execute_date = today; obj.date_start = today; obj.date_end = today;
         }
         changed = true;
       }
@@ -5892,10 +5976,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (added > 0) persist();
   }
   // 读取某日全部实例（含已完成，按生成时间升序）
+  // 同一项目的子任务前后挨着放在一起：先按生成时间升序，再按「项目首次出现次序」稳定分组
+  // （早安排进任务表的项目整组靠前），组内维持原生成序——不同项目陆续勾选「进入任务表」
+  // 交错生成时，任务表不再按勾选先后把同项目实例打散混排。已完成置底由页面 sortedItems 分区继承。
   function getTaskBoardInstances(date) {
     const tb = state.taskBoard || { instances: [] };
-    return (tb.instances || []).filter(it => it.date === date)
+    const list = (tb.instances || []).filter(it => it.date === date)
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    const firstSeen = {}, projOrder = [];
+    list.forEach(it => {
+      const k = it.pid || '';
+      if (!(k in firstSeen)) { firstSeen[k] = projOrder.length; projOrder.push(k); }
+    });
+    return list.slice().sort((a, b) => firstSeen[a.pid || ''] - firstSeen[b.pid || '']);
   }
   // 更新单个实例并落盘
   function updateTaskBoardInstance(iid, patch) {
@@ -5954,6 +6047,44 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       s.status = '已完成';   // 标记完成 → 工作流状态同步为已完成
       s.isEmergency = false;  // 标记完成即清空紧急标记（视为已处理）
     }
+    touch(s); persist();
+  }
+  // —— 项目子任务归档（项目详情页左滑弹出选择）——
+  // 归档种类由用户在弹窗中二选一：「已全部完成」（进度拉满 100% + 完成态）或「已放弃」（进度保持真实填报值，仅标记放弃）。
+  // 「已全部完成」的拉满是用户明确选择，不是系统自动伪造；归档前进度/完成态/状态全量记录（arch_prev_*），撤销归档时完整还原。
+  // 归档当日（archived_at = 今天）进入全局已归档仓库；归档不回滚积分（与全站口径一致）。
+  // arch_kind 区分归档种类：'done'（已全部完成）/ 'abandon'（已放弃）——仓库条目据此格外标记。
+  function archiveProjectSub(sid, kind) {
+    const s = state.project_subs.find(x => x.sid === sid);
+    if (!s || s.is_archived) return;
+    const k = (kind === 'abandon') ? 'abandon' : 'done';
+    s.arch_prev_done = !!s.sub_done;                 // 记录归档前完成态（撤销归档时恢复）
+    s.arch_prev_status = s.status || '进行中';       // 记录归档前工作流状态
+    s.arch_prev_finished = Number(s.finished) || 0;  // 记录归档前进度（撤销归档时还原）
+    if (k === 'done') {
+      // 已全部完成：进度拉满 100% + 完成态（isSubComplete=true → 任务表母本停生成）
+      if (s.enableTotal && s.total > 0) s.finished = Number(s.total);
+      if (!s.sub_done) { s.sub_done = true; s.done_at = Date.now(); }
+      s.status = '已完成';
+    } else {
+      // 已放弃：不动完成态与进度；工作流状态标记「已放弃」（自定义状态体系外的内置态）
+      s.status = '已放弃';
+    }
+    s.is_archived = true;
+    s.archived_at = todayStr();
+    s.arch_kind = k;
+    s.isEmergency = false;
+    touch(s); persist();
+  }
+  // 撤销项目子任务归档：完整还原归档前状态（进度 / 完成态 / 工作流状态 / 归档标记全回滚）
+  function undoArchiveProjectSub(sid) {
+    const s = state.project_subs.find(x => x.sid === sid);
+    if (!s || !s.is_archived) return;
+    s.is_archived = false; s.archived_at = ''; s.arch_kind = '';
+    if (s.sub_done && !s.arch_prev_done) { s.sub_done = false; s.done_at = null; }
+    s.status = s.arch_prev_status || '进行中';
+    s.finished = (s.arch_prev_finished != null) ? s.arch_prev_finished : s.finished;
+    delete s.arch_prev_done; delete s.arch_prev_status; delete s.arch_prev_finished;
     touch(s); persist();
   }
 
@@ -6142,11 +6273,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 与 isEmg / toggleSubDone 完成即摘除紧急展示的口径一致，避免「已完成却挂在最前面」。
   function getSubsOrdered(pid) {
     const list = getSubs(pid);
-    const undone = [], done = [];
-    list.forEach(s => { (isSubComplete(s) ? done : undone).push(s); });
+    const undone = [], done = [], archived = [];
+    list.forEach(s => {
+      if (s.is_archived) archived.push(s);                       // 已归档（完成/放弃）置底变灰，仍在列表可见可右滑撤销
+      else (isSubComplete(s) ? done : undone).push(s);
+    });
     done.sort((a, b) => (Number(a.done_at) || 0) - (Number(b.done_at) || 0));
     undone.sort((a, b) => (b.isEmergency ? 1 : 0) - (a.isEmergency ? 1 : 0));
-    return undone.concat(done);
+    archived.sort((a, b) => (a.arch_kind === 'abandon' ? 1 : 0) - (b.arch_kind === 'abandon' ? 1 : 0));
+    return undone.concat(done).concat(archived);
   }
   // 分钟 → "xx h xx min" 展示文本（0 分钟返回 '0 min'；不足 1 小时只显示分钟）
   function fmtSpent(min) {
@@ -6329,13 +6464,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 欠条与普通兑换走同一套回滚，仅流水文案不同：
     // 欠条置 reversed 后自动退出 getPointsDebtOwed 汇总，netPoints 即刻复原（欠款清零）。
     const isDebt = rec.recordType === 'debt' || rec.isDebt === true;
+    // 欠条罚息联动：先合计名下罚息（用于文案），再把全部罚息流水置 reversed —— 欠款清零 = 本金 + 罚息全部清除
+    let debtPenaltySum = 0;
+    if (isDebt) {
+      debtPenaltySum = state.wish_records
+        .filter(r => r.recordType === 'debt_penalty' && r.status === 'normal' && r.debtOf === rec._id)
+        .reduce((a, r) => a + (r.cost || 0), 0);
+      state.wish_records.forEach(r => {
+        if (r.recordType === 'debt_penalty' && r.status === 'normal' && r.debtOf === rec._id) r.status = 'reversed';
+      });
+    }
     // 1) 原兑换记录置 reversed → 自动退出 getPointsSpent / getPointsDebtOwed 汇总，
     //    普通兑换为积分即时返还，欠条为欠款即时清零（余额口径只统计 normal）
     rec.status = 'reversed';
     // 2) 写一条「撤销兑换」流水（recordType:'undo'，纯展示、不计入任何余额，与习惯撤销一致）
     const recordId2 = uid('wrec');
     const desc = isDebt
-      ? '撤销欠条｜愿望「' + wishName + '」欠款 ' + cost + ' 积分已清除'
+      ? '撤销欠条｜愿望「' + wishName + '」欠款 ' + (cost + debtPenaltySum) + ' 积分已清除' + (debtPenaltySum > 0 ? '（含逾期罚息 ' + debtPenaltySum + '）' : '')
       : '撤销兑换｜愿望「' + wishName + '」返还 ' + cost + ' 积分';
     state.wish_records.push({
       _id: recordId2, wish_id: '', wish_name: desc, cost: cost,
@@ -6404,14 +6549,63 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * 天然成对回滚 —— 无独立 state、无迁移、持久化 5 处零改动。
    */
   var WISH_DEBT_RATE = 1.5;
+  // 逾期罚息：欠条每满 1 周（7 天）未还清 → 加收 愿望原价 × 0.5（第 1 周 +0.5×原价、第 2 周累计 +1×原价…还清即停）
+  var WISH_DEBT_PENALTY_RATE = 0.5;
 
   // 欠条金额：原价 × 1.5，四舍五入（21→32、30→45、1→2、3→5）
   function calcDebtCost(price) { return Math.round((Number(price) || 0) * WISH_DEBT_RATE); }
 
-  // 当前未撤销的欠款总额
+  // 罚息金额（单周）：原价 × 0.5（原价为整数 → 结果必为整数或 0.5，不取整保留半分精度）
+  function calcDebtPenalty(price) { return (Number(price) || 0) * WISH_DEBT_PENALTY_RATE; }
+
+  // 欠条已逾期的完整周数：从打欠条时刻起每满 7 天记 1 周（未来时间/异常防御为 0）
+  function debtPenaltyWeeks(debt) {
+    if (!debt || !debt.time) return 0;
+    const ms = Date.now() - new Date(debt.time).getTime();
+    if (!(ms > 0)) return 0;
+    return Math.floor(ms / (7 * 86400000));
+  }
+
+  // 逾期罚息落账（幂等 sweep）：欠条每满 1 周未还清 → 补记一笔独立罚息流水（recordType:'debt_penalty'）。
+  // refId = 欠条id + '_w' + 周序号（1 起）——存在即跳过，同一周多次触发（刷新/任意读取欠款口径）只罚一次。
+  // 罚息真实落账（欠款汇总与 netPoints 同步变大、余额更负）→ 还清判定（netPoints ≥ 0）自动把罚息计入「需要填平」的额度，
+  // 用户多挣罚息对应的分才能还清 —— 与「加分填平」还款模型闭环，无需任何还款函数。
+  // 罚息不进兑换记录区/积分明细分组（天然被 recordType 过滤，不可单独撤销），随欠条撤销联动清除（见 undoRedeem）。
+  function ensureDebtPenalties() {
+    const debts = state.wish_records.filter(r => r.status === 'normal' && (r.recordType === 'debt' || r.isDebt === true));
+    if (!debts.length) return false;
+    let changed = false;
+    debts.forEach(debt => {
+      const weeks = debtPenaltyWeeks(debt);
+      if (weeks <= 0) return;
+      for (let k = 1; k <= weeks; k++) {
+        const refId = debt._id + '_w' + k;
+        if (state.wish_records.some(r => r.recordType === 'debt_penalty' && r.refId === refId)) continue;
+        // 原价优先取欠条留痕的 redeemCost；无留痕的老数据按欠条金额反推（cost ÷ 1.5，四舍五入误差可忽略）
+        const base = debt.redeemCost != null ? Number(debt.redeemCost) : Math.round((Number(debt.cost) || 0) / WISH_DEBT_RATE);
+        const amt = calcDebtPenalty(base);
+        if (!(amt > 0)) continue;
+        state.wish_records.push({
+          _id: uid('wrec'), wish_id: debt.wish_id || '', wish_name: debt.wish_name || '',
+          cost: amt, time: new Date().toISOString(), status: 'normal',
+          recordType: 'debt_penalty', category: 'debt_penalty',
+          detail: '欠条罚息·逾期第 ' + k + ' 周（愿望「' + (debt.wish_name || '未知愿望') + '」每周加收原价×0.5）',
+          refId: refId, debtOf: debt._id, focusMin: 0,
+        });
+        changed = true;
+      }
+    });
+    if (changed) persist();
+    return changed;
+  }
+
+  // 当前未撤销的欠款总额（欠条本金 + 逾期罚息）。
+  // 读取前先惰性补记到期罚息（幂等：无新到期周零开销）——所有欠款口径（欠款合计/netPoints/还清判定/头部展示）
+  // 都经过本函数，罚息随读随落账，长开页面跨周后任意交互即触发补记。
   function getPointsDebtOwed() {
+    ensureDebtPenalties();
     return state.wish_records
-      .filter(r => r.status === 'normal' && r.recordType === 'debt')
+      .filter(r => r.status === 'normal' && (r.recordType === 'debt' || r.recordType === 'debt_penalty'))
       .reduce((a, r) => a + (r.cost || 0), 0);
   }
 
@@ -7477,7 +7671,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 奇想 / 临时任务
     quickAddTask, setQuickToQuickView, getQuickViewTasks,
     // 项目模块
-    addProject, updateProject, archiveProject, reopenProject, deleteProject,
+    addProject, updateProject, archiveProject, reopenProject, deleteProject, archiveProjectSub, undoArchiveProjectSub,
     addFolder, renameFolder, deleteFolder, getFolders, moveProjectToFolder, archiveFolder, reopenFolder, moveFolderToFolder,
     addSub, updateSub, removeSub, addCustomSubStatus, removeCustomSubStatus, renameCustomSubStatus, isSubComplete, toggleSubDone, addRecord, getRecords, deleteRecord,
     ensureTaskBoardInstances, getTaskBoardInstances, updateTaskBoardInstance, stopTaskBoardTimer,
@@ -7492,6 +7686,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     getWishEditCountThisMonth, incrementEditCount, wishEditWindowOpen,
     getPointsEarned, getPointsPenalty, getPointsSpent, availablePoints, getWishSorted, setWishOrder,
     WISH_DEBT_RATE, calcDebtCost, netPoints, getPointsDebtOwed, getWishDebtCountThisMonth,
+    WISH_DEBT_PENALTY_RATE, calcDebtPenalty, debtPenaltyWeeks, ensureDebtPenalties,
     getActiveDebt, isWishInDebt,
     addPoints, reversePoints,
     rollbackEntityPoints, collectEntityPointRecords, POINT_ROLLBACK_CAT,
@@ -9694,16 +9889,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <label class="fld" v-if="cycleEndMode==='date'">结束日期（可选）<input type="text" v-model="draft.cycle_end_date" placeholder="YYYY-MM-DD（留空=永久循环）" @blur="draft.cycle_end_date=$store.util.autoFormatDate(draft.cycle_end_date)" :class="{invalid: draft.cycle_end_date && !$store.util.validateDateInput(draft.cycle_end_date).ok}" /></label>
                     <label class="fld cycle-count" v-if="cycleEndMode==='count'">打卡 <input type="number" min="1" v-model.number="draft.cycle_end_count" placeholder="如 5" /> 次后结束</label>
                   </div>
-                  <!-- 延期机制：漏卡时的三种处理策略（默认卡住重算） -->
-                  <div class="cycle-delay">
-                    <span class="tip">延期机制（漏卡时）</span>
-                    <div class="seg cycle-delay-modes">
-                      <button :class="{on: cycleDelayMode==='recount'}" @click="cycleDelayMode='recount'" title="漏卡则一直显示「延期」滞留，直到补卡；补卡后从当日顺延往后算">卡住重算</button>
-                      <button :class="{on: cycleDelayMode==='extend'}" @click="cycleDelayMode='extend'" title="漏卡则忽视，整体后移一个周期；次数模式自动+1，总次数守恒">补位扩展</button>
-                      <button :class="{on: cycleDelayMode==='independent'}" @click="cycleDelayMode='independent'" title="漏卡仅标记「延期」，排期固定、互不影响">独立固定</button>
-                    </div>
-                    <p class="tip delay-hint">{{ cycleDelayHint }}</p>
-                  </div>
+                  <!-- 延期机制：已移除手动选择模块 —— 按周期类型 + 结束方式自动派生
+                       （间隔/每天N天→卡住重算；周/月+按次数→补位扩展；周/月+永久·按日期→独立固定），
+                       派生逻辑见 defaultCycleDelayMode / cycleDelayMode getter，保存时仍自动写入 cycle_delay_mode -->
                   <!-- 周期起始日（可选）：副本从该日起生成；留空=创建当天；可设为今天或过去的日期 -->
                   <label class="fld">开始日期<input type="text" v-model="draft.cycle_start_date" placeholder="YYYY-MM-DD（留空=今天）" @blur="draft.cycle_start_date=$store.util.autoFormatDate(draft.cycle_start_date); onCycleStartBlur()" :class="{invalid: (draft.cycle_start_date && !$store.util.validateDateInput(draft.cycle_start_date).ok) || (cycleStartBlur && startDateError())}" /></label>
                   <p class="err" v-if="cycleStartBlur && startDateError()">{{ startDateError() }}</p>
@@ -9930,16 +10118,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!s) return [];
         const U = this.$store.util;
         const dates = [];
+        // 实时表单优先：合并未保存的编辑（周期规则/结束方式/起始日/延期机制）用于预览
+        const eff = Object.assign({}, s, (this.form ? {
+          cycle: (this.form.cycle || s.cycle),
+          cycle_end_mode: this.form.cycle_end_mode || s.cycle_end_mode || '',
+          cycle_end_count: this.form.cycle_end_count || s.cycle_end_count || 0,
+          cycle_start_date: this.form.cycle_start_date || s.cycle_start_date || '',
+          cycle_delay_mode: this.form.cycle_delay_mode || s.cycle_delay_mode || '',
+        } : {}));
         if (s.cycle) {
           // 统一排期入口：按 cycle_delay_mode 分派固定/滚动（机制1/2 走滚动链、机制3/旧逻辑走固定枚举）
-          // 实时表单优先：合并未保存的编辑（周期规则/结束方式/起始日/延期机制）用于预览
-          const eff = Object.assign({}, s, (this.form ? {
-            cycle: (this.form.cycle || s.cycle),
-            cycle_end_mode: this.form.cycle_end_mode || s.cycle_end_mode || '',
-            cycle_end_count: this.form.cycle_end_count || s.cycle_end_count || 0,
-            cycle_start_date: this.form.cycle_start_date || s.cycle_start_date || '',
-            cycle_delay_mode: this.form.cycle_delay_mode || s.cycle_delay_mode || '',
-          } : {}));
           const sched = this.$store.computeCycleSchedule(eff, { hist: 120, fut: 180 });
           dates.push(...sched.dates.map(x => x.execute_date));
         } else if (s.date_mode === 'range' && s.date_start) {
@@ -9952,12 +10140,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return [];
         }
         const hist = s.cycle_history || [];
+        // 补位扩展（extend）：过去未打卡的发生日标「已过期」灰显（与 annotateCycleDates 同口径）
+        const dmode = eff.cycle_delay_mode || this.$store.defaultCycleDelayMode(eff.cycle && eff.cycle.type, eff.cycle_end_mode);
+        const td = U.todayStr();
         // 完成判定同时匹配 execute_date 与原发生日（与 annotateCycleDates / 主任务 execHistory 一致）
-        return dates.map(ds => ({
-          execute_date: ds,
-          is_archived: hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds)),
-          overdue: hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
-        }));
+        // 显示口径：延期完成条目展示「真实完成日」（与主任务执行历史 / 归档仓库归属口径一致）
+        return dates.map(ds => {
+          const is_archived = hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds));
+          const rec = hist.find(h => h.is_archived && h.overdue && h.execute_date === ds && h.real_done && h.real_done !== ds);
+          return {
+            execute_date: ds,
+            is_archived,
+            overdue: hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
+            expired: !!(dmode === 'extend' && !is_archived && ds < td),
+            rdone: rec ? rec.real_done : '',
+          };
+        });
       },
       // 执行历史「撤销打卡」确认提示：当前条目已打卡且子任务母本为「副本全完成自动归档」态时，
       // 撤销该打卡会使母本退回待归档（其余已打卡日仍保留为绿勾），故显示「子任务母本将退回待归档」
@@ -10173,10 +10371,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           </div>
           <div class="cycle-hist" v-if="hasExecHist && execHistOpen">
             <span v-for="h in finishHist" :key="h.execute_date"
-                  class="cycle-chip" :class="{done: h.is_archived, undone: !h.is_archived, overdue: h.overdue}"
+                  class="cycle-chip" :class="{done: h.is_archived, undone: !h.is_archived, overdue: h.overdue, expired: h.expired}"
                   @click="onSubExecDateClick(h)">
-              {{ h.is_archived ? '✅' : '⬜' }} {{ h.execute_date }}
-              <span v-if="h.is_archived && h.overdue" class="chip-overdue done">延期完成</span><span v-else-if="h.overdue" class="chip-overdue">延期未完成</span>
+              {{ h.is_archived ? '✅' : '⬜' }} {{ h.rdone || h.execute_date }}
+              <span v-if="h.expired" class="chip-expired">已过期</span><span v-else-if="h.is_archived && h.overdue" class="chip-overdue done">延期完成</span><span v-else-if="h.overdue" class="chip-overdue">延期未完成</span>
             </span>
             <span v-if="!finishHist.length" class="empty-tip">暂无生成日期</span>
           </div>
@@ -10564,6 +10762,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return Math.round((tw.start - curStart) / 86400000 / 7);
       },
       // 目标周七天（周一..周日）的日期按钮；today=今天所在格（淡黄提亮）
+      // 三周窗口内的移动目标（本周/下周/下下周中除当前目标周外的全部周）：
+      // 本周安排 → 推迟到下周/下下周；下周安排 → 提前到本周 / 推迟到下下周；下下周安排 → 提前到本周/下周。
+      // 过期（off<0）或远超（off>2）的任务：三个目标全显示，一键拉回三周窗口。
+      moveTargets() {
+        const out = [];
+        for (let o = 0; o <= 2; o++) { if (o !== this.curOff) out.push(o); }
+        return out;
+      },
       days() {
         const tw = this.targetWeek; if (!tw) return [];
         const wd = ['日', '一', '二', '三', '四', '五', '六'];
@@ -10604,7 +10810,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     methods: {
       fmtU(d) { const p = n => String(n).padStart(2, '0'); return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()); },
-      offLabel(o) { if (o <= 0) return '本周'; if (o === 1) return '下周'; if (o === 2) return '下下周'; return '下' + o + '周'; },
+      offLabel(o) { if (o === 0) return '本周'; if (o === 1) return '下周'; if (o === 2) return '下下周'; if (o < 0) { const n = -o; return n === 1 ? '上周' : n === 2 ? '上上周' : '上' + n + '周'; } return '下' + o + '周'; },
       openPop(e) {
         const r = e.currentTarget.getBoundingClientRect();
         const W = (typeof window !== 'undefined') ? window.innerWidth : 320;
@@ -10659,9 +10865,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.$store.assignWeekByOffset(pid, this.subId || null, off);
         this.open = false;
       },
-      postpone(n) {
+      // 三周窗口自由移动：以「当前周」为锚的绝对偏移换算为相对偏移（off - curOff），
+      // 负数 = 提前（postponeSpecifiedWeek 的 n 直接支持负周移动）
+      moveTo(off) {
         const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
-        this.$store.postponeSpecifiedWeek(pid, this.subId || null, n);
+        this.$store.postponeSpecifiedWeek(pid, this.subId || null, off - this.curOff);
         this.open = false;
       },
     },
@@ -10677,8 +10885,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button v-for="d in days" :key="d.ds" :class="{ today: d.today }" @click.stop="pickDay(d.ds)">{{ d.label }}<span class="wk-sched-date">{{ d.ds.slice(5) }}</span></button>
             </div>
             <div class="wk-sched-acts">
-              <button @click.stop="postpone(1)">⏩ 推迟到{{ offLabel(curOff + 1) }}</button>
-              <button @click.stop="postpone(2)">⏩ 推迟到{{ offLabel(curOff + 2) }}</button>
+              <button v-for="o in moveTargets" :key="'m' + o" @click.stop="moveTo(o)">
+                {{ o < curOff ? '⏪ 提前到' : '⏩ 推迟到' }}{{ offLabel(o) }}
+              </button>
             </div>
           </template>
           <template v-else>
@@ -11054,13 +11263,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return [];
         }
         const hist = t.cycle_history || [];
+        // 补位扩展（extend）：过去未打卡的发生日已整体后移，不再作为「当前应打卡日」，
+        // 列表里灰显为「已过期」；次数由后续周期补上（次数守恒）。与 annotateCycleDates 同口径。
+        const dmode = (this.form && this.form.cycle_delay_mode) || t.cycle_delay_mode
+          || this.$store.defaultCycleDelayMode(t.cycle && t.cycle.type, t.cycle_end_mode);
+        const td = U.todayStr();
         // 完成判定同时匹配 execute_date 与原发生日（保持与 annotateCycleDates 一致）：
         // 延期补卡记录记在原发生日 dt，故网格该日显示为已打卡；real_done 仅用于锚点重算。
-        return dates.map(ds => ({
-          date: ds,
-          done: hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds)),
-          overdue: hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
-        }));
+        // 显示口径：延期完成（overdue）条目展示「真实完成日」——独立固定/卡住重算漏卡后拖到 real_done 才完成，
+        // 该格显示 real_done（如 8.8延期完成 / 7.10延期完成），而非原发生日；与归档仓库归属口径一致。
+        return dates.map(ds => {
+          const isDone = hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds));
+          const rec = hist.find(h => h.is_archived && h.overdue && h.execute_date === ds && h.real_done && h.real_done !== ds);
+          return {
+            date: ds,
+            done: isDone,
+            overdue: hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
+            expired: !!(dmode === 'extend' && !isDone && ds < td),
+            rdone: rec ? rec.real_done : '',
+          };
+        });
       },
       // 执行历史「撤销打卡」确认弹窗提示：当前条目为已打卡、且母本为「副本全完成自动归档」态时，
       // 撤销该打卡会使母本退回待归档（其余已打卡日仍保留为绿勾），故显示「母本将退回待归档」提示
@@ -11263,10 +11485,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
             <div class="cycle-hist" v-if="execHistOpen">
               <span v-for="d in execHistory" :key="d.date"
-                    class="cycle-chip" :class="{done: d.done, undone: !d.done, overdue: d.overdue}"
+                    class="cycle-chip" :class="{done: d.done, undone: !d.done, overdue: d.overdue, expired: d.expired}"
                     @click="onExecDateClick(d)">
-              {{ d.done ? '✅' : '⬜' }} {{ d.date }}
-              <span v-if="d.done && d.overdue" class="chip-overdue done">延期完成</span><span v-else-if="d.overdue" class="chip-overdue">延期未完成</span>
+              {{ d.done ? '✅' : '⬜' }} {{ d.rdone || d.date }}
+              <span v-if="d.expired" class="chip-expired">已过期</span><span v-else-if="d.done && d.overdue" class="chip-overdue done">延期完成</span><span v-else-if="d.overdue" class="chip-overdue">延期未完成</span>
               </span>
               <span v-if="!execHistory.length" class="empty-tip">暂无生成日期</span>
             </div>
@@ -11584,9 +11806,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
         <!-- 卡片配套操作：换一件 / 安排到某天（复用任务行弹层；force 显示、convertCollection 安排即转正）/ 启动进度记录 -->
         <div class="lz-acts" v-if="current">
-          <button class="lz-btn main" @click="reroll">🔄 换一件</button>
+          <button class="lz-btn main" @click="reroll">换一件</button>
           <WeekScheduleBtn :task="current" force convert-collection />
-          <button class="lz-btn warm" @click="startProgress">▶ 启动进度记录</button>
+          <button class="lz-btn warm" @click="startProgress">启动进度记录</button>
         </div>
 
         <div class="lz-toast" v-if="toast"
@@ -11812,6 +12034,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.showToast('已兑换「' + item.name + '」' + extra, 5000, recordId);
       },
       // 赊账（打欠条）：前置门禁在此做友好提示，最终门禁仍在 store
+      // 欠条条目的逾期罚息提示（兑换记录行内）：未还清欠条已逾期 N 周、累计罚息 X
+      // （methods 而非 computed：带参调用，逐条目实时汇总其名下 normal 罚息流水）
+      debtPenaltyInfo(rec) {
+        if (!rec || rec.recordType !== 'debt' || rec.status !== 'normal') return null;
+        const weeks = this.$store.debtPenaltyWeeks(rec);
+        if (weeks <= 0) return null;
+        const sum = (this.$store.state.wish_records || [])
+          .filter(r => r.recordType === 'debt_penalty' && r.status === 'normal' && r.debtOf === rec._id)
+          .reduce((a, r) => a + (r.cost || 0), 0);
+        return { weeks, sum };
+      },
       openDebtConfirm(item) {
         if (!item) return;
         if (this.inDebt) {
@@ -11955,7 +12188,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <p class="empty-tip" v-else>{{ redemptionRecords.length ? '本时段暂无兑换记录' : '暂无兑换记录' }}</p>
         <div class="wp-hist-log" v-if="periodRecords.length">
           <div class="wp-hist-row" v-for="r in periodRecords" :key="r._id">
-            <span class="wp-hist-name">{{ r.wish_name }}</span>
+            <span class="wp-hist-name">{{ r.wish_name }}<span class="wp-hist-penalty" v-if="debtPenaltyInfo(r)" title="欠条每满一周未还清，加收愿望原价 × 0.5">⚠ 已逾期 {{ debtPenaltyInfo(r).weeks }} 周 · 罚息 +{{ debtPenaltyInfo(r).sum }}</span></span>
             <span class="wp-hist-tag debt" v-if="r.isDebt || r.recordType==='debt'">赊账</span>
             <span class="wp-hist-cost">-{{ r.cost }} 积分</span>
             <span class="wp-hist-time">{{ r.time.slice(0, 10) }}</span>
@@ -12066,7 +12299,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="wp-debt-calc-row"><span>欠条倍率</span><span>× 1.5</span></div>
         <div class="wp-debt-calc-row total"><span>欠条金额（欠款）</span><span>{{ debtAmount }} 积分</span></div>
         <div class="wp-debt-calc-row"><span>赊账后余额</span><span class="neg">{{ points - debtAmount }} 积分</span></div>
+        <div class="wp-debt-calc-row"><span>逾期罚息</span><span class="neg">每满 1 周未还清 +{{ debtPrice * 0.5 }} 积分</span></div>
       </div>
+      <p class="wp-undo-warn">⚠ 逾期罚息规则：打欠条后每满一周（7 天）未还清，加收愿望原价 × 0.5 的罚息（如原价 1 → 欠 1.5，逾期 1 周还 2，2 周还 2.5……），还清即停。</p>
       <div class="modal-actions">
         <button class="btn ghost" @click="closeDebtModal">取消</button>
         <button class="btn warn" @click="confirmDebt">确认打欠条</button>
@@ -14343,8 +14578,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="row task-row archived swipeable" v-for="t in folderArchived" :key="t._id" @click="onRowClick(t)" :style="rowDragStyle(t)" :class="{ 'has-sub': $hasSub(t) }" @pointerdown="rowDown($event,t)" @pointermove="rowMove($event,t)" @pointerup="rowUp($event,t)" @pointercancel="rowUp($event,t)">
               <div class="row-main">
                 <div class="row-title"><span class="rt-text">{{ t.title }}</span><span class="rt-badges"><span v-if="t.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span><span v-if="t.cycle && !isCollTask(t)" class="tag cycle">🔁</span><span v-if="isCollTask(t)" class="tag coll">📦</span><span v-if="t.is_template" class="tag tpl">📋</span><span v-if="!isCollTask(t) && cap(t)" class="cap" :class="'cap-'+cap(t).kind"><span class="cap-ico">{{ cap(t).icon }}</span><span class="cap-txt">{{ cap(t).text }}</span></span></span></div>
-                <!-- 归档态标签：不展示 📌临时 徽标，标签去 #、层级│分隔、统一绿色胶囊 -->
-                <div class="row-sub"><span class="tag cat" v-for="tg in $archTagList(t)" :key="tg">{{ tg }}</span><span class="tag cat" v-if="!$archTagList(t).length">无分类</span></div>
+                <!-- 归档态标签：不展示 📌临时 徽标，标签去 #、层级│分隔、统一绿色胶囊；
+                     过期未完成（指定月软性计划月末自动归档）条目额外打红色「⚠ 逾期未完成」标记 -->
+                <div class="row-sub"><span v-if="t.overdueUnfinished" class="tag expire-badge" title="指定月计划已过期，未完成自动归档">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $archTagList(t)" :key="tg">{{ tg }}</span><span class="tag cat" v-if="!$archTagList(t).length">无分类</span></div>
                 <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
               </div>
               <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(t, folderArchived, $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
@@ -14932,14 +15168,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const showHabit = !typeSet.size || typeSet.has('habit');
         const showProj = !typeSet.size || typeSet.has('project');
         const self = this;
-        const norm = (obj, type, date, realId) => Object.assign({}, obj, {
-          _type: type,
-          _id: type === 'project' ? (obj.pid || obj._id) : (realId != null ? realId : (obj._id || obj.pid)),
-          _realId: type === 'project' ? (obj.pid || obj._id) : (obj._id || obj.pid),
-          _title: type === 'project' ? (obj.name || '') : (obj.title || ''),
-          _typeLabel: type === 'task' ? '任务' : (type === 'habit' ? '习惯' : (type === 'project' ? '项目' : '子任务')),
-          _date: type === 'project' ? (obj.archived_at || '') : date,
-        });
+        const norm = (obj, type, date, realId) => {
+          // 注意：不能把 _parentId/_abandoned 以 undefined 显式写入 Object.assign——
+          // Object.assign 会用 undefined 覆盖 obj 自带的同名字段（如任务子任务条目的 _parentId），
+          // 导致仓库撤销时 setArchived(undefined,...) 静默失效。project_sub 专属字段走条件赋值。
+          const o = Object.assign({}, obj, {
+            _type: type,
+            _id: type === 'project' ? (obj.pid || obj._id) : (realId != null ? realId : (obj._id || obj.sid || obj.pid)),
+            _realId: type === 'project' ? (obj.pid || obj._id) : (obj._id || obj.sid || obj.pid),
+            _title: type === 'project' ? (obj.name || '') : (obj.title || ''),
+            _typeLabel: type === 'task' ? '任务' : (type === 'habit' ? '习惯' : (type === 'project' ? '项目' : '子任务')),
+            _date: (type === 'project' || type === 'project_sub') ? (obj.archived_at || '') : date,
+          });
+          if (type === 'project_sub') {
+            o._parentId = obj.pid;                              // 项目子任务：归属项目（单击溯源跳转）
+            o._abandoned = (obj.arch_kind === 'abandon');       // 已放弃格外标记
+          }
+          o._expired = !!obj.overdueUnfinished;                 // 过期未完成标记（指定月「软性计划」月末自动归档的条目）
+          return o;
+        };
         // 周期 / 自定义区间任务：按「每个已打卡日」展开为独立归档条目（当日打卡 → 当日同步到归档仓库）
         // 仅当存在多个打卡日才展开；单日 / 单点任务保持原单条，避免无谓重复
         const expandCycle = (obj, type) => {
@@ -14978,6 +15225,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (showSub) {
           this.$store.getArchivedSubTasks(this.archCat, textKws).forEach(s => {
             if (!expandCycle(s, 'subtask')) out.push(norm(s, 'subtask', this.$store.archiveDateOf(s)));
+          });
+          // 项目子任务（项目 Tab 内子任务）：滑动归档（已全部完成 / 已放弃）当日进入仓库；
+          // 归属日 = archived_at（选择归档当天）；已放弃条目格外标记「已放弃」，支持左滑撤销恢复
+          (this.$store.state.project_subs || []).forEach(s => {
+            if (!s.is_archived || s.deleted_at) return;
+            if (textKws.length && !textKws.every(k => (s.title || '').toLowerCase().includes(k))) return;
+            out.push(norm(s, 'project_sub', s.archived_at));
           });
         }
         // 习惯：独立筛选，仅在「全部分类」下并入（习惯无分类归属）
@@ -15086,6 +15340,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (item._type === 'project') location.hash = '#/project/' + item._id;
         else if (item._type === 'task') location.hash = '#/subtask/' + rid;
         else if (item._type === 'subtask') location.hash = '#/subtask/' + item._parentId;
+        else if (item._type === 'project_sub') location.hash = '#/project/' + (item._parentId || item.pid); // 项目子任务 → 归属项目详情页
       },
       archHintDir(id) { return this.archHintId === id ? this.archHintSide : ''; },
       archHintText(id) { if (this.archHintId !== id) return ''; return '撤销归档'; },
@@ -15098,7 +15353,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const rid = (item._realId != null) ? item._realId : item._id;
         if (item._type === 'task') this.$store.setArchived(rid, null, false);
         else if (item._type === 'habit') this.$store.unarchiveHabit(rid);
-        else if (item._type === 'subtask') this.$store.setArchived(item._parentId, rid, false);
+        else if (item._type === 'project_sub') this.$store.undoArchiveProjectSub(rid); // 项目子任务：撤销归档（含已放弃），完整还原归档前状态
+        // 子任务条目携带条目日期（周期/区间子任务在仓库中按「每个已打卡日」展开为多条目）：
+        // 传入日期走「按日撤销」——仅撤销该日打卡记录并恢复子任务活跃态，过往日期记录不受影响
+        else if (item._type === 'subtask') this.$store.setArchived(item._parentId, rid, false, item._date || '');
         else if (item._type === 'project') this.$store.reopenProject(rid);
         this.showToast('已撤销归档');
         this.vibrate();
@@ -15636,11 +15894,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                @pointercancel="onArchRowUp()">
             <div class="swipe-hint" :class="archHintDir(t._id)" v-if="archHintDir(t._id)">{{ archHintText(t._id) }}</div>
             <div class="row-main" :class="{dragging: archDragId===t._id && archMoved}" :style="{ transform: (archDragId===t._id ? 'translateX('+archX+'px)' : '') }" @click="onArchRowMainClick(t)">
-              <div class="row-title">{{ t._title }}<span v-if="t.backfilled" class="tag muted" title="归档补卡记录">📥 补卡</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span></div>
+              <div class="row-title">{{ t._title }}<span v-if="t._abandoned" class="tag abandon-badge">🚫 已放弃</span><span v-if="t._expired" class="tag expire-badge" title="指定月计划已过期，未完成自动归档">⚠ 逾期未完成</span><span v-if="t.backfilled" class="tag muted" title="归档补卡记录">📥 补卡</span><span v-if="t.material_notes" class="tag clip" title="已填写素材备注">📎</span></div>
               <div class="row-sub">
                 <span class="tag" :class="'t-'+t._type">{{ t._typeLabel }}</span>
                 <span class="tag" v-if="t._date">📅 {{ t._date }}</span>
-                <span class="tag muted" v-if="t._type==='project' && t.deadline">截止 {{ t.deadline }}</span>
                 <!-- 归档态标签：无#、层级│分隔、绿色胶囊；项目携带原有 tags，子任务父任务名并入三级 -->
                 <span class="tag cat" v-for="tg in $archTagList(t)" :key="tg">{{ tg }}</span>
                 <span class="tag cat" v-if="!$archTagList(t).length">无分类</span>
@@ -17957,6 +18214,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         ideaChoiceId: null,
         // 二次确认状态（子任务删除 / 灵感删除 / 项目归档）
         confirmDelSub: null, confirmDelIdea: null, confirmArchiveProj: false,
+        archChoiceSid: '',   // 子任务滑动归档：二选一弹窗（已全部完成 / 已放弃）待选的 sid
       };
     },
     computed: {
@@ -17974,6 +18232,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return this.allSubs.reduce((m, s) => Math.max(m, this.$store.subSpentMin(s)), 0);
       },
       ideas() { return this.$store.getIdeas(this.pid); },
+      archChoiceTitle() { const s = this.$store.state.project_subs.find(x => x.sid === this.archChoiceSid); return s ? (s.title || '') : ''; },
       ideaChoiceTitle() { const i = this.ideas.find(x => x.idea_id === this.ideaChoiceId); return i ? i.title : ''; },
       progress() { return this.$store.projectProgress(this.pid); },
       countdown() { return this.project ? this.$store.projectCountdown(this.project.deadline) : null; },
@@ -18075,7 +18334,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       openIdeaNew() { this.editIdeaId = ''; this.showIdeaEdit = true; },
       openIdeaEdit(i) { this.editIdeaId = i.idea_id; this.showIdeaEdit = true; },
       pickIdea(i) { this.editSid = ''; this.seedTitle = i.title; this.pickIdeaId = i.idea_id; this.subSeedTags = []; this.showSubEdit = true; },
-      // 子任务卡片：长按=编辑；左滑=标记完成；右滑=撤销完成
+      // 子任务卡片：长按=编辑；左滑=归档（弹「已全部完成 / 已放弃」选择，不自动拉满进度）；右滑=撤销归档（未归档时仍为撤销完成）
       onSubDown(s, ev) {
         this.subDragId = s.sid;
         this.subStartX = ev.clientX;
@@ -18098,11 +18357,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const dx = this.subX, TH = 40;
         if (Math.abs(dx) >= TH) {
           const s = this.subs.find(x => x.sid === this.subDragId);
-          if (s) this.setSubDone(s, dx < 0); // 左滑完成 / 右滑撤销
+          if (s) {
+            if (dx <= -TH) {
+              if (!s.is_archived) this.archChoiceSid = s.sid;   // 左滑 → 归档选择弹窗（已全部完成 / 已放弃）
+            } else {
+              if (s.is_archived) this.$store.undoArchiveProjectSub(s.sid); // 右滑 → 撤销归档（含已放弃）
+              else this.setSubDone(s, false);                   // 未归档：保留原「右滑=撤销完成」设定
+            }
+          }
         }
         this.subX = 0; this.subDragId = null;
         if (this.subSuppress) setTimeout(() => { this.subSuppress = false; }, 0);
       },
+      // 归档选择弹窗：二选一后当日（今天）进入全局已归档仓库；取消不动
+      confirmArchSub(kind) {
+        if (this.archChoiceSid) this.$store.archiveProjectSub(this.archChoiceSid, kind);
+        this.archChoiceSid = '';
+      },
+      cancelArchSub() { this.archChoiceSid = ''; },
       onSubMainClick(s) {
         if (this.subMoved) return;
         if (!this.subSuppress) this.openRecord(s);
@@ -18270,11 +18542,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div v-if="tab==='sub' && view!=='gantt'" class="sub-list2">
         <div class="psub swipe-card" v-for="s in subs" :key="s.sid" :data-sub="s.sid"
              :style="{ transform: 'translateX(' + (subDragId===s.sid ? subX : 0) + 'px)' }"
-             :class="{ dragging: subDragId===s.sid && subMoved, done: isSubComplete(s), 'done-sub': isSubComplete(s), 'emergency-bg': isEmg(s), 'sub-flash': highlightSubId===s.sid }"
+             :class="{ dragging: subDragId===s.sid && subMoved, done: isSubComplete(s) && !s.is_archived, 'done-sub': isSubComplete(s) && !s.is_archived, archived: s.is_archived, 'emergency-bg': isEmg(s), 'sub-flash': highlightSubId===s.sid }"
              @pointerdown="onSubDown(s,$event)" @pointermove="onSubMove($event)"
              @pointerup="onSubUp()" @pointercancel="onSubUp()">
           <div class="psub-top" @click="onSubMainClick(s)">
-            <div class="psub-title">{{ s.title }}<span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span></div>
+            <div class="psub-title" :class="{ 'arch-abandon': s.is_archived && s.arch_kind==='abandon' }">{{ s.title }}<span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span></div>
             <span class="psub-status" :class="subStatusClass(s)">{{ subStatusLabel(s) }}</span>
           </div>
           <!-- 完成量进度条（仅开启目标计划的子任务） -->
@@ -18347,6 +18619,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <button class="choice-btn" @click="chooseIdeaToSub">生成为子任务（自动加 #素材）</button>
           <button class="choice-btn alt" @click="chooseIdeaToProject">生成为新项目（自动加 #素材）</button>
           <button class="choice-cancel" @click="cancelIdeaChoice">取消</button>
+        </div>
+      </div>
+      <!-- 子任务滑动归档选择：不自动拉满进度，二选一后当日进入全局已归档仓库 -->
+      <div class="chart-confirm" v-if="archChoiceSid" @click.self="cancelArchSub">
+        <div class="idea-choice-box" @click.stop>
+          <div class="idea-choice-title">归档子任务「{{ archChoiceTitle }}」</div>
+          <p style="font-size:13px;color:var(--sub);margin:0 0 12px">「已全部完成」将把进度完成至 100%；「已放弃」保持当前真实进度。归档后今日进入全局已归档仓库</p>
+          <button class="choice-btn" @click="confirmArchSub('done')">✅ 已全部完成（100%）</button>
+          <button class="choice-btn alt" @click="confirmArchSub('abandon')">🚫 已放弃</button>
+          <button class="choice-cancel" @click="cancelArchSub">取消</button>
         </div>
       </div>
       <!-- 删除子任务二次确认（居中圆角样式） -->
