@@ -3332,17 +3332,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     else maxDate = addDays(today, fut);
     // 卡住重算（recount）· 浮动类型（interval / day>1）：补卡后未来段从「真实完成日(_anchor)」顺延（完成日+N），
     // 与 cycleCurrentDue 的锚点逻辑一致，落实「补卡后从当日开始重新计算」。
-    // 计划段（_base 网格截至锚点）保留历史已打卡发生日；extend / week / month / count 维持原滚动链口径（不滑动）。
+    // 历史段以「已打卡发生日」为准（每条归档记录一个格子），而非 _base 网格枚举：
+    // recount 语义下漏卡已被锚点顺延机制作废（cycleCurrentDue 从 _anchor 起步、永不回看旧网格），
+    // 若按网格枚举，补卡后 _anchor 前移会把网格漏卡日重新捞回执行历史（幻影「未完成」格，且永远无法补做），
+    // 同时把不在网格上的动态完成日（打卡命中 ds===dynDue 的记录）挤出序列，
+    // 造成「打卡后 10-02 冒出、10-03 完成消失」的执行历史漂移（与今日 tab 投射口径脱节）。
+    // extend / week / month / count 维持原滚动链口径（不滑动）。
     const isFloat = (cycle.type === 'interval') || (cycle.type === 'day' && parseInt(cycle.rule, 10) > 1);
     let occs;
     if (mode === 'recount' && isFloat && cycle._anchor) {
       const n = parseInt(cycle.rule, 10) || 1;
-      const past = rollCycleOccurrences(cycle, cycle._anchor, lower); // _base 网格：base → 锚点（含历史已完成发生日）
+      const set = {};
+      (t.cycle_history || []).forEach(h => {
+        if (h.is_archived && h.execute_date && h.execute_date <= cycle._anchor && h.execute_date <= maxDate) set[h.execute_date] = 1;
+      });
       const fut2 = [];
       let fs = addDays(cycle._anchor, n); // 未来段从「完成日+N」起步（完成日本身已归档，顺延跳过）
       while (fs <= maxDate) { fut2.push(fs); fs = addDays(fs, n); }
-      const set = {};
-      past.concat(fut2).forEach(d => { if (d <= maxDate) set[d] = 1; });
+      fut2.forEach(d => { set[d] = 1; });
       occs = Object.keys(set).sort();
     } else {
       occs = rollCycleOccurrences(cycle, maxDate, lower);
@@ -4294,6 +4301,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (idx >= 0) { t.cycle_history.splice(idx, 1); removed = true; reversePoints(t._id + '_' + dt, 'cycle_task'); }
         }
       }
+      if (removed) syncCycleAnchor(t);   // 撤销后按剩余打卡历史重算浮动锚点（被撤销完成日的 real_done 不再驱动未来排期）
       if (t.autoArchivedByCopies && t.is_archived && !allOccurrencesDone(t) && !t.is_template) { t.is_archived = false; t.autoArchivedByCopies = false; }
     } else if (t.date_mode === 'range' && t.date_start) {
       // 自定义区间：撤销该具体日期打卡（逐日恢复，今日/看板逐日重现）
@@ -4434,6 +4442,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           reversePoints(t._id + '_' + subId + '_' + dt, 'cycle_task');
         }
       }
+      if (removed) syncCycleAnchor(s);   // 撤销后按剩余打卡历史重算浮动锚点（被撤销完成日的 real_done 不再驱动未来排期）
       if (s.autoArchivedByCopies && s.is_archived && !allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
     } else if (s.date_mode === 'range' && s.date_start) {
       const idx = s.cycle_history.map(h => h.execute_date).lastIndexOf(ws);
