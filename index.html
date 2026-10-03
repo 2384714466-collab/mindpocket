@@ -1519,7 +1519,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .wp-add-btn:active { filter: brightness(0.93); }
 .wp-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .wp-row-wrap { position: relative; overflow: hidden; border-radius: var(--radius-md); }
-.wp-row-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 16px; background: #e8f6ee; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; color: var(--ok); pointer-events: none; }
+.wp-row-bg { position: absolute; inset: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 16px; background: #e8f6ee; border-radius: var(--radius-md); font-size: 13px; font-weight: 600; color: var(--ok); pointer-events: none; opacity: 0; transition: opacity .15s ease; }
+/* 滑动提示仅在滑动时可见（.show）：买不起行的 opacity:0.65 弱化不再透出「松手赊账」，与「松手兑换」行为一致 */
+.wp-row-bg.show { opacity: 1; }
 .wp-row { position: relative; background: #fafbff; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 12px; display: flex; align-items: center; gap: 8px; touch-action: pan-y; user-select: none; will-change: transform; transition: transform .18s ease; }
 .wp-row.dragging { transition: none; }
 .wp-row-affordable { border-color: #cceede; background: #f6fdf8; }
@@ -4141,11 +4143,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     }
     const today = todayStr();
     if (t.cycle) {
+      // recount 浮动周期（interval / 每N天）在「延期完成」后，渲染口径（cycleDueOnDate → cycleCurrentDue）
+      // 从真实完成锚点 _anchor 动态推算当前应打卡日，该日可能不在固定 _base 序列（cycleHits）上——
+      // 此前打卡只认固定序列 + 过去补卡兜底，与渲染序列错位，导致「今天轮到新周期滑动打卡无反应」。
+      // 修复：循环外先取动态应打卡日，主循环命中条件追加 ds === dynDue（与渲染同口径）。
+      const dynDue = cycleCurrentDue(t);
       let cur = parseDate(ws), end = parseDate(we);
       let hit = false;
       while (cur.getTime() <= end.getTime()) {
         const ds = fmt(cur);
-        if (cycleHits(t.cycle, ds, t.cycle_start_date) && !cycleArchivedToday(t, ds)) {
+        if ((cycleHits(t.cycle, ds, t.cycle_start_date) || ds === dynDue) && !cycleArchivedToday(t, ds)) {
           // overdue：本次出现日早于今天（过期单次记录）→ 打「延期」标记，归属「延期完成」
           const real = ds < today ? today : ds;   // 真实完成日：逾期则记今天，否则记出现日
           t.cycle_history.push({ execute_date: ds, is_archived: true, overdue: ds < today, real_done: real });
@@ -4270,10 +4277,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       let removed = false;
       while (cur.getTime() <= end.getTime()) {
         const ds = fmt(cur);
-        if (cycleHits(t.cycle, ds, t.cycle_start_date)) {
-          const idx = t.cycle_history.map(h => h.execute_date).lastIndexOf(ds);
-          if (idx >= 0) { t.cycle_history.splice(idx, 1); removed = true; reversePoints(t._id + '_' + ds, 'cycle_task'); }
-        }
+        // 窗口内「实际存在的打卡记录」即撤销（不再以固定 cycleHits 发生日为前提）：
+        // recount 浮动周期延期完成后的打卡记录 execute_date=动态应打卡日（不在固定序列上），
+        // 原实现窗口扫不到会落到兜底「删最早记录」造成错删。
+        const idx = t.cycle_history.map(h => h.execute_date).lastIndexOf(ds);
+        if (idx >= 0) { t.cycle_history.splice(idx, 1); removed = true; reversePoints(t._id + '_' + ds, 'cycle_task'); }
         cur = parseDate(addDays(fmt(cur), 1));
       }
       // 延期补卡兜底撤销：窗口内无命中（如「延期到今日」滞留卡，today 非发生日）时，
@@ -4310,11 +4318,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!s || s.is_archived) return;
     const today = todayStr();
     if (s.cycle) {
+      // 与 markCopyDone 同款修复：recount 浮动周期的动态应打卡日（_anchor 推算）可能不在
+      // 固定 _base 序列上，打卡命中条件追加 ds === dynDue，与渲染口径（cycleDueOnDate）一致
+      const dynDue = cycleCurrentDue(s);
       let cur = parseDate(ws), end = parseDate(we);
       let hit = false;
       while (cur.getTime() <= end.getTime()) {
         const ds = fmt(cur);
-        if (cycleHits(s.cycle, ds, s.cycle_start_date) && !cycleArchivedToday(s, ds)) {
+        if ((cycleHits(s.cycle, ds, s.cycle_start_date) || ds === dynDue) && !cycleArchivedToday(s, ds)) {
           const real = ds < today ? today : ds;   // 真实完成日：逾期则记今天，否则记出现日
           s.cycle_history.push({ execute_date: ds, is_archived: true, overdue: ds < today, real_done: real });
           // 积分联动：周期子任务每次出现完成 → cycle_task（出现日级 refId）
@@ -4404,12 +4415,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       let removed = false;
       while (cur.getTime() <= end.getTime()) {
         const ds = fmt(cur);
-        if (cycleHits(s.cycle, ds, s.cycle_start_date)) {
-          const idx = s.cycle_history.map(h => h.execute_date).lastIndexOf(ds);
-          if (idx >= 0) { s.cycle_history.splice(idx, 1); removed = true; }
-          // 积分联动：撤销周期子任务该次出现 → cycle_task（出现日级 refId，精准回滚）
-          reversePoints(t._id + '_' + subId + '_' + ds, 'cycle_task');
-        }
+        // 窗口内「实际存在的打卡记录」即撤销（与 markCopyUndone 同款修复）：
+        // recount 浮动周期的打卡记录 execute_date=动态应打卡日，不在固定 cycleHits 序列上
+        const idx = s.cycle_history.map(h => h.execute_date).lastIndexOf(ds);
+        if (idx >= 0) { s.cycle_history.splice(idx, 1); removed = true; }
+        // 积分联动：撤销周期子任务该次出现 → cycle_task（出现日级 refId，精准回滚）
+        if (idx >= 0) reversePoints(t._id + '_' + subId + '_' + ds, 'cycle_task');
         cur = parseDate(addDays(fmt(cur), 1));
       }
       // 延期补卡兜底撤销：窗口内无命中（如「延期到今日」滞留副本，today 非发生日）时，
@@ -6571,6 +6582,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 罚息真实落账（欠款汇总与 netPoints 同步变大、余额更负）→ 还清判定（netPoints ≥ 0）自动把罚息计入「需要填平」的额度，
   // 用户多挣罚息对应的分才能还清 —— 与「加分填平」还款模型闭环，无需任何还款函数。
   // 罚息不进兑换记录区/积分明细分组（天然被 recordType 过滤，不可单独撤销），随欠条撤销联动清除（见 undoRedeem）。
+  // 注：赊账弹窗中的「逾期罚息」计算行与规则警告文案已按需求移除（规则本身保留，只去掉说明字样）。
   function ensureDebtPenalties() {
     const debts = state.wish_records.filter(r => r.status === 'normal' && (r.recordType === 'debt' || r.isDebt === true));
     if (!debts.length) return false;
@@ -11945,13 +11957,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 月维度按天稀疏分桶：只显示当月实际有兑换的日期，避免 28–31 根空柱
           const keys = Object.keys(map).sort();
           const max = keys.reduce((m, k) => Math.max(m, map[k]), 0);
-          return keys.map(k => ({ key: k, label: k.slice(8), min: map[k], pct: max > 0 ? Math.round(map[k] / max * 100) : 0 }));
+          // barPx 像素高度：.chart-bar 在 flex-end 容器内高度收缩，% 高度无法解析（容器 120px 扣数值/标签区 28px → 90px）
+          return keys.map(k => ({ key: k, label: k.slice(8), min: map[k], pct: max > 0 ? Math.round(map[k] / max * 100) : 0, barPx: max > 0 ? Math.max(map[k] > 0 ? 3 : 1, Math.round(map[k] / max * 90)) : 1 }));
         }
         const labels = win.dim === 'week'
           ? ['一', '二', '三', '四', '五', '六', '日']
           : win.keys.map(k => k.slice(5) + '月');
         const max = win.keys.reduce((m, k) => Math.max(m, map[k] || 0), 0);
-        return win.keys.map((k, i) => ({ key: k, label: labels[i], min: map[k] || 0, pct: max > 0 ? Math.round((map[k] || 0) / max * 100) : 0 }));
+        return win.keys.map((k, i) => ({ key: k, label: labels[i], min: map[k] || 0, pct: max > 0 ? Math.round((map[k] || 0) / max * 100) : 0, barPx: max > 0 ? Math.max((map[k] || 0) > 0 ? 3 : 1, Math.round((map[k] || 0) / max * 90)) : 1 }));
       },
       pieData() {
         const palette = ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'];
@@ -12133,7 +12146,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     <button class="wp-add-btn" @click="openAdd">＋添加愿望</button>
     <div class="wp-list" v-if="items.length">
       <div class="wp-row-wrap" v-for="item in items" :key="item._id">
-        <div class="wp-row-bg" :class="{ debt: inDebt || points < item.cost }">{{ inDebt ? '欠款未清 ✕' : (points >= item.cost ? '松手兑换 ✓' : '松手赊账 ⋯') }}</div>
+        <div class="wp-row-bg" :class="{ debt: inDebt || points < item.cost, show: swipeId === item._id && swipeMoved }">{{ inDebt ? '欠款未清 ✕' : (points >= item.cost ? '松手兑换 ✓' : '松手赊账') }}</div>
         <div class="wp-row" :class="{
           'wp-row-affordable': points >= item.cost,
           'wp-row-unaffordable': points < item.cost,
@@ -12171,7 +12184,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="chart-bars" v-if="vizHasData" style="height:120px;">
           <div class="chart-bar" v-for="b in barBuckets" :key="b.key">
             <div class="bar-val">{{ fmtH(b.min) }}</div>
-            <div class="bar-col" :style="{height: b.pct + '%'}"></div>
+            <div class="bar-col" :style="{height: b.barPx + 'px'}"></div>
             <div class="bar-label">{{ b.label }}</div>
           </div>
         </div>
@@ -12299,9 +12312,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="wp-debt-calc-row"><span>欠条倍率</span><span>× 1.5</span></div>
         <div class="wp-debt-calc-row total"><span>欠条金额（欠款）</span><span>{{ debtAmount }} 积分</span></div>
         <div class="wp-debt-calc-row"><span>赊账后余额</span><span class="neg">{{ points - debtAmount }} 积分</span></div>
-        <div class="wp-debt-calc-row"><span>逾期罚息</span><span class="neg">每满 1 周未还清 +{{ debtPrice * 0.5 }} 积分</span></div>
       </div>
-      <p class="wp-undo-warn">⚠ 逾期罚息规则：打欠条后每满一周（7 天）未还清，加收愿望原价 × 0.5 的罚息（如原价 1 → 欠 1.5，逾期 1 周还 2，2 周还 2.5……），还清即停。</p>
       <div class="modal-actions">
         <button class="btn ghost" @click="closeDebtModal">取消</button>
         <button class="btn warn" @click="confirmDebt">确认打欠条</button>
@@ -17565,19 +17576,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       subCount(p) { return this.$store.getSubs(p.pid).length; },
       // 项目累计专注总时长（分钟）
       projFocusMin(p) { return this.$store.projectFocusMin(p.pid); },
-      // 时段内项目累计专注时长（分钟）：仅统计当前时间窗口内的 project_records（年维度按 YYYY-MM 归并）
-      projFocusMinInPeriod(p) {
-        const sids = {};
-        this.$store.getSubs(p.pid).forEach(s => { sids[s.sid] = true; });
-        const win = this.vizWindow;
-        return (this.$store.state.project_records || [])
-          .filter(r => {
-            if (r.deleted_at || !sids[r.sid]) return false;
-            const k = win.dim === 'year' ? r.recordDate.slice(0, 7) : r.recordDate;
-            return win.keys.indexOf(k) >= 0;
-          })
-          .reduce((a, r) => a + (Number(r.spentMin) || 0), 0);
-      },
       // 重要等级文案
       impLabel(p) { return ({ high: '高度重要', important: '一般重要', normal: '普通' }[(p && p.importance) || 'normal']) || '普通'; },
       // 稳定排序：按重要等级降序，同级保持原有顺序
@@ -17593,57 +17591,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 排序菜单弹窗
       toggleSortMenu() { this.showSortMenu = !this.showSortMenu; },
       selectSort(mode) { this.importanceSort = (mode === 'importance'); this.showSortMenu = false; this.saveTab(); },
-      // —— 专注时长可视化模块 ——
-      toggleViz() { this.vizOpen = !this.vizOpen; if (this.vizOpen) this.vizOffset = 0; this.saveTab(); },
-      setVizDim(d) { this.vizDim = d; this.vizOffset = 0; this.saveTab(); },
-      // 导出当前可视化数据（JSON）：含当前时段、柱状图分桶、饼图占比、各项目时段内专注时长
-      exportViz() {
-        try {
-          const win = this.vizWindow;
-          const bars = this.barBuckets.map(b => ({
-            key: b.key, label: b.label, minutes: b.min,
-            display: this.$store.fmtSpent(b.min), percent: b.pct,
-          }));
-          const pie = this.pieData.map(s => ({
-            name: s.name, minutes: s.min, display: this.$store.fmtSpent(s.min), percent: s.pct,
-          }));
-          const projects = this.baseList
-            .map(p => ({ pid: p.pid, name: p.name || '未命名', tags: p.tags || [], inPeriodMinutes: this.projFocusMinInPeriod(p) }))
-            .filter(x => x.inPeriodMinutes > 0)
-            .sort((a, b) => b.inPeriodMinutes - a.inPeriodMinutes)
-            .map(x => Object.assign({}, x, { display: this.$store.fmtSpent(x.inPeriodMinutes) }));
-          const total = bars.reduce((a, b) => a + b.minutes, 0);
-          const data = {
-            app: 'MindPocket', kind: 'viz', version: 1, exportedAt: new Date().toISOString(),
-            dimension: this.vizDim,
-            period: { label: win.label, title: win.title, offset: this.vizOffset, dates: win.keys },
-            barChart: bars,
-            pieChart: { drillTag: this.vizDrillTag || null, slices: pie },
-            projectsByFocus: projects,
-            totalMinutes: total, totalDisplay: this.$store.fmtSpent(total),
-          };
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'mindpocket-专注可视化-' + this.vizDim + '-' + this.$store.util.todayStr() + '.json';
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-          this.showToast('已导出可视化数据');
-        } catch (e) {
-          console.error(e);
-          this.showToast('导出失败：' + (e && e.message ? e.message : e));
-        }
-      },
-      // 时间左右切换：向左=翻看更早的过往时段；向右=回到更近的时段（不会超过当前）
-      prevPeriod() { this.vizOffset = this.vizOffset + 1; },
-      nextPeriod() { this.vizOffset = Math.max(0, this.vizOffset - 1); },
-      // 饼图下钻：点击标签进入该标签下各项目分布
-      drillTag(tag) { this.vizDrillTag = tag; },
-      // 返回标签总览
-      drillBack() { this.vizDrillTag = null; },
-      // 点击饼图本体：进入占比最大的标签下钻
-      drillFirstTag() { if (this.pieByTag.length) this.vizDrillTag = this.pieByTag[0].name; },
+      // （旧「内嵌专注时长可视化」的 toggleViz / setVizDim / exportViz / prevPeriod / nextPeriod /
+      //   drillTag / drillBack / drillFirstTag 已随可视化独立页（goViz → ProjVizPage）下线移除；
+      //   ProjectsPage 无 vizWindow/barBuckets/vizOffset 等 computed/data，留在这里的方法一旦被调用必然抛 TypeError。）
       // 时间分桶：日=原日期；周=所在周周一；月=YYYY-MM
       bucketKey(dateStr, dim) {
         if (!dateStr) return '';
@@ -18621,13 +18571,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <button class="choice-cancel" @click="cancelIdeaChoice">取消</button>
         </div>
       </div>
-      <!-- 子任务滑动归档选择：不自动拉满进度，二选一后当日进入全局已归档仓库 -->
+      <!-- 子任务滑动归档选择：二选一后当日进入全局已归档仓库 -->
       <div class="chart-confirm" v-if="archChoiceSid" @click.self="cancelArchSub">
         <div class="idea-choice-box" @click.stop>
           <div class="idea-choice-title">归档子任务「{{ archChoiceTitle }}」</div>
-          <p style="font-size:13px;color:var(--sub);margin:0 0 12px">「已全部完成」将把进度完成至 100%；「已放弃」保持当前真实进度。归档后今日进入全局已归档仓库</p>
-          <button class="choice-btn" @click="confirmArchSub('done')">✅ 已全部完成（100%）</button>
-          <button class="choice-btn alt" @click="confirmArchSub('abandon')">🚫 已放弃</button>
+          <button class="choice-btn" @click="confirmArchSub('done')">已完成</button>
+          <button class="choice-btn alt" @click="confirmArchSub('abandon')">已放弃</button>
           <button class="choice-cancel" @click="cancelArchSub">取消</button>
         </div>
       </div>
@@ -21047,8 +20996,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* ===================== ProjVizPage —— 专注时长可视化（独立页面，不内嵌于编排表） ===================== */
   C.ProjVizPage = {
     data() {
-      let dim = 'week';
-      try { const d = localStorage.getItem('mindpocket:projVizDim'); if (d === 'week' || d === 'month' || d === 'year') dim = d; } catch (e) {}
+      let dim = 'month';   // 默认「月」（无历史选择时；已保存过偏好则尊重记忆）
+      try { const d = localStorage.getItem('mindpocket:projVizDim'); if (d === 'all' || d === 'week' || d === 'month' || d === 'year') dim = d; } catch (e) {}
       return { vizDim: dim, vizOffset: 0, toast: '', toastTimer: null };
     },
     computed: {
@@ -21086,12 +21035,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         });
         return map;
       },
-      // 当前时段窗口：周=本周（含偏移）；月=当月逐日（含偏移）；年=当年 12 个月
+      // 当前时段窗口：全部=有记录的所有月份（按月聚合）；周=本周（含偏移）；月=当月逐日（含偏移）；年=当年 12 个月
       vizWindow() {
         const dim = this.vizDim, off = this.vizOffset || 0;
         const pad = n => String(n).padStart(2, '0');
         const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
         const todayStr = this.$store.util.todayStr();
+        if (dim === 'all') {
+          // 全部时段：覆盖「有记录的每个月份」∪ 当月（无记录时至少展示当月），按月聚合、无翻页概念
+          const set = {}; set[todayStr.slice(0, 7)] = true;
+          this.records.forEach(r => { const d = r.recordDate || ''; if (/^\d{4}-\d{2}/.test(d)) set[d.slice(0, 7)] = true; });
+          const keys = Object.keys(set).sort();
+          return { dim, label: '全部时段', title: '专注时长（全部）', keys };
+        }
         if (dim === 'year') {
           const y = new Date().getFullYear() - off;
           const keys = []; for (let m = 1; m <= 12; m++) keys.push(y + '-' + pad(m));
@@ -21116,17 +21072,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       barBuckets() {
         const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = 0);
         this.records.forEach(r => {
-          const k = win.dim === 'year' ? (r.recordDate || '').slice(0, 7) : (r.recordDate || '');
+          const k = (win.dim === 'year' || win.dim === 'all') ? (r.recordDate || '').slice(0, 7) : (r.recordDate || '');
           if (win.keys.indexOf(k) < 0) return;
           map[k] += Number(r.spentMin) || 0;
         });
         const max = Math.max.apply(null, win.keys.map(k => map[k]).concat([0]));
+        // 用像素高度（barPx）而非百分比：.chart-bar 在 align-items:flex-end 容器中高度收缩为内容高度，
+        // 百分比高度相对 auto 父级无法解析 → 柱体恒为 min-height 2px（与下方完成量堆叠柱 CHART_H 同款方案）。
+        // 容器 170px，扣除顶部数值（14px）与底部标签（19px）区域 → 柱区 135px。
+        const CHART_H = 135;
         return win.keys.map(k => ({
           key: k,
-          // 年=「N月」；月=仅日期号（月份已在标题呈现，如「2026年09月」）；周=MM/DD（跨周需月份区分）
-          label: win.dim === 'year' ? k.slice(5) + '月' : (win.dim === 'month' ? k.slice(8, 10) : k.slice(5) + '/' + k.slice(8)),
+          label: this._bucketLabel(win, k),
           min: map[k],
           pct: max > 0 ? Math.round(map[k] / max * 100) : 0,
+          barPx: max > 0 ? Math.max(map[k] > 0 ? 3 : 1, Math.round(map[k] / max * CHART_H)) : 1,
         }));
       },
       // ★ 项目配色唯一来源（「同种同色」的根基）★
@@ -21155,7 +21115,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       pieData() {
         const win = this.vizWindow; const map = {};
         this.records.forEach(r => {
-          const k = win.dim === 'year' ? (r.recordDate || '').slice(0, 7) : (r.recordDate || '');
+          const k = (win.dim === 'year' || win.dim === 'all') ? (r.recordDate || '').slice(0, 7) : (r.recordDate || '');
           if (win.keys.indexOf(k) < 0) return;
           const name = this.subProjName[r.sid] || '未关联项目';
           map[name] = (map[name] || 0) + (Number(r.spentMin) || 0);
@@ -21183,7 +21143,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.records.forEach(r => {
           const d = r.recordDate || '';
           if (!d) return;
-          const k = win.dim === 'year' ? d.slice(0, 7) : d;
+          const k = (win.dim === 'year' || win.dim === 'all') ? d.slice(0, 7) : d;
           if (win.keys.indexOf(k) < 0) return;
           map[k][d] = true; // 以自然日去重，避免同日多笔填报重复计数
         });
@@ -21203,13 +21163,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           return { key: k, label, days, pct: days > 0 ? 100 : 0 };
         });
       },
-      // 窗口内打卡天数合计：日/周=「有打卡的日期数」；年=各月去重天数之和（月份互斥=全年打卡天数）
+      // 窗口内打卡天数合计：日/周/月=「有打卡的日期数」；年/全部=各月去重天数之和（月份互斥=窗口内总打卡天数）
       checkinTotal() {
-        if (this.vizDim === 'year') return this.checkinBuckets.reduce((a, b) => a + b.days, 0);
+        if (this.vizDim === 'year' || this.vizDim === 'all') return this.checkinBuckets.reduce((a, b) => a + b.days, 0);
         return this.checkinBuckets.filter(b => b.days > 0).length;
       },
-      // 窗口内日历总天数：周=7；月=当月实际天数；年=当年实际天数
+      // 窗口内日历总天数：周=7；月=当月实际天数；年=当年实际天数；全部=窗口各月实际天数之和
       checkinDenominator() {
+        if (this.vizDim === 'all') {
+          return this.vizWindow.keys.reduce((a, k) => a + new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)), 0).getDate(), 0);
+        }
         if (this.vizDim === 'week') return 7;
         if (this.vizDim === 'month') {
           const now = new Date();
@@ -21229,7 +21192,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.records.forEach(r => {
           const d = r.recordDate || '';
           if (!d) return;
-          const k = win.dim === 'year' ? d.slice(0, 7) : d;
+          const k = (win.dim === 'year' || win.dim === 'all') ? d.slice(0, 7) : d;
           if (win.keys.indexOf(k) < 0) return;
           const amt = Number(r.actualNum) || 0;
           if (amt <= 0) return;
@@ -21249,8 +21212,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           segs.sort((a, b) => b.amount - a.amount);
           const stackPx = maxTotal > 0 ? Math.round(total / maxTotal * CHART_H) : 0;
           segs.forEach(s => { s.segPx = total > 0 ? Math.round(s.amount / total * stackPx) : 0; });
-          // 年=「N月」；月=仅日期号（与专注时长主图口径一致）；周=MM/DD
-          const label = win.dim === 'year' ? k.slice(5) + '月' : (win.dim === 'month' ? k.slice(8, 10) : k.slice(5) + '/' + k.slice(8));
+          // 标签与主柱状图共用 _bucketLabel（年/全部=N月·全部跨年带年份缩写；月=日期号；周=MM/DD）
+          const label = this._bucketLabel(win, k);
           return { key: k, label, total, stackPx, segs, days: dayMap[k] || 0 };
         });
         return {
@@ -21265,9 +21228,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 周一=0 … 周日=6（用于周视图条形标签；必须是 method 才能带参调用，不能放 computed）
       _weekday(k) { const d = this.$store.util.parseDate(k); return (d.getDay() + 6) % 7; },
       back() { if (window.history.length > 1) history.back(); else location.hash = '#/projects'; },
-      setVizDim(d) { this.vizDim = d; try { localStorage.setItem('mindpocket:projVizDim', d); } catch (e) {} },
-      prev() { this.vizOffset = this.vizOffset + 1; },
-      next() { this.vizOffset = Math.max(0, this.vizOffset - 1); },
+      setVizDim(d) { this.vizDim = d; if (d === 'all') this.vizOffset = 0; try { localStorage.setItem('mindpocket:projVizDim', d); } catch (e) {} },
+      prev() { if (this.vizDim === 'all') return; this.vizOffset = this.vizOffset + 1; },
+      next() { if (this.vizDim === 'all') return; this.vizOffset = Math.max(0, this.vizOffset - 1); },
+      // 柱状图 x 轴标签（主图与完成量图共用）：年=「N月」；月=仅日期号；周=MM/DD；
+      // 全部=「N月」，但跨年时用「YY.MM」缩写避免不同年份同月份数字重复造成歧义
+      _bucketLabel(win, k) {
+        if (win.dim === 'year') return k.slice(5) + '月';
+        if (win.dim === 'month') return k.slice(8, 10);
+        if (win.dim === 'all') {
+          const crossYear = win.keys.some(x => x.slice(0, 4) !== win.keys[0].slice(0, 4));
+          return crossYear ? (k.slice(2, 4) + '.' + k.slice(5)) : (k.slice(5) + '月');
+        }
+        return k.slice(5) + '/' + k.slice(8);
+      },
       back() { if (window.history.length > 1) history.back(); else location.hash = '#/projects'; },
       // 取某项目名对应的固定颜色（与 computed.projColors 配套；详见 projColors 注释）
       // 放在 methods：以项目名为参数逐项调用，保证饼图与完成量柱状图「同种同色」。
@@ -21282,34 +21256,219 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const h = Math.floor(m / 60), r = m % 60;
         return r ? (h + 'h' + r + 'min') : (h + 'h');
       },
+      // —— 导出 PDF 图片 ——
+      // 历史：旧 JSON 版用超长 data: URI 触发下载，部分浏览器/WebView 会拦截超长 data URI，点击无响应（报「导出失败」）。
+      // 现改为：canvas 原生重绘当前可视化 → JPEG → 手工封装最小单页 PDF（DCTDecode 原样嵌入 JPEG，零外部依赖）
+      // → Blob 下载（与数据备份导出同一可靠路径）。
       exportViz() {
-        const win = this.vizWindow;
-        const data = {
-          app: 'MindPocket', kind: 'viz', version: 1, exportedAt: new Date().toISOString(),
-          dimension: this.vizDim,
-          period: { label: win.label, title: win.title, offset: this.vizOffset, dates: win.keys },
-          barChart: this.barBuckets.map(b => ({ key: b.key, label: b.label, minutes: b.min, display: this.fmtH(b.min), percent: b.pct })),
-          pieChart: this.pieData.map(s => ({ name: s.name, minutes: s.min, display: this.fmtH(s.min), percent: s.pct })),
-          checkinDays: {
-            total: this.checkinTotal,
-            denominator: this.checkinDenominator,
-            coveragePercent: this.checkinPct,
-            byPeriod: this.checkinBuckets.map(b => ({ key: b.key, label: b.label, days: b.days })),
-          },
-          checkinAmount: {
-            maxTotal: this.checkinAmountBuckets.maxTotal,
-            byProject: this.checkinAmountBuckets.palette.map(p => ({ name: p.name, total: p.total })),
-            byPeriod: this.checkinAmountBuckets.buckets.map(b => ({ key: b.key, label: b.label, total: b.total, days: b.days, segs: b.segs.map(s => ({ name: s.name, amount: s.amount })) })),
-          },
-          totalMinutes: this.totalMin, totalDisplay: this.fmtH(this.totalMin),
-        };
         try {
+          const canvas = this._vizCanvas();
+          const jpg = this._b64ToBytes(canvas.toDataURL('image/jpeg', 0.92).split(',')[1]);
+          const bytes = this._wrapPdf(jpg, canvas.width, canvas.height);
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
-          a.href = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(data, null, 2));
-          a.download = 'mindpocket-专注可视化-' + this.vizDim + '-' + this.$store.util.todayStr() + '.json';
+          a.href = url;
+          a.download = 'mindpocket-专注可视化-' + this.vizDim + '-' + this.$store.util.todayStr() + '.pdf';
           document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          this.showToast('已导出可视化数据');
-        } catch (e) { this.showToast('导出失败'); }
+          setTimeout(() => URL.revokeObjectURL(url), 3000);
+          this.showToast('已导出 PDF');
+        } catch (e) {
+          console.error('[viz export]', e);
+          this.showToast('导出失败：' + (e && e.message ? e.message : e));
+        }
+      },
+      _b64ToBytes(b64) {
+        const bin = atob(b64); const out = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+        return out;
+      },
+      // 把 JPEG 字节封装成最小合法 PDF：5 个对象（Catalog/Pages/Page/Image XObject/Contents）+ xref + trailer。
+      // 文本段按 latin1 逐字节编码；偏移量必须按「字节」累计（而非字符串长度），xref 才能指向准确。
+      _wrapPdf(jpg, w, h) {
+        const enc = s => { const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 0xff; return u; };
+        const head = enc('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n');
+        const parts = [head];
+        const offsets = [];
+        let pos = head.length;
+        const pushObj = (i, build) => {
+          offsets.push(pos);
+          const num = enc(i + ' 0 obj\n'), tail = enc('\nendobj\n');
+          const before = parts.length;
+          parts.push(num); build(parts); parts.push(tail);
+          for (let x = before; x < parts.length; x++) pos += parts[x].length;
+        };
+        const content = 'q ' + w + ' 0 0 ' + h + ' 0 0 cm /Im0 Do Q';
+        pushObj(1, ps => ps.push(enc('<< /Type /Catalog /Pages 2 0 R >>')));
+        pushObj(2, ps => ps.push(enc('<< /Type /Pages /Kids [3 0 R] /Count 1 >>')));
+        pushObj(3, ps => ps.push(enc('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + w + ' ' + h + '] /Resources << /XObject << /Im0 4 0 R >> /ProcSet [/PDF /ImageC] >> /Contents 5 0 R >>')));
+        pushObj(4, ps => {
+          ps.push(enc('<< /Type /XObject /Subtype /Image /Width ' + w + ' /Height ' + h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpg.length + ' >>\nstream\n'));
+          ps.push(jpg);
+          ps.push(enc('\nendstream'));
+        });
+        pushObj(5, ps => ps.push(enc('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream')));
+        const xref = 'xref\n0 6\n0000000000 65535 f \n'
+          + offsets.map(o => ('0000000000' + o).slice(-10) + ' 00000 n \n').join('')
+          + 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + pos + '\n%%EOF';
+        parts.push(enc(xref));
+        let total = 0; parts.forEach(p => total += p.length);
+        const out = new Uint8Array(total); let off = 0;
+        parts.forEach(p => { out.set(p, off); off += p.length; });
+        return out;
+      },
+      // 用原生 canvas 重绘当前可视化（观感对齐页面 DOM 版）：头部信息 + 专注时长柱状图 + 项目占比饼图/图例 + 打卡完成量堆叠柱/图例。
+      // 高度按各区块预算精确累加（先判有无数据再定 canvas 高），2x 物理像素保证 PDF 内文字清晰。
+      _vizCanvas() {
+        const win = this.vizWindow;
+        const bars = this.barBuckets, pies = this.pieData, ca = this.checkinAmountBuckets;
+        const W = 760, PAD = 34, TAU = Math.PI * 2;
+        const hasBar = bars.some(b => b.min > 0);
+        const hasAmt = ca.buckets.some(b => b.total > 0);
+        // —— 布局预算（与下方绘制严格一致）——
+        const perRow = Math.min(6, Math.ceil(pies.length / (pies.length > 6 ? 2 : 1))) || 1;   // 饼图图例每列行数
+        const pieRegionH = Math.max(260, perRow * 38 + 40);
+        const H = 124                                            // 头部
+          + (hasBar ? 292 : 104)                                 // 主柱状图（区标题+值/柱/标签 或 空提示）
+          + (pies.length ? 46 + pieRegionH : 0)                  // 饼图区
+          + 76                                                   // 打卡区标题+汇总行
+          + (hasAmt ? 254 + Math.ceil(ca.palette.length / 3) * 30 : 50)  // 完成量堆叠柱(+图例) 或 空提示
+          + 70;                                                  // 页脚
+        const S = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = W * S; canvas.height = H * S;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(S, S);
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
+        const font = (sz, b) => (b ? 'bold ' : '') + sz + 'px -apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif';
+        let y = 0;
+        // —— 头部 ——
+        y += 64;
+        ctx.fillStyle = '#1a1a2e'; ctx.font = font(36, true);
+        ctx.fillText('专注时长可视化', PAD, y);
+        ctx.font = font(17); ctx.fillStyle = '#9aa0b0'; ctx.textAlign = 'right';
+        const nd = new Date();
+        ctx.fillText('导出于 ' + nd.getFullYear() + '-' + String(nd.getMonth() + 1).padStart(2, '0') + '-' + String(nd.getDate()).padStart(2, '0'), W - PAD, y - 6);
+        ctx.textAlign = 'left';
+        y += 38;
+        ctx.fillStyle = '#6a7bff'; ctx.font = font(21, true);
+        ctx.fillText(win.title + ' · ' + win.label + ' · 总专注 ' + this.fmtH(this.totalMin), PAD, y);
+        y += 22;
+        ctx.strokeStyle = '#e7e9f2'; ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
+        // —— 主柱状图 ——
+        y += 44;
+        ctx.fillStyle = '#1a1a2e'; ctx.font = font(24, true);
+        ctx.fillText('专注时长分布', PAD, y);
+        if (hasBar) {
+          y += 34;
+          const n = bars.length, areaW = W - PAD * 2, colW = areaW / n;
+          const gap = Math.min(10, Math.max(2, colW * 0.25));
+          const valFs = n > 20 ? 11 : (n > 12 ? 13 : 16), labFs = n > 20 ? 10 : (n > 12 ? 12 : 15);
+          const chartTop = y, chartH = 170, baseY = chartTop + chartH;
+          bars.forEach((b, i) => {
+            const x = PAD + i * colW, show = n <= 26 || i % 2 === 0;
+            ctx.textAlign = 'center';
+            if (show) { ctx.fillStyle = '#5a6072'; ctx.font = font(valFs); ctx.fillText(this.fmtH(b.min), x + colW / 2, chartTop - 4); }
+            const bh = Math.max(b.pct > 0 ? 3 : 1, Math.round(b.pct / 100 * chartH));
+            ctx.fillStyle = b.min > 0 ? '#6a7bff' : '#e7e9f2';
+            ctx.fillRect(x + gap / 2, baseY - bh, colW - gap, bh);
+            if (show) { ctx.fillStyle = '#5a6072'; ctx.font = font(labFs); ctx.fillText(b.label, x + colW / 2, baseY + 22); }
+            ctx.textAlign = 'left';
+          });
+          ctx.strokeStyle = '#e7e9f2'; ctx.beginPath(); ctx.moveTo(PAD, baseY); ctx.lineTo(W - PAD, baseY); ctx.stroke();
+          y = baseY + 44;
+        } else {
+          y += 34;
+          ctx.fillStyle = '#9aa0b0'; ctx.font = font(19);
+          ctx.fillText('当前时段暂无专注时长记录', PAD, y);
+          y += 26;
+        }
+        // —— 饼图 + 图例 ——
+        if (pies.length) {
+          y += 30;
+          ctx.fillStyle = '#1a1a2e'; ctx.font = font(24, true);
+          ctx.fillText('项目专注占比', PAD, y);
+          const pieTop = y + 16, r = 104;
+          const cx = PAD + r + 6, cy = pieTop + pieRegionH / 2;
+          let a0 = -Math.PI / 2;
+          pies.forEach((s, i) => {
+            const a1 = i === pies.length - 1 ? -Math.PI / 2 + TAU : a0 + (s.ratio || 0) * TAU;
+            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a0, a1); ctx.closePath();
+            ctx.fillStyle = s.color; ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+            a0 = a1;
+          });
+          const twoCol = pies.length > 6;
+          const cols = twoCol ? 2 : 1;
+          const lx0 = PAD + 2 * r + 40, colW = (W - PAD - lx0) / cols;
+          pies.forEach((s, i) => {
+            const col = twoCol ? Math.floor(i / perRow) : 0;
+            const row = twoCol ? i % perRow : i;
+            const x = lx0 + col * colW, ly = pieTop + 30 + row * 38;
+            ctx.fillStyle = s.color; ctx.fillRect(x, ly - 13, 16, 16);
+            ctx.fillStyle = '#1a1a2e'; ctx.font = font(18, true);
+            const nm = s.name.length > 10 ? s.name.slice(0, 9) + '…' : s.name;
+            ctx.fillText(nm, x + 24, ly);
+            ctx.fillStyle = '#7a8090'; ctx.font = font(15);
+            ctx.fillText(s.pct + '% · ' + this.fmtH(s.min), x + 24, ly + 20);
+          });
+          y = pieTop + pieRegionH;
+        }
+        // —— 打卡天数 / 完成量 ——
+        y += 40;
+        ctx.fillStyle = '#1a1a2e'; ctx.font = font(24, true);
+        ctx.fillText('打卡天数 / 完成量（' + win.label + '）', PAD, y);
+        y += 36;
+        ctx.fillStyle = '#5a6072'; ctx.font = font(18);
+        ctx.fillText('已打卡 ' + this.checkinTotal + ' 天 / 共 ' + this.checkinDenominator + ' 天 · 覆盖率 ' + this.checkinPct + '%', PAD, y);
+        if (hasAmt) {
+          y += 30;
+          const n = ca.buckets.length, areaW = W - PAD * 2, colW = areaW / n;
+          const gap = Math.min(10, Math.max(2, colW * 0.25));
+          const valFs = n > 20 ? 11 : (n > 12 ? 13 : 16), labFs = n > 20 ? 10 : (n > 12 ? 12 : 15);
+          const chartH = 180, baseY = y + chartH;
+          ca.buckets.forEach((b, i) => {
+            const x = PAD + i * colW, show = n <= 26 || i % 2 === 0;
+            ctx.textAlign = 'center';
+            if (show) { ctx.fillStyle = '#5a6072'; ctx.font = font(valFs); ctx.fillText(b.total > 0 ? String(b.total) : (b.days > 0 ? '✓' : '–'), x + colW / 2, y - 6); }
+            const stackPx = ca.maxTotal > 0 ? Math.round(b.total / ca.maxTotal * chartH) : 0;
+            let sy = baseY - stackPx;   // 与页面 DOM 版一致：segs 按完成量降序自上而下堆叠
+            b.segs.forEach(sg => {
+              const hpx = b.total > 0 ? Math.max(1, Math.round(sg.amount / b.total * stackPx)) : 0;
+              ctx.fillStyle = sg.color;
+              ctx.fillRect(x + gap / 2, sy, colW - gap, hpx);
+              sy += hpx;
+            });
+            if (show) { ctx.fillStyle = '#5a6072'; ctx.font = font(labFs); ctx.fillText(b.label, x + colW / 2, baseY + 22); }
+            ctx.textAlign = 'left';
+          });
+          ctx.strokeStyle = '#e7e9f2'; ctx.beginPath(); ctx.moveTo(PAD, baseY); ctx.lineTo(W - PAD, baseY); ctx.stroke();
+          y = baseY + 44;
+          if (ca.palette.length) {
+            const per = 3, rows2 = Math.ceil(ca.palette.length / per), colW2 = (W - PAD * 2) / per;
+            ca.palette.forEach((p, i) => {
+              const x = PAD + (i % per) * colW2, cy2 = y + Math.floor(i / per) * 30;
+              ctx.fillStyle = p.color; ctx.fillRect(x, cy2 - 12, 14, 14);
+              ctx.fillStyle = '#1a1a2e'; ctx.font = font(15, true);
+              const nm = p.name.length > 8 ? p.name.slice(0, 7) + '…' : p.name;
+              ctx.fillText(nm, x + 20, cy2);
+              ctx.fillStyle = '#7a8090'; ctx.font = font(14);
+              ctx.fillText(String(p.total), x + 20 + ctx.measureText(nm).width + 26, cy2);
+            });
+            y += rows2 * 30;
+          }
+        } else {
+          y += 30;
+          ctx.fillStyle = '#9aa0b0'; ctx.font = font(19);
+          ctx.fillText('当前时段暂无完成量记录', PAD, y);
+          y += 20;
+        }
+        // —— 页脚 ——
+        ctx.fillStyle = '#9aa0b0'; ctx.font = font(15);
+        ctx.textAlign = 'center';
+        ctx.fillText('MindPocket · 专注时长可视化', W / 2, H - 26);
+        ctx.textAlign = 'left';
+        return canvas;
       },
       showToast(msg) { this.toast = msg; if (this.toastTimer) clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => { this.toast = ''; }, 1400); },
     },
@@ -21322,19 +21481,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </div>
       <div class="block" style="margin-top:4px;">
         <div class="view-toggle">
+          <button :class="{on: vizDim==='all'}" @click="setVizDim('all')">全部</button>
           <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
           <button :class="{on: vizDim==='month'}" @click="setVizDim('month')">月</button>
           <button :class="{on: vizDim==='year'}" @click="setVizDim('year')">年</button>
         </div>
         <div class="viz-period-nav">
-          <button class="icon-btn" @click="prev" title="更早时段">‹</button>
+          <button class="icon-btn" :disabled="vizDim==='all'" @click="prev" title="更早时段">‹</button>
           <span class="viz-period-label">{{ vizWindow.title }} · {{ vizWindow.label }}</span>
-          <button class="icon-btn" :disabled="vizOffset===0" @click="next" title="更近时段">›</button>
+          <button class="icon-btn" :disabled="vizOffset===0 || vizDim==='all'" @click="next" title="更近时段">›</button>
         </div>
         <div class="chart-bars" v-if="hasData" style="height:170px;margin-top:10px;">
           <div class="chart-bar" v-for="b in barBuckets" :key="b.key">
             <div class="bar-val">{{ fmtH(b.min) }}</div>
-            <div class="bar-col" :style="{height: b.pct + '%'}"></div>
+            <div class="bar-col" :style="{height: b.barPx + 'px'}"></div>
             <div class="bar-label">{{ b.label }}</div>
           </div>
         </div>
@@ -21371,7 +21531,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
           </div>
         </div>
-        <button class="btn ghost" style="margin-top:14px;width:100%;" @click="exportViz">⬇ 导出可视化数据</button>
+        <button class="btn ghost" style="margin-top:14px;width:100%;" @click="exportViz">⬇ 导出 PDF 图片</button>
       </div>
       <div class="wp-toast" v-if="toast">{{ toast }}</div>
     </div>`,
