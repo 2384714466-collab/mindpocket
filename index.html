@@ -1146,7 +1146,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
 /* 子任务状态标签（右上角，跟随完成状态自动切换） */
 .psub-status { flex: 0 0 auto; font-size: 11px; padding: 2px 9px; border-radius: var(--radius-sm); background: #eef0ff; color: var(--primary); white-space: nowrap; }
-.psub-status.done { background: #e8f6ee; color: #1f9d57; }
+/* done：已完成恒灰（用户自定义配色对它不生效，配合「完成自动置后」恒排最后） */
+.psub-status.done { background: #f0f0f3; color: #9aa0ad; }
 .psub-status.custom { background: #fff4e0; color: #c77800; } /* 自定义非完成状态，琥珀色区分 */
 /* 状态选择器（子任务编辑弹窗） */
 .status-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
@@ -1154,21 +1155,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .status-chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
 .status-chip.done.on { background: #1f9d57; border-color: #1f9d57; }
 .status-chip.custom.on { background: #c77800; border-color: #c77800; }
-.status-add { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
-.status-add input { flex: 1; }
+/* 本项目子任务状态管理（排序 / 颜色 / 增删改） */
+.sts-row { display: flex; align-items: center; gap: 8px; padding: 7px 4px; border-bottom: 1px solid #f1f2f6; }
+.sts-drag { flex: 0 0 auto; font-size: 15px; color: #b6bac6; cursor: grab; user-select: none; }
+.sts-dot { flex: 0 0 auto; width: 18px; height: 18px; padding: 0; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); cursor: pointer; }
+.sts-chip { flex: 0 0 auto; font-size: 12px; padding: 3px 10px; border-radius: var(--radius-sm); white-space: nowrap; }
+.sts-spacer { flex: 1 1 auto; }
+.sts-name { font-size: 13px; color: var(--text); white-space: nowrap; }
+.sts-name-edit { flex: 1 1 auto; min-width: 0; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.sts-del-tip { flex: 0 1 auto; font-size: 11px; color: var(--no); }
+.sts-palette { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; margin: 4px 0 8px; background: #fafbfd; border-radius: var(--radius-sm); }
+.sts-swatch { font-size: 11px; padding: 4px 10px; border-radius: var(--radius-md); border: 1px solid; cursor: pointer; }
+.sts-add { display: flex; gap: 8px; margin-top: 10px; }
+.sts-add input { flex: 1 1 auto; min-width: 0; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.sts-err { margin: 6px 0 0; font-size: 12px; color: var(--no); }
+.sts-row .btn-mini:disabled { opacity: .4; cursor: default; }
 /* 自定义状态长按菜单：轻量浮层，锚定 chip 位置 */
-.status-menu-mask { position: fixed; inset: 0; z-index: var(--z-mask); background: transparent; }
-.status-menu { position: fixed; min-width: 150px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: 0 8px 24px rgba(20,24,40,.16); padding: 6px; display: flex; flex-direction: column; gap: 4px; }
-.status-menu-title { font-size: 12px; color: var(--sub); padding: 4px 8px 6px; border-bottom: 1px solid var(--line); margin-bottom: 2px; word-break: break-all; }
-.status-menu-item { text-align: left; font-size: 13px; padding: 7px 8px; border-radius: var(--radius-sm); background: transparent; color: var(--text); }
-.status-menu-item:hover { background: #f2f4fa; }
-.status-menu-item.danger { color: var(--no, #e5484d); }
-.status-menu input { width: 100%; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
-.status-menu-acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 2px; }
 
 /* —— 标签体系（项目 / 子任务 #标签） —— */
 .proj-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
 .ptag { font-size: 11px; background: #eef2ff; color: var(--primary); padding: 2px 8px; border-radius: var(--radius-sm); }
+/* 历史标签胶囊（任务详情 / 新增的「标签输入」下方）：当前夹下最近编辑的 5 个一级标签 */
+.tag-hist { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0 2px; }
+.tag-cap { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--sub); cursor: pointer; }
+.tag-cap.on { background: #eef0ff; border-color: #c3caf5; color: var(--primary); font-weight: 600; }
 .tag-edit { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
 .tag-edit .ptag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
 .tag-edit .ptag .ptag-x { cursor: pointer; color: var(--sub); font-weight: 700; padding: 0 2px; }
@@ -6052,6 +6062,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function isSubComplete(s) {
     return !!(s && (s.sub_done || (s.enableTotal && s.total > 0 && (Number(s.finished) || 0) >= Number(s.total))));
   }
+  // 完成态判定（用于「已完成恒后置」分组）：显式完成 / 计数达标 / 状态字段为「已完成」
+  function isSubDoneLike(s) { return isSubComplete(s) || (!!s && s.status === SUB_STATUS_DONE); }
   // 标记完成 / 取消完成（所有子任务通用，与是否开启计数目标解耦）
   //  · 标记：计数任务 finished 拉满到 total（一键 100%），简单任务置 sub_done=true
   //  · 取消：sub_done 复位；计数任务按填报留痕重新累加 finished（恢复真实进度）
@@ -6115,46 +6127,178 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     touch(s); persist();
   }
 
-  // —— 项目子任务自定义状态（全局清单，用户自由新增；均为「非完成」状态）——
-  function addCustomSubStatus(name) {
+  /* —— 项目子任务状态：按项目隔离 + 可自定义颜色 + 可自定义排序 ——
+     数据结构：state.sub_custom_statuses 仍为**数组**（保持数组类型，导出 / 导入 / 备份合并
+     链路 _mergeArr、Array.isArray、默认值 全部天然兼容），元素升级为对象：
+       { _id, pid, name, color, builtin }
+     · _id   必须存在：_mergeArr 按 _id/id/pid/sid 去重，缺 _id 会退回 pid，
+             把同一项目的多条状态塌成一条（本结构唯一的陷阱）
+     · pid   项目隔离键，不同项目互不影响
+     · color 调色板 key（SUB_STATUS_COLORS）；「已完成」不入库——虚拟状态，恒灰恒最后
+     · builtin 仅「进行中」为 true：可改色，不可改名 / 删除
+     数组内同 pid 条目的先后 = 用户自定义的状态排序。 */
+  var SUB_STATUS_COLORS = [
+    { key: 'blue',   label: '蓝',   bg: '#eef0ff', fg: '#4b5bd7' },
+    { key: 'green',  label: '绿',   bg: '#e8f6ee', fg: '#1f9d57' },
+    { key: 'amber',  label: '琥珀', bg: '#fff4e0', fg: '#c77800' },
+    { key: 'red',    label: '红',   bg: '#fdecec', fg: '#d64545' },
+    { key: 'purple', label: '紫',   bg: '#f3ecff', fg: '#7c4dcc' },
+    { key: 'cyan',   label: '青',   bg: '#e6f7fb', fg: '#0f8ba8' },
+    { key: 'pink',   label: '粉',   bg: '#fdeef4', fg: '#c9407a' },
+    { key: 'orange', label: '橙',   bg: '#fff0e3', fg: '#d1701a' },
+    { key: 'teal',   label: '墨绿', bg: '#e4f5f0', fg: '#1f8a70' },
+    { key: 'gray',   label: '灰',   bg: '#f0f0f3', fg: '#9aa0ad' },
+  ];
+  var SUB_STATUS_BUILTIN = '进行中';
+  var SUB_STATUS_DONE = '已完成';
+  function statusColorOf(key) {
+    const hit = SUB_STATUS_COLORS.find(c => c.key === key);
+    return hit || SUB_STATUS_COLORS.find(c => c.key === 'amber');
+  }
+  function _isValidStatusColor(key) { return SUB_STATUS_COLORS.some(c => c.key === key); }
+  // 本项目合法条目（防御：旧数据可能是字符串 / 缺字段）
+  function _statusEntries(pid) {
+    if (!Array.isArray(state.sub_custom_statuses)) state.sub_custom_statuses = [];
+    return state.sub_custom_statuses.filter(x => x && typeof x === 'object' && x.pid === pid && x.name);
+  }
+  function _statusEntry(pid, name) {
+    return _statusEntries(pid).find(x => x.name === name) || null;
+  }
+  // 在本项目条目区间的末尾追加（保持各项目条目在数组内成块，顺序即自定义顺序）
+  function _pushStatusEntry(pid, item) {
+    let at = -1;
+    for (let k = state.sub_custom_statuses.length - 1; k >= 0; k--) {
+      const x = state.sub_custom_statuses[k];
+      if (x && x.pid === pid) { at = k + 1; break; }
+    }
+    if (at < 0) state.sub_custom_statuses.push(item);
+    else state.sub_custom_statuses.splice(at, 0, item);
+  }
+  // 补齐本项目内置「进行中」（缺失则置为本项目首条；已存在则不动）
+  function ensureProjectStatus(pid) {
+    if (!pid) return false;
+    if (!Array.isArray(state.sub_custom_statuses)) state.sub_custom_statuses = [];
+    if (_statusEntry(pid, SUB_STATUS_BUILTIN)) return false;
+    _pushStatusEntry(pid, { _id: uid('sts'), pid: pid, name: SUB_STATUS_BUILTIN, color: 'blue', builtin: true });
+    persist();
+    return true;
+  }
+  // 本项目状态清单（按自定义顺序；「已完成」为虚拟状态，不入清单）
+  function getProjectStatuses(pid) {
+    if (!pid) return [];
+    ensureProjectStatus(pid);
+    return _statusEntries(pid);
+  }
+  // 排序权重：已完成 → 恒最后；清单内 → 索引；未知（历史脏数据）→ 倒数第二
+  function statusRankOf(pid, name) {
+    const n = name || SUB_STATUS_BUILTIN;
+    if (n === SUB_STATUS_DONE) return Number.MAX_SAFE_INTEGER;
+    const i = _statusEntries(pid).findIndex(x => x.name === n);
+    if (i >= 0) return i;
+    return Number.MAX_SAFE_INTEGER - 1;
+  }
+  // 状态配色（已完成恒灰；清单内取自定义色；未知取琥珀兜底）
+  function statusStyleOf(pid, name) {
+    const n = name || SUB_STATUS_BUILTIN;
+    if (n === SUB_STATUS_DONE) return statusColorOf('gray');
+    const e = _statusEntry(pid, n);
+    return statusColorOf(e ? e.color : 'amber');
+  }
+  // 新增自定义状态（按项目隔离；内置名 / 空 / 本项目内重复 均拦截）
+  function addProjectStatus(pid, name, color) {
     const v = (name || '').trim();
-    if (!v) return false;
-    if (v === '进行中' || v === '已完成') return false;            // 内置状态不可重复添加
-    if (!state.sub_custom_statuses) state.sub_custom_statuses = [];
-    if (state.sub_custom_statuses.indexOf(v) >= 0) return false;   // 去重
-    state.sub_custom_statuses.push(v);
+    if (!pid || !v) return false;
+    if (v === SUB_STATUS_BUILTIN || v === SUB_STATUS_DONE) return false;
+    if (!Array.isArray(state.sub_custom_statuses)) state.sub_custom_statuses = [];
+    ensureProjectStatus(pid);
+    if (_statusEntry(pid, v)) return false;
+    _pushStatusEntry(pid, { _id: uid('sts'), pid: pid, name: v, color: _isValidStatusColor(color) ? color : 'amber', builtin: false });
     persist();
     return true;
   }
-
-  // 删除自定义状态：从全局清单移除；所有处于该状态的子任务回退到「进行中」
-  // （内置 进行中 / 已完成 不可删除）
-  function removeCustomSubStatus(name) {
-    if (!name || name === '进行中' || name === '已完成') return false;
-    if (!state.sub_custom_statuses) state.sub_custom_statuses = [];
-    const i = state.sub_custom_statuses.indexOf(name);
-    if (i < 0) return false;
-    state.sub_custom_statuses.splice(i, 1);
-    state.project_subs.forEach(s => { if (s.status === name) { s.status = '进行中'; s.sub_done = false; } });
+  // 删除自定义状态（仅本项目）；本项目内处于该状态的子任务回退「进行中」
+  function removeProjectStatus(pid, name) {
+    if (!name || name === SUB_STATUS_BUILTIN || name === SUB_STATUS_DONE) return false;
+    const e = _statusEntry(pid, name);
+    if (!e) return false;
+    const i = state.sub_custom_statuses.indexOf(e);
+    if (i >= 0) state.sub_custom_statuses.splice(i, 1);
+    state.project_subs.forEach(s => { if (s.pid === pid && s.status === name) { s.status = SUB_STATUS_BUILTIN; s.sub_done = false; } });
     persist();
     return true;
   }
-
-  // 重命名自定义状态：全局清单与所有引用该状态的子任务同步改名
-  // 新名不可为空 / 不可与内置状态或已有自定义状态重名
-  function renameCustomSubStatus(oldName, newName) {
+  // 重命名（仅本项目）；同步本项目内引用该状态的子任务
+  function renameProjectStatus(pid, oldName, newName) {
     const v = (newName || '').trim();
-    if (!oldName || oldName === '进行中' || oldName === '已完成') return { ok: false, msg: '内置状态不可修改' };
+    if (!oldName || oldName === SUB_STATUS_BUILTIN || oldName === SUB_STATUS_DONE) return { ok: false, msg: '内置状态不可修改' };
     if (!v) return { ok: false, msg: '名称不能为空' };
-    if (v === '进行中' || v === '已完成') return { ok: false, msg: '与内置状态重名' };
-    if (!state.sub_custom_statuses) state.sub_custom_statuses = [];
-    const i = state.sub_custom_statuses.indexOf(oldName);
-    if (i < 0) return { ok: false, msg: '状态不存在' };
-    if (v !== oldName && state.sub_custom_statuses.indexOf(v) >= 0) return { ok: false, msg: '已存在同名状态' };
-    state.sub_custom_statuses.splice(i, 1, v);
-    state.project_subs.forEach(s => { if (s.status === oldName) s.status = v; });
+    if (v === SUB_STATUS_BUILTIN || v === SUB_STATUS_DONE) return { ok: false, msg: '与内置状态重名' };
+    const e = _statusEntry(pid, oldName);
+    if (!e) return { ok: false, msg: '状态不存在' };
+    if (v !== oldName && _statusEntry(pid, v)) return { ok: false, msg: '已存在同名状态' };
+    e.name = v;
+    state.project_subs.forEach(s => { if (s.pid === pid && s.status === oldName) s.status = v; });
     persist();
     return { ok: true };
+  }
+  // 改颜色（「进行中」与自定义状态均可；「已完成」不入库故恒灰）
+  function setProjectStatusColor(pid, name, color) {
+    if (!_isValidStatusColor(color)) return false;
+    const e = _statusEntry(pid, name);
+    if (!e) return false;
+    e.color = color;
+    persist();
+    return true;
+  }
+  // 重排：按传入的 _id 序列调整本项目条目顺序（只动本项目占用的数组槽位）
+  function setProjectStatusOrder(pid, ids) {
+    if (!pid || !Array.isArray(ids)) return false;
+    const mine = _statusEntries(pid);
+    const map = {};
+    mine.forEach(x => { map[x._id] = x; });
+    const ordered = [];
+    ids.forEach(id => { if (map[id]) { ordered.push(map[id]); delete map[id]; } });
+    mine.forEach(x => { if (map[x._id]) ordered.push(x); });   // 未命中的保持原相对顺序补在末尾
+    const slots = [];
+    state.sub_custom_statuses.forEach((x, i) => { if (x && x.pid === pid) slots.push(i); });
+    if (slots.length !== ordered.length) return false;
+    slots.forEach((slot, k) => { state.sub_custom_statuses[slot] = ordered[k]; });
+    persist();
+    return true;
+  }
+  // 上移 / 下移一位（dir<0 上移，dir>0 下移）
+  function moveProjectStatus(pid, name, dir) {
+    const list = getProjectStatuses(pid);
+    const i = list.findIndex(x => x.name === name);
+    const j = i + (dir < 0 ? -1 : 1);
+    if (i < 0 || j < 0 || j >= list.length) return false;
+    const ids = list.map(x => x._id);
+    const t = ids[i]; ids[i] = ids[j]; ids[j] = t;
+    return setProjectStatusOrder(pid, ids);
+  }
+
+  // —— 兼容旧调用名：内部转为「按项目隔离」实现（pid 缺省时退回全局兜底）——
+  function addCustomSubStatus(name, pid) {
+    if (!pid) {                                   // 无 pid：沿用旧语义（作用于首个已有项目，仅兜底）
+      const p = state.projects[0];
+      if (!p) return false;
+      pid = p.pid;
+    }
+    return addProjectStatus(pid, name, 'amber');
+  }
+  function removeCustomSubStatus(name, pid) {
+    if (!pid) {
+      const hit = state.sub_custom_statuses.find(x => x && x.name === name);
+      pid = hit ? hit.pid : (state.projects[0] ? state.projects[0].pid : '');
+    }
+    return removeProjectStatus(pid, name);
+  }
+  function renameCustomSubStatus(oldName, newName, pid) {
+    if (!pid) {
+      const hit = state.sub_custom_statuses.find(x => x && x.name === oldName);
+      pid = hit ? hit.pid : (state.projects[0] ? state.projects[0].pid : '');
+    }
+    return renameProjectStatus(pid, oldName, newName);
   }
 
   // —— ProjectRecord 填报留痕表 ——
@@ -6303,10 +6447,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const undone = [], done = [], archived = [];
     list.forEach(s => {
       if (s.is_archived) archived.push(s);                       // 已归档（完成/放弃）置底变灰，仍在列表可见可右滑撤销
-      else (isSubComplete(s) ? done : undone).push(s);
+      else (isSubDoneLike(s) ? done : undone).push(s);           // 已完成：恒归入 done 段后置，不受自定义状态顺序影响
     });
     done.sort((a, b) => (Number(a.done_at) || 0) - (Number(b.done_at) || 0));
-    undone.sort((a, b) => (b.isEmergency ? 1 : 0) - (a.isEmergency ? 1 : 0));
+    // 未完成段排序：紧急置顶 → 按用户自定义的状态顺序 → 同级保持录入顺序（Array.sort 稳定）
+    undone.sort((a, b) => {
+      const ea = a.isEmergency ? 1 : 0, eb = b.isEmergency ? 1 : 0;
+      if (ea !== eb) return eb - ea;
+      return statusRankOf(pid, a.status) - statusRankOf(pid, b.status);
+    });
     archived.sort((a, b) => (a.arch_kind === 'abandon' ? 1 : 0) - (b.arch_kind === 'abandon' ? 1 : 0));
     return undone.concat(done).concat(archived);
   }
@@ -6810,8 +6959,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 现统一移除习惯上的 is_system 标记，转为普通用户习惯；历史记录完整保留不清空。
   function migrate() {
     let changed = false;
-    // 项目子任务自定义状态清单：旧数据补齐（默认空数组，用户自由新增）
+    // 项目子任务状态清单：旧数据补齐（默认空数组，用户自由新增）
     if (state.sub_custom_statuses === undefined) { state.sub_custom_statuses = []; changed = true; }
+    if (!Array.isArray(state.sub_custom_statuses)) { state.sub_custom_statuses = []; changed = true; }
+    // 旧结构迁移：全局字符串数组 → 按项目隔离的对象数组。
+    // 旧清单原样复制给每个已存在的项目作为各自起点，之后各项目互不影响。
+    if (state.sub_custom_statuses.some(x => typeof x === 'string')) {
+      const legacy = state.sub_custom_statuses.filter(x => typeof x === 'string' && x && x !== SUB_STATUS_BUILTIN && x !== SUB_STATUS_DONE);
+      state.sub_custom_statuses = [];
+      state.projects.forEach(p => {
+        if (!p || !p.pid) return;
+        state.sub_custom_statuses.push({ _id: uid('sts'), pid: p.pid, name: SUB_STATUS_BUILTIN, color: 'blue', builtin: true });
+        legacy.forEach(nm => {
+          state.sub_custom_statuses.push({ _id: uid('sts'), pid: p.pid, name: nm, color: 'amber', builtin: false });
+        });
+      });
+      changed = true;
+    }
+    // 兼容补齐：缺 _id 的旧条目（_mergeArr 会按 pid 去重塌条）、缺内置「进行中」的项目
+    state.sub_custom_statuses.forEach(x => {
+      if (x && typeof x === 'object' && !x._id) { x._id = uid('sts'); changed = true; }
+    });
+    state.projects.forEach(p => { if (p && p.pid && ensureProjectStatus(p.pid)) changed = true; });
     // 模版归档永久流水：旧数据补齐（默认空数组，不影响既有归档仓库读数）
     if (!Array.isArray(state.archive_ledger)) { state.archive_ledger = []; changed = true; }
     state.habits.forEach(h => {
@@ -7702,11 +7871,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     addProject, updateProject, archiveProject, reopenProject, deleteProject, archiveProjectSub, undoArchiveProjectSub,
     addFolder, renameFolder, deleteFolder, getFolders, moveProjectToFolder, archiveFolder, reopenFolder, moveFolderToFolder,
     addSub, updateSub, removeSub, addCustomSubStatus, removeCustomSubStatus, renameCustomSubStatus, isSubComplete, toggleSubDone, addRecord, getRecords, deleteRecord,
+    // 项目子任务状态（按项目隔离 + 颜色 + 自定义顺序）
+    SUB_STATUS_COLORS, SUB_STATUS_BUILTIN, SUB_STATUS_DONE, statusColorOf,
+    getProjectStatuses, statusRankOf, statusStyleOf, ensureProjectStatus,
+    addProjectStatus, removeProjectStatus, renameProjectStatus, setProjectStatusColor, setProjectStatusOrder, moveProjectStatus,
     ensureTaskBoardInstances, getTaskBoardInstances, updateTaskBoardInstance, stopTaskBoardTimer,
     addIdea, updateIdea, removeIdea, pickIdea,
     addTaskIdea, getTaskIdeas,
     getProjects, getSubs, getIdeas, projectProgress, projectCountdown, subProgress,
-    getSubsOrdered, fmtSpent, subSpentMin, getSubTags, projectFocusMin,
+    getSubsOrdered, fmtSpent, subSpentMin, getSubTags, projectFocusMin, isSubDoneLike,
     // 统计
     dayCompletion, habitCount,
     // 许愿池
@@ -9616,6 +9789,37 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (this.autoExpandFilled) this.expandFilledGroups();
     },
     computed: {
+      // —— 历史标签胶囊：当前归属夹下「最近编辑」的 5 个标签，点一下即可快速设置 ——
+      // 口径：取该夹（任务夹 / 收藏夹 / 模版夹）内未被软删的任务，按 last_modified_at 倒序，
+      // 反查各自实际使用的标签（可以是一级，也可以是二级），去重取前 5 个；
+      // 排除「临时任务」分类（奇想自动归入，非用户主动维护的标签）。
+      // 展示：二级标签用「一级|二级」（如 好物|数码），一级标签只显示自身（如 书籍）。
+      recentTagCaps() {
+        const ft = this.draft.folderType || 'task';
+        const qv = this.$store.getQuickViewCatId ? this.$store.getQuickViewCatId() : '';
+        const list = (this.$store.state.tasks || []).filter(t => {
+          if (!t || t.deleted_at) return false;
+          if (ft === 'template') return !!t.is_template;
+          if (ft === 'collection') return !!(t.is_collection || (t.category_id && this.$store.isCollCat(t.category_id)));
+          return !t.is_template && !t.is_collection;
+        });
+        list.sort((a, b) => (Number(b.last_modified_at) || 0) - (Number(a.last_modified_at) || 0));
+        const out = [];
+        list.forEach(t => {
+          if (out.length >= 5) return;
+          const pair = this.tagPairOfTask(t);
+          if (!pair || pair.l1._id === qv) return;
+          const l2 = pair.l2;
+          const key = pair.l1._id + '|' + (l2 ? l2._id : '');
+          if (out.some(x => x.key === key)) return;
+          out.push({
+            key: key,
+            text: l2 ? (pair.l1.name + '|' + l2.name) : pair.l1.name,
+            value: l2 ? ('#' + pair.l1.name + '##' + l2.name) : ('#' + pair.l1.name),
+          });
+        });
+        return out;
+      },
       cycleType() { return this.draft.cycle ? this.draft.cycle.type : 'none'; },
       // 周期结束方式：''（永久循环）/ 'date'（按结束日期）/ 'count'（打卡 N 次后结束）
       // 切换时联动清理互斥字段，保证母本仅持有一种结束语义
@@ -9820,6 +10024,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
       },
       onTagKey(e) { if (e && e.key === '#') this.parseTags(); },
+      // 任务实际使用的标签（可以是一级，也可以是二级）：category_id 指向二级时拆出 一级 / 二级；
+      // 只允许两级，父级缺失时降级按「一级」处理，避免脏数据导致胶囊空白。
+      tagPairOfTask(t) {
+        if (!t || !t.category_id) return null;
+        const c = this.$store.findCategory(t.category_id);
+        if (!c) return null;
+        if (c.parent) {
+          const p = this.$store.findCategory(c.parent);
+          return (p && !p.parent) ? { l1: p, l2: c } : { l1: c, l2: null };
+        }
+        return { l1: c, l2: null };
+      },
+      // 胶囊互斥单选：仅当标签输入「整串等于」该胶囊值时才算选中
+      isTagPicked(cap) { return (this.draft.tagInput || '').trim() === cap.value; },
+      // 点击胶囊：五个标签互斥，只能选一个 —— 点已选的清空、点另一个直接替换，随后立即重解析生效
+      toggleRecentTag(cap) {
+        this.draft.tagInput = this.isTagPicked(cap) ? '' : cap.value;
+        this.parseTags();
+      },
       // 切换归属文件夹：重解析当前标签串，使其分类归属与所选文件夹一致；
       // 同时回收「旧文件夹下由本草幕新建、且当前没有任何任务引用」的孤立分类，
       // 避免切换后另一个文件夹凭空残留一个空标签（如：模板夹预填下输过 #旅游，
@@ -9908,6 +10131,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <label class="fld">标签输入
                 <input type="text" v-model="draft.tagInput" @blur="parseTags" @keyup.enter="parseTags" @keyup="onTagKey" placeholder="#一级##二级，空格分隔多条" />
               </label>
+              <!-- 历史标签胶囊：当前夹下最近编辑的 5 个标签（一级 / 二级均可，二级显示 一级|二级）；
+                   五个互斥，点击即单选（再点同一个取消），快速设置 -->
+              <div class="tag-hist" v-if="recentTagCaps.length">
+                <button type="button" v-for="tg in recentTagCaps" :key="tg.key" class="tag-cap" :class="{on: isTagPicked(tg)}"
+                        :data-tag="tg.text" @click="toggleRecentTag(tg)">{{ tg.text }}</button>
+              </div>
               <p class="tag-hint" v-if="draft.level3Hint">{{ draft.level3Hint }}</p>
             </div>
           </div>
@@ -16496,7 +16725,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectSubEditModal = {
     name: 'ProjectSubEditModal',
     props: { pid: { type: String, required: true }, sid: { type: String, default: '' }, ideaId: { type: String, default: '' }, seedTitle: { type: String, default: '' }, seedTags: { type: Array, default: () => [] } },
-    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', newStatus: '', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, showDelConfirm: false, statusMenu: null, statusRenameVal: '' }; },
+    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, showDelConfirm: false }; },
     computed: {
       // 本项目已有的子任务标签，作为快捷选择项（排除已选），减少重复手输
       tagSuggestions() {
@@ -16508,10 +16737,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       planFillMinInput() { return Math.max(0, Math.round((Number(this.planFillHours) || 0) * 60)); },
       // 展示用单位：直接取输入框文本，缺省回退「页」用于占位与提示文案
       dispUnit() { return (this.unit || '').trim(); },
-      // 状态可选项：内置 进行中 / 已完成 + 用户自定义状态（均为非完成状态）
+      // 状态可选项：内置 进行中 / 已完成 + 本项目自定义状态（按用户自定义顺序，各项目独立）
       statusOptions() {
         const builtin = ['进行中', '已完成'];
-        const custom = (this.$store.state.sub_custom_statuses || []).slice();
+        const custom = this.$store.getProjectStatuses(this.pid).filter(s => !s.builtin).map(s => s.name);
         return builtin.concat(custom);
       },
     },
@@ -16624,80 +16853,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       pickSuggest(t) { if (this.tags.indexOf(t) < 0) this.tags.push(t); },
       // 状态类型判断：内置状态之外即为自定义（非完成）状态
       isCustomStatus(opt) { return opt !== '进行中' && opt !== '已完成'; },
-      // —— 自定义状态管理：长按 chip 打开操作菜单（重命名 / 删除）——
-      // 长按判定：pointerdown 起 550ms 未抬起 → 打开菜单（并抑制随后的 click 选中）
-      // 注意：事件对象在异步回调中已被释放（currentTarget 会变 null），
-      // 因此必须在 pointerdown 同步阶段先取出锚点坐标。
-      startPress(opt, ev) {
-        this.cancelPress();
-        const el = ev.currentTarget;
-        const r = el ? el.getBoundingClientRect() : null;
-        const anchor = r ? { left: r.left, top: r.top, bottom: r.bottom } : null;
-        this._pressTimer = setTimeout(() => {
-          this._pressTimer = null;
-          this._pressFired = true;
-          this.openStatusMenu(opt, anchor);
-        }, 550);
-      },
-      cancelPress() {
-        if (this._pressTimer) { clearTimeout(this._pressTimer); this._pressTimer = null; }
-      },
-      // 长按已触发菜单时，随后的 click 不再切换选中态，避免误改
-      onStatusClick(opt) {
-        if (this._pressFired) { this._pressFired = false; return; }
-        this.status = opt;
-      },
-      // anchor：长按时同步取好的 chip 坐标（异步回调中事件对象已不可用）
-      // 菜单锚定在 chip 下方；贴近屏幕右/下边缘时自动回收，避免溢出可视区
-      openStatusMenu(opt, anchor) {
-        if (!this.isCustomStatus(opt)) return;
-        const a = anchor || null;
-        const MW = 160, MH = 96;             // 菜单预估尺寸（用于边缘回收）
-        const vw = window.innerWidth, vh = window.innerHeight;
-        let x = a ? a.left : 16;
-        let y = a ? a.bottom + 6 : 16;
-        x = Math.min(x, Math.max(8, vw - MW - 8));
-        x = Math.max(8, x);
-        // 下方空间不足时翻到 chip 上方
-        if (y + MH > vh - 8) y = a ? Math.max(8, a.top - MH - 6) : 16;
-        this.statusRenameVal = opt;
-        this.statusMenu = { name: opt, x: Math.round(x), y: Math.round(y), renaming: false };
-      },
-      closeStatusMenu() { this.statusMenu = null; },
-      // 右键（桌面端）等价于长按：同样需要同步取锚点坐标
-      onStatusContext(opt, ev) {
-        if (!this.isCustomStatus(opt)) return;
-        const el = ev.currentTarget;
-        const r = el ? el.getBoundingClientRect() : null;
-        this.openStatusMenu(opt, r ? { left: r.left, top: r.top, bottom: r.bottom } : null);
-      },
-      startRename() { if (this.statusMenu) this.statusMenu.renaming = true; },
-      // 提交重命名：同步全局清单与所有引用该状态的子任务；成功后若当前选中项为旧名则跟随改名
-      submitRename() {
-        if (!this.statusMenu) return;
-        const oldName = this.statusMenu.name;
-        const res = this.$store.renameCustomSubStatus(oldName, this.statusRenameVal);
-        if (!res.ok) { alert(res.msg || '重命名失败'); return; }
-        if (this.status === oldName) this.status = (this.statusRenameVal || '').trim();
-        this.statusMenu = null;
-      },
-      // 删除自定义状态：引用该状态的子任务回退「进行中」；若当前选中该项则同步回退
-      removeStatus() {
-        if (!this.statusMenu) return;
-        const name = this.statusMenu.name;
-        if (!confirm('确定删除状态「' + name + '」？使用该状态的子任务将回退为「进行中」。')) return;
-        this.$store.removeCustomSubStatus(name);
-        if (this.status === name) this.status = '进行中';
-        this.statusMenu = null;
-      },
-      // 新增自定义状态：写入全局清单并立即选中（内置状态 / 空 / 重复 均拦截）
-      addCustomStatus() {
-        const v = (this.newStatus || '').trim();
-        if (!v) return;
-        if (v === '进行中' || v === '已完成') { alert('「进行中 / 已完成」为内置状态，无需添加'); this.newStatus = ''; return; }
-        if ((this.$store.state.sub_custom_statuses || []).indexOf(v) >= 0) { alert('该状态已存在'); this.newStatus = ''; return; }
-        if (this.$store.addCustomSubStatus(v)) { this.status = v; this.newStatus = ''; }
-      },
+      // 状态 chip 只负责「选中」：重命名 / 删除 / 新增 / 改色 / 排序 全部统一由
+      // 子任务页 ⚙「状态管理」弹窗负责，避免两处重复维护。
+      onStatusClick(opt) { this.status = opt; },
       confirmDelete() {
         if (!this.sid) return;
         this.$store.removeSub(this.sid);
@@ -16709,7 +16867,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     <div class="modal-mask" @click.self="$emit('close')">
       <!-- modal-lg：内容区内部滚动 + 底部「删除 / 取消 / 保存」操作条钉死在弹窗底部。
            操作条必须是 .modal-body 的直接子代，固定定位规则（.modal-lg .modal-body > .modal-actions）才生效；
-           底部内嵌的二次确认弹层（status-menu-mask / undo-confirm）为 .modal 的直接子代，不受该规则影响。 -->
+           底部内嵌的二次确认弹层（undo-confirm）为 .modal 的直接子代，不受该规则影响。 -->
       <div class="modal modal-lg">
         <div class="modal-head"><h3>{{ sid ? '编辑子任务' : '新增子任务' }}</h3><button class="x" @click="$emit('close')">✕</button></div>
         <div class="modal-body">
@@ -16746,21 +16904,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <input type="text" v-model="sub_end" placeholder="YYYY-MM-DD" @blur="sub_end=$store.util.autoFormatDate(sub_end)" :class="{invalid: sub_end && !$store.util.validateDateInput(sub_end).ok}" />
             </label>
           </div>
-          <!-- 工作流状态：内置 进行中 / 已完成，可自定非完成状态；选「已完成」即标记完成 -->
-          <!-- 自定义状态 chip 长按可重命名 / 删除 -->
+          <!-- 工作流状态：内置 进行中 / 已完成 + 本项目自定义状态（各项目独立）；选「已完成」即标记完成 -->
+          <!-- chip 仅供「选中」；新增 / 改名 / 删除 / 改色 / 排序 全部由子任务页 ⚙「状态管理」负责 -->
           <label class="fld">状态
             <div class="status-pick">
               <button type="button" v-for="opt in statusOptions" :key="opt" class="status-chip"
                 :class="{ on: status===opt, done: opt==='已完成', custom: isCustomStatus(opt) }"
-                @click="onStatusClick(opt)"
-                @pointerdown="isCustomStatus(opt) && startPress(opt, $event)"
-                @pointerup="cancelPress" @pointerleave="cancelPress" @pointercancel="cancelPress"
-                @contextmenu.prevent="onStatusContext(opt, $event)">{{ opt }}</button>
+                @click="onStatusClick(opt)">{{ opt }}</button>
             </div>
-            <div class="status-add">
-              <input v-model="newStatus" placeholder="新增自定义状态，如：待审核 / 受阻" @keyup.enter.stop="addCustomStatus" />
-              <button type="button" class="btn-mini" @click="addCustomStatus">＋ 添加</button>
-            </div>
+            <!-- 新增状态不在此处：统一走子任务页 ⚙「状态管理」（排序 / 颜色 / 增删改），避免两处重复 -->
           </label>
 
           <!-- 子任务标签：手动输入 + 已有标签快捷选择，支撑标签筛选与耗时分布统计 -->
@@ -16780,23 +16932,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button class="btn primary" @click="save">保存</button>
           </div>
         </div>
-        <!-- 自定义状态长按菜单：重命名 / 删除 -->
-        <div class="status-menu-mask" v-if="statusMenu" @click.self="closeStatusMenu">
-          <div class="status-menu" :style="{ left: statusMenu.x + 'px', top: statusMenu.y + 'px' }" @click.stop>
-            <template v-if="statusMenu.renaming">
-              <input v-model="statusRenameVal" @keyup.enter="submitRename" placeholder="新状态名" />
-              <div class="status-menu-acts">
-                <button class="btn-mini" @click="closeStatusMenu">取消</button>
-                <button class="btn-mini primary" @click="submitRename">确定</button>
-              </div>
-            </template>
-            <template v-else>
-              <div class="status-menu-title">{{ statusMenu.name }}</div>
-              <button class="status-menu-item" @click="startRename">✏️ 修改名称</button>
-              <button class="status-menu-item danger" @click="removeStatus">🗑 删除状态</button>
-            </template>
-          </div>
-        </div>
         <div class="undo-confirm" v-if="showDelConfirm">
           <div class="undo-box">
             <p class="undo-text">确定要删除该子任务吗？将软删除并保留数据。</p>
@@ -16804,6 +16939,154 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="btn ghost" @click="showDelConfirm=false">取消</button>
               <button class="btn danger" @click="confirmDelete">确定删除</button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>`,
+  };
+
+  /* -------- ProjectStatusManageModal —— 本项目子任务状态管理（排序 / 颜色 / 增删改） --------
+     状态清单按项目隔离，互不互通；数组内条目先后即子任务列表的排序依据。
+     交互约定：
+     · 排序只用左侧 ⠿ 拖柄拖动（不再提供 ↑ / ↓ 按钮）
+     · 颜色只在「点 ✏️ 进入编辑态」后才能改（非编辑态色块为只读展示）
+     · 删除用 🗑️ 图标
+     · 所有改动先落在本地草稿 draft，点「保存」才写入 store；点「取消」整体丢弃
+     · 「已完成」为虚拟状态：不入库、恒灰恒最后，故不在本弹窗列出。 */
+  C.ProjectStatusManageModal = {
+    name: 'ProjectStatusManageModal',
+    props: { pid: { type: String, required: true } },
+    data() {
+      return { draft: [], dragId: null, editing: '', paletteFor: '', renameVal: '', newName: '', delConfirm: '', errMsg: '' };
+    },
+    computed: {
+      colors() { return this.$store.SUB_STATUS_COLORS; },
+    },
+    created() { this.resetDraft(); },
+    methods: {
+      // 打开即以 store 现状建立草稿；「取消」只丢弃草稿，不动 store
+      resetDraft() {
+        this.draft = this.$store.getProjectStatuses(this.pid)
+          .map(s => ({ _id: s._id, name: s.name, color: s.color, builtin: !!s.builtin }));
+      },
+      styleOf(st) { const c = this.$store.statusColorOf(st.color); return { background: c.bg, color: c.fg }; },
+      dotOf(st) { const c = this.$store.statusColorOf(st.color); return { background: c.fg }; },
+      // —— 编辑态：色块可改色（内置「进行中」也可改色，但名称不可改）——
+      startEdit(st) { this.editing = st.name; this.renameVal = st.name; this.paletteFor = ''; this.delConfirm = ''; this.errMsg = ''; },
+      cancelEdit() { this.editing = ''; this.paletteFor = ''; this.errMsg = ''; },
+      submitEdit(st) {
+        const v = (this.renameVal || '').trim();
+        if (!v) { this.errMsg = '名称不能为空'; return; }
+        if (v === '已完成') { this.errMsg = '与内置状态重名'; return; }
+        if (v !== st.name && this.draft.some(x => x.name === v)) { this.errMsg = '已存在同名状态'; return; }
+        st.name = v;
+        this.editing = ''; this.paletteFor = ''; this.errMsg = '';
+      },
+      togglePalette(name) { this.paletteFor = (this.paletteFor === name) ? '' : name; },
+      pickColor(name, key) {
+        const st = this.draft.find(x => x.name === name);
+        if (st) st.color = key;
+        this.paletteFor = '';
+      },
+      // —— 删除（草稿内移除，保存时才真正回退本项目子任务）——
+      askDel(st) { this.delConfirm = st.name; this.editing = ''; },
+      delDraft(st) {
+        this.draft = this.draft.filter(x => x._id !== st._id);
+        this.delConfirm = ''; this.editing = ''; this.paletteFor = '';
+      },
+      // —— 新增（同样先入草稿，并直接进入编辑态方便改色）——
+      addDraft() {
+        const v = (this.newName || '').trim();
+        this.errMsg = '';
+        if (!v) return;
+        if (v === '进行中' || v === '已完成') { this.errMsg = '「进行中 / 已完成」为内置状态，无需添加'; return; }
+        if (this.draft.some(x => x.name === v)) { this.errMsg = '该状态已存在'; return; }
+        this.draft.push({ _id: 'new_' + Math.random().toString(36).slice(2, 9), name: v, color: 'amber', builtin: false });
+        this.newName = '';
+        this.editing = v; this.renameVal = v; this.paletteFor = ''; this.delConfirm = '';
+      },
+      // 拖拽排序（草稿内；与分类管理同范式：HTML5 draggable + dragstart / dragover / drop）
+      reorder(toId) {
+        if (!this.dragId || this.dragId === toId) return;
+        const from = this.draft.findIndex(x => x._id === this.dragId);
+        const to = this.draft.findIndex(x => x._id === toId);
+        if (from < 0 || to < 0) return;
+        const arr = this.draft.slice();
+        arr.splice(to, 0, arr.splice(from, 1)[0]);
+        this.draft = arr;
+        this.dragId = null;
+      },
+      cancel() { this.$emit('close'); },          // 草稿随组件销毁一起丢弃
+      save() {
+        const S = this.$store;
+        const orig = S.getProjectStatuses(this.pid);
+        const origById = {};
+        orig.forEach(o => { origById[o._id] = o; });
+        const keep = {};
+        this.draft.forEach(d => { keep[d._id] = true; });
+        // ① 删除：原清单有、草稿没有的（会同步把本项目该状态子任务回退「进行中」）
+        orig.forEach(o => { if (!keep[o._id]) S.removeProjectStatus(this.pid, o.name); });
+        // ② 新增 / 改名 / 改色
+        this.draft.forEach(d => {
+          const o = origById[d._id];
+          if (!o) { S.addProjectStatus(this.pid, d.name, d.color); return; }
+          if (o.name !== d.name) S.renameProjectStatus(this.pid, o.name, d.name);
+          if (o.color !== d.color) S.setProjectStatusColor(this.pid, d.name, d.color);
+        });
+        // ③ 顺序：按草稿顺序重排（改名后需以新名回填 _id）
+        const after = S.getProjectStatuses(this.pid);
+        const ids = this.draft.map(d => { const a = after.find(x => x.name === d.name); return a ? a._id : null; }).filter(Boolean);
+        if (ids.length === after.length) S.setProjectStatusOrder(this.pid, ids);
+        this.$emit('close');
+      },
+    },
+    template: `
+    <div class="modal-mask" @click.self="cancel">
+      <div class="modal">
+        <div class="modal-head"><h3>状态管理（本项目）</h3><button class="x" @click="cancel">✕</button></div>
+        <div class="modal-body">
+          <!-- 状态行：⠿ 拖柄排序；✏️ 进编辑态后色块可改色（内置仅可改色）；🗑️ 删除 -->
+          <div class="sts-row" v-for="st in draft" :key="st._id" :data-sts="st.name"
+               :draggable="editing !== st.name"
+               @dragstart="dragId=st._id" @dragover.prevent @drop="reorder(st._id)">
+            <span class="sts-drag" title="拖动排序">⠿</span>
+            <template v-if="editing===st.name">
+              <button type="button" class="sts-dot" :style="dotOf(st)" @click="togglePalette(st.name)" title="点击改颜色"></button>
+              <input class="sts-name-edit" v-if="!st.builtin" v-model="renameVal" @keyup.enter.stop="submitEdit(st)" />
+              <span class="sts-name" v-else>{{ st.name }}</span>
+              <span class="sts-spacer"></span>
+              <button class="btn-mini" @click="submitEdit(st)">✓</button>
+              <button class="btn-mini" @click="cancelEdit">✕</button>
+            </template>
+            <template v-else-if="delConfirm===st.name">
+              <span class="sts-dot" :style="dotOf(st)"></span>
+              <span class="sts-chip" :style="styleOf(st)">{{ st.name }}</span>
+              <span class="sts-del-tip">删除后本项目该状态的子任务回到「进行中」</span>
+              <button class="btn-mini danger" @click="delDraft(st)">确定删除</button>
+              <button class="btn-mini" @click="delConfirm=''">取消</button>
+            </template>
+            <template v-else>
+              <span class="sts-dot" :style="dotOf(st)"></span>
+              <span class="sts-chip" :style="styleOf(st)">{{ st.name }}</span>
+              <span class="sts-spacer"></span>
+              <button class="btn-mini" @click="startEdit(st)" title="编辑（可改颜色 / 名称）">✏️</button>
+              <button class="btn-mini danger" v-if="!st.builtin" @click="askDel(st)" title="删除状态">🗑️</button>
+            </template>
+          </div>
+          <!-- 调色板：仅编辑态点色块后展开 -->
+          <div class="sts-palette" v-if="paletteFor">
+            <button type="button" v-for="c in colors" :key="c.key" class="sts-swatch" :data-color="c.key"
+              :style="{background:c.bg,color:c.fg,borderColor:c.fg}" @click="pickColor(paletteFor, c.key)">{{ c.label }}</button>
+          </div>
+          <div class="sts-add">
+            <input v-model="newName" placeholder="新增状态，如：待审核 / 受阻" @keyup.enter.stop="addDraft" />
+            <button type="button" class="btn-mini" @click="addDraft">＋ 添加</button>
+          </div>
+          <p class="sts-err" v-if="errMsg">{{ errMsg }}</p>
+          <!-- 取消=丢弃本次全部改动；保存=一次性写入 -->
+          <div class="modal-actions" style="display:flex;gap:8px;justify-content:flex-end;">
+            <button class="btn ghost" @click="cancel">取消</button>
+            <button class="btn primary" @click="save">保存</button>
           </div>
         </div>
       </div>
@@ -17247,7 +17530,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div v-if="!subs.length" class="tagpie-empty">还没有子任务，先添加子任务并打上标签吧</div>
       <div v-else-if="!hasData" class="tagpie-empty">
         暂无耗时数据<br />
-        在子任务卡片点「填报」记录每次花费的时间，这里就会生成分布图
+        在子任务卡片点击即可记录每次花费的时间，这里就会生成分布图
       </div>
       <template v-else>
         <div class="tagpie-body">
@@ -18230,7 +18513,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectDetailPage = {
     name: 'ProjectDetailPage',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
-    components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie, ProjectSubTotals: C.ProjectSubTotals },
+    components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie, ProjectSubTotals: C.ProjectSubTotals, ProjectStatusManageModal: C.ProjectStatusManageModal },
     props: { pid: { type: String, required: true }, ideaId: { type: String, default: '' }, subId: { type: String, default: '' } },
     data() {
       return {
@@ -18245,6 +18528,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         showSubEdit: false, editSid: '', seedTitle: '', pickIdeaId: '', subSeedTags: [],
         showRecord: false, recordSid: '',
         showIdeaEdit: false, editIdeaId: '',
+        showStatusManage: false,   // 本项目子任务状态管理（排序 / 颜色）
         // 子任务卡片手势
         subDragId: null, subStartX: 0, subX: 0, subMoved: false, subSuppress: false, subLongTimer: null,
         // 灵感素材卡片手势
@@ -18372,7 +18656,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       openIdeaNew() { this.editIdeaId = ''; this.showIdeaEdit = true; },
       openIdeaEdit(i) { this.editIdeaId = i.idea_id; this.showIdeaEdit = true; },
       pickIdea(i) { this.editSid = ''; this.seedTitle = i.title; this.pickIdeaId = i.idea_id; this.subSeedTags = []; this.showSubEdit = true; },
-      // 子任务卡片：长按=编辑；左滑=归档（弹「已全部完成 / 已放弃」选择，不自动拉满进度）；右滑=撤销归档（未归档时仍为撤销完成）
+      // 子任务卡片手势（条目上不再放操作按钮，全部走手势）：点击=填报；长按=编辑；
+      // 左滑=归档（弹「已全部完成 / 已放弃」选择，不自动拉满进度）；右滑=撤销归档（未归档时仍为撤销完成）
       onSubDown(s, ev) {
         this.subDragId = s.sid;
         this.subStartX = ev.clientX;
@@ -18493,6 +18778,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.isSubComplete(s)) return 'done';
         return (s.status && s.status !== '进行中') ? 'custom' : '';
       },
+      // 状态配色（数据驱动）：已完成恒灰；其余取本项目为该状态配置的调色板色（未知状态琥珀兜底）
+      subStatusStyle(s) {
+        const c = this.$store.statusStyleOf(this.pid, this.subStatusLabel(s));
+        return { background: c.bg, color: c.fg };
+      },
       // —— 已花费时间：数值 / 文案 / 进度条宽度 ——
       spentMin(s) { return this.$store.subSpentMin(s); },
       spentText(s) { return this.$store.fmtSpent(this.spentMin(s)); },
@@ -18569,6 +18859,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="proj-top-actions subtop-actions" v-if="tab==='sub'" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;position:relative;">
         <button class="btn primary" style="flex:1;" @click="openSubNew">＋ 新增子任务</button>
         <button class="icon-btn" :class="{on: filterTags.length > 0}" @click="toggleTagbar" title="标签筛选（多选）" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">🏷️</button>
+        <button class="icon-btn" @click="showStatusManage=true" title="状态管理（排序 / 颜色）" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">⚙️</button>
         <button class="icon-btn" :class="{on: view==='gantt'}" @click="toggleGantt" title="时间可视化（甘特图 / 标签耗时）" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">📅</button>
         <!-- 标签筛选下拉：多选（点击切换选中，不关菜单） -->
         <div class="sort-menu" v-if="tagbarOpen && subTags.length" style="position:absolute;right:0;top:100%;z-index: var(--z-pop);background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:180px;max-height:280px;overflow-y:auto;">
@@ -18582,10 +18873,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
              :style="{ transform: 'translateX(' + (subDragId===s.sid ? subX : 0) + 'px)' }"
              :class="{ dragging: subDragId===s.sid && subMoved, done: isSubComplete(s) && !s.is_archived, 'done-sub': isSubComplete(s) && !s.is_archived, archived: s.is_archived, 'emergency-bg': isEmg(s), 'sub-flash': highlightSubId===s.sid }"
              @pointerdown="onSubDown(s,$event)" @pointermove="onSubMove($event)"
-             @pointerup="onSubUp()" @pointercancel="onSubUp()">
-          <div class="psub-top" @click="onSubMainClick(s)">
+             @pointerup="onSubUp()" @pointercancel="onSubUp()" @click="onSubMainClick(s)">
+          <!-- 点击处理器必须挂在 .psub 上：onSubDown 会对卡片 setPointerCapture，
+               Chromium 会把后续的兼容 click 事件重定向到捕获元素（.psub），
+               挂在 .psub-top 上将永远收不到真实鼠标点击（JS 派发的 .click() 不受影响，易漏测）。 -->
+          <div class="psub-top">
             <div class="psub-title" :class="{ 'arch-abandon': s.is_archived && s.arch_kind==='abandon' }">{{ s.title }}<span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span></div>
-            <span class="psub-status" :class="subStatusClass(s)">{{ subStatusLabel(s) }}</span>
+            <span class="psub-status" :class="subStatusClass(s)" :style="subStatusStyle(s)" :data-status="subStatusLabel(s)">{{ subStatusLabel(s) }}</span>
           </div>
           <!-- 完成量进度条（仅开启目标计划的子任务） -->
           <div class="psub-prog" v-if="subPct(s) !== null">
@@ -18612,11 +18906,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="proj-tags" v-if="s.tags && s.tags.length">
             <span class="ptag" v-for="t in s.tags" :key="t">{{ t }}</span>
           </div>
-          <!-- 操作区：填报入口（含耗时记录）+ 完成 / 撤销；按钮阻断卡片滑动与长按手势 -->
-          <div class="psub-acts" @pointerdown.stop @pointerup.stop @pointercancel.stop>
-            <button class="btn-mini" @click.stop="openRecord(s)">📝 填报</button>
-            <button class="btn-mini" @click.stop="openSubEdit(s)">✎ 编辑</button>
-          </div>
         </div>
         <p v-if="!subs.length && filterTags.length" class="empty-tip clickable" @click="clearTag">所选 {{ filterTags.length }} 个标签下暂无子任务，点此清除筛选</p>
         <p v-else-if="!subs.length" class="empty-tip">还没有子任务，点「新增子任务」添加（全部平级，不支持多级嵌套）</p>
@@ -18635,8 +18924,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
              :style="{ transform: 'translateX(' + (ideaDragId===i.idea_id ? ideaX : 0) + 'px)' }"
              :class="{ dragging: ideaDragId===i.idea_id && ideaMoved, 'idea-flash': highlightIdeaId===i.idea_id }"
              @pointerdown="onIdeaDown(i,$event)" @pointermove="onIdeaMove($event)"
-             @pointerup="onIdeaUp()" @pointercancel="onIdeaUp()">
-          <div class="pidea-top" @click="onIdeaMainClick(i)">
+             @pointerup="onIdeaUp()" @pointercancel="onIdeaUp()" @click="onIdeaMainClick(i)">
+          <!-- 同 .psub：onIdeaDown 对卡片 setPointerCapture，兼容 click 会被重定向到 .pidea，
+               处理器必须挂在卡片本身，挂在 .pidea-top 上收不到真实鼠标点击。 -->
+          <div class="pidea-top">
             <div class="pidea-title">{{ i.title }}</div>
             <span class="idea-badge picked" v-if="i.is_picked">已领取</span>
             <button class="link-ico" v-if="isValidMaterialLink(i.link)" @pointerdown.stop @click.stop="openMaterialLink(i.link)" title="打开素材链接" aria-label="打开素材链接">🔗</button>
@@ -18650,6 +18941,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <ProjectRecordModal v-if="showRecord" :sid="recordSid" @close="showRecord=false" />
       <ProjectIdeaEditModal v-if="showIdeaEdit" :pid="pid" :idea-id="editIdeaId" @close="showIdeaEdit=false" />
       <ProjectEditModal v-if="showProjEdit" :pid="pid" @close="showProjEdit=false" />
+      <ProjectStatusManageModal v-if="showStatusManage" :pid="pid" @close="showStatusManage=false" />
 
       <div class="chart-confirm" v-if="ideaChoiceId" @click.self="cancelIdeaChoice">
         <div class="idea-choice-box">
