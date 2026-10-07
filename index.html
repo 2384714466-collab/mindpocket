@@ -254,12 +254,20 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .handcard-remind { opacity: .8; }
 .handcards-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; position: relative; z-index: var(--z-handnav); }
 .hn-page { display: flex; align-items: center; gap: 6px; }
-.hn-arrow { background: #eef0f5; color: var(--text); width: 30px; height: 30px; font-size: 16px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
+.hn-arrow { background: #eef0f5; color: var(--text); width: 34px; height: 30px; font-size: 16px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; }
 .hn-arrow:disabled { opacity: .4; }
 .hn-ind { color: var(--sub); font-size: 12px; min-width: 40px; text-align: center; }
 /* 「回到今日」与日期上下堆叠，置于左右切换箭头中间 */
 .hn-mid { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 0; }
 .hn-mid .hn-back { padding: 3px 8px; font-size: 11px; white-space: nowrap; }
+/* 🧠 专注筛选按钮：与左右切换箭头同尺寸同形，五键保持视觉对称；激活态高亮 */
+.focus-title { display: flex; align-items: center; gap: 8px; cursor: default; }
+/* 控件行撑满屏幕整行：左组(🧠←) / 居中日期 / 右组(→＋)，🧠 紧贴 ←、→ 紧贴 ＋，五个控件同为 30×30 图标键 */
+.focus-controls { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* 左右两侧的成组按键：让 ← 紧贴 🧠、＋ 紧贴 → */
+.fc-side { display: inline-flex; align-items: center; gap: 2px; }
+.focus-brain { font-size: 16px; line-height: 1; cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+.focus-brain.on { background: var(--accent, #4f7cff); color: #fff; box-shadow: 0 0 0 2px rgba(79,124,255,.25); }
 .hn-actions { display: flex; align-items: center; gap: 8px; }
 .hc-btn { background: #f0f1f6; color: var(--text); font-size: 12px; min-height: 30px; padding: 6px 12px; border-radius: var(--radius-sm); line-height: 1.3; }
 .hc-btn:active { background: #e6e8ef; }
@@ -1267,6 +1275,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .delay-hint { margin: 4px 0 2px; color: var(--sub); font-size: 11px; line-height: 1.4; }
 /* 填报统计图表弹窗（只读，左右滑动：周/月统计） */
 .chart-confirm { position: fixed; inset: 0; background: rgba(20,24,40,.55); display: flex; align-items: center; justify-content: center; z-index: var(--z-mask); padding: 20px; }
+/* 编辑愿望弹窗：删除按钮靠左与取消/确认分离（危险操作远离高频确认键，防误触） */
+.wp-edit-acts .del-wish-btn { margin-right: auto; }
 .chart-box { background: #fff; border-radius: var(--radius-md); max-width: 420px; width: 100%; max-height: 86vh; overflow: hidden; box-shadow: 0 10px 40px rgba(0,0,0,.25); display: flex; flex-direction: column; touch-action: pan-y; }
 .chart-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--line); }
 .chart-head h3 { margin: 0; font-size: 16px; }
@@ -1800,6 +1810,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-section { margin-top: 8px; }
 .fin-sec-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 15px; font-weight: 700; color: var(--text); margin: 0 2px 8px; }
 .fin-sec-act { flex: none; }
+/* 「导出本区」按钮（.btn.mini 的小号变体）：压低高度，避免撑高区域标题行 */
+.fin-sec-act .btn.mini { padding: 5px 10px; font-size: 12px; line-height: 1.2; }
 .fin-sec-title-grp { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
 .fin-sec-sum { font-size: 13px; font-weight: 700; color: #6a7bff; white-space: nowrap; }
 .fin-sec-sum.neg { color: #ef4444; }
@@ -1811,8 +1823,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .fin-mod-drag { flex: none; color: var(--sub); cursor: grab; user-select: none; font-size: 16px; line-height: 1; padding: 0 4px; opacity: 0.5; touch-action: none; }
 .fin-mod-drag:active { opacity: 1; cursor: grabbing; }
 .fin-mod.is-drag { box-shadow: 0 6px 18px rgba(40,50,90,.18); transform: scale(1.01); position: relative; z-index: var(--z-drag); }
-.fin-mod-btns { display: flex; align-items: center; gap: 6px; margin-left: auto; }
-.fin-ibtn { flex: none; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 17px; line-height: 1; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); cursor: pointer; transition: background .15s ease, transform .1s ease, box-shadow .15s ease; }
+.fin-mod-btns { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+/* 模块右上角操作键：缩小一号，避免把左侧名称行撑高（财务 / 职业页共用） */
+.fin-ibtn { flex: none; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-sm); font-size: 14px; line-height: 1; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); cursor: pointer; transition: background .15s ease, transform .1s ease, box-shadow .15s ease; }
 .fin-ibtn.add { background: var(--primary); color: #fff; border-color: var(--primary); }
 .fin-ibtn.add:hover { background: var(--primary-d); }
 .fin-ibtn.edit { background: #f0f1f6; color: var(--sub); }
@@ -1868,8 +1881,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .tag.cat { background: #eef2ff; color: #6a7bff; border: 1px solid #e0e7ff; }
 .modal-x { border: none; background: transparent; font-size: 18px; color: var(--sub); }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
-/* 编辑愿望弹窗：删除按钮靠左与取消/确认分离（危险操作远离高频确认键，防误触） */
-.wp-edit-acts .del-wish-btn { margin-right: auto; }
   /* ============ 职业 Tab ============ */
   .car-tabs { display: flex; gap: 8px; padding: 10px 16px 4px; }
   .car-tabs button { flex: 1; padding: 10px 8px; border: 1px solid var(--line); background: #fff; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; color: var(--sub); cursor: pointer; }
@@ -2281,7 +2292,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   const PRESET_CUSTOM_CATEGORIES = ['好物', '影片', '书籍', '旅游', '学习', '生活', '远期', '到期', '无聊'];
 
   /* ----------------------------- 响应式状态 ----------------------------- */
-  const state = reactive({ revision: 0, habits: [], tasks: [], categories: [], settings: { quickToQuickView: true, autoExtend: false },
+  const state = reactive({ revision: 0, habits: [], tasks: [], categories: [], settings: { quickToQuickView: true, autoExtend: false, focusFilterTags: [] },
     backupError: null,   // 最近一次自动备份失败原因（reactive：供统计页告警框响应式展示）
     projects: [], project_subs: [], project_records: [], project_ideas: [], project_folders: [], sub_custom_statuses: [],
     // 任务表：子任务每日打卡实例（按日期独立生成，历史实例完整留存）
@@ -2450,6 +2461,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.settings = {
         quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
+        focusFilterTags: Array.isArray(s.focusFilterTags) ? s.focusFilterTags : [],
         notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
       };
       // 项目模块四表：兼容旧版 localStorage（不存在则初始化为空数组）
@@ -2918,7 +2930,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       cycle_delay_mode: 'recount',
       doneDates: [],
       doneOverdueDates: [],
-      is_template: false, is_collection: false, showArrangeBtn: true,
+      is_template: false, is_collection: false, showArrangeBtn: true, linkPomodoro: false,
       material_link: '',
       // —— 紧急任务标记：勾选后无视所有日期/周期排序，强制置顶今日Tab，需优先完成 ——
       isEmergency: false,
@@ -3587,6 +3599,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       t.is_archived = false;
       t.archived_at = '';                    // 清空归档日：重新归档时会按新归档当日重算归属
       t.autoArchivedByCopies = false;
+      t.autoArchivedBySubs = false;          // 清「因子任务全部归档而自动归档」标记（若曾由该路径归档）
       restoreArchiveSnapshot(t);
       // ★ 指定月任务的撤销兜底：自动归档发生在「目标月已过期」（autoRollOverdueSpecified 月末归档），
       // 若原样恢复（plan_month 仍指向过期月），下次启动会因窗口过期未完成被再次自动归档（撤销→归档死循环）。
@@ -3879,6 +3892,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (patch && 'material_link' in patch) s.material_link = patch.material_link || '';
     if (patch && 'category_id' in patch) s.category_id = patch.category_id || null;
     if (patch && 'parent_category' in patch) s.parent_category = patch.parent_category || '';
+    // 关联番茄正计时：本函数为字段白名单式 patch，漏此行会导致勾选保存后不落库（编辑子任务路径）
+    if (patch && 'linkPomodoro' in patch) s.linkPomodoro = !!patch.linkPomodoro;
     if (patch && 'cycle' in patch) s.cycle = patch.cycle || null;
     if (s.cycle && !s.cycle._base) s.cycle._base = todayStr(); // 周期锚点缺失时补建（与主任务 updateTask 一致），保证「每 N 天」投射正确
     if (patch && 'isEmergency' in patch) s.isEmergency = !!patch.isEmergency; // 紧急标记：与 addSubTask / 主任务 updateTask 口径一致，编辑子任务紧急标签可正常持久化
@@ -3992,6 +4007,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         s.is_archived = false; s.archived_at = ''; s.is_done = false; s.autoArchivedByCopies = false;
         syncCycleAnchor(s);   // 撤销后按剩余打卡历史重算浮动锚点（最近真实完成日回退）
+        reopenParentIfAutoArchivedBySubs(t);   // 父任务联动：因子任务全归档而自动归档的父任务一并撤回
         persist();
         return;
       }
@@ -4022,6 +4038,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           s.finishHistory = [];
           if (s.cycle) delete s.cycle._anchor;
           // 保留提醒字段
+          reopenParentIfAutoArchivedBySubs(t);   // 父任务联动：因子任务全归档而自动归档的父任务一并撤回
           persist();
           return;
         }
@@ -4033,6 +4050,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       s.doneOverdueDates = [];
       s.archived_copies = [];
       if (s.cycle) delete s.cycle._anchor;
+      reopenParentIfAutoArchivedBySubs(t);   // 父任务联动：因子任务全归档而自动归档的父任务一并撤回
       persist();
     }
   }
@@ -4040,6 +4058,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   //   archived=true → 归档；false → 撤销归档
   //   - 子任务归档：标记该子任务失效；若母本全部子任务均归档，则同步自动归档母本（含其全部周期副本）
   //   - 主任务归档：归档母本 + 批量失效其全部关联周期副本（archiveMasterCopies），同步所有副本 archived 状态
+  // 父任务联动撤销归档：父任务因「子任务全部归档」而自动归档（autoArchivedBySubs 标记，规则③）时，
+  //   撤回任一子任务归档 = 自动归档前提不再成立 → 一并撤销父任务归档。
+  //   轻量恢复：不回滚积分（自动归档路径本就不发分）、不恢复归档快照、不动其余仍归档的子任务；
+  //   手动归档的父任务（无此标记）不受影响。
+  function reopenParentIfAutoArchivedBySubs(t) {
+    if (!t || !t.is_archived || !t.autoArchivedBySubs) return;
+    t.is_archived = false; t.archived_at = ''; t.autoArchivedBySubs = false;
+  }
   function setArchived(id, subId, archived, date) {
     const t = findTask(id);
     if (!t) return;
@@ -4048,7 +4074,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         archiveSubTask(id, subId);
         // 规则③：仅【普通任务】子任务全部完成(归档) → 母本自动归档；模版任务禁用此逻辑（仅手动按钮可归档母本）
         if (!t.is_template && t.sub_tasks.length && t.sub_tasks.every(s => s.is_archived) && !t.is_archived) {
-          archiveMasterCopies(t); t.is_archived = true; t.archived_at = todayStr(); persist(); // 母本随子任务全归档：记录实际归档当日，避免全局已归档仓库按创建日归属
+          archiveMasterCopies(t); t.is_archived = true; t.archived_at = todayStr(); t.autoArchivedBySubs = true; persist(); // 母本随子任务全归档：记录实际归档当日，避免全局已归档仓库按创建日归属
         }
       } else {
         undoArchiveSubTask(id, subId, date);
@@ -4402,6 +4428,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 子任务全部日期副本完成 → 自动归档子任务母本（与主任务 markCopyDone 口径一致）
       if (copiesAllDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_at = today; s.autoArchivedByCopies = true; }
     }
+    // 规则③联动（修复：任务夹父任务在今日页归档全部子任务副本后未自动归档）：
+    // 父任务下全部子任务均已归档 → 父任务母本自动归档（与 setArchived 子任务归档路径完全同口径；
+    // 模版任务禁用——仅手动按钮可归档模版母本）
+    if (!t.is_template && t.sub_tasks.length && t.sub_tasks.every(x => x.is_archived) && !t.is_archived) {
+      archiveMasterCopies(t); t.is_archived = true; t.archived_at = today; t.autoArchivedBySubs = true; // 记录实际归档当日，全局已归档仓库按今日归属
+    }
     persist();
     // 积分联动：子任务副本完成（学习工作类标签 → study_work 积分）
     // 子任务标签：优先使用子任务自身标签，若子任务无标签则向上追溯父任务标签
@@ -4477,6 +4509,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 撤销打卡后未全完成 → 子任务母本退回活跃态（仅自动归档情形）
       if (s.autoArchivedByCopies && s.is_archived && !copiesAllDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
     }
+    // 父任务联动：子任务副本撤销若使子任务母本复活（或其归档前提不成立），
+    // 因「子任务全部归档」而自动归档的父任务一并撤回（与全局归档库按日撤销同口径）
+    reopenParentIfAutoArchivedBySubs(t);
     persist();
   }
   // 周期任务是否存在「已过期的单次出现」尚未完成（用于今日页「延期未完成」标识；仅展示，不影响同步）
@@ -5370,6 +5405,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     while (c) {
       if (c.is_collection) return true;
       if (c.is_task || c.is_template) return false;
+      c = c.parent ? findCategory(c.parent) : null;
+    }
+    return false;
+  }
+  // 一级标签（分类）是否为「学习」：自身或沿父级上溯命中即算（如二级分类的父级是一级「学习」）
+  function isLearningCat(catId) {
+    if (!catId) return false;
+    let c = findCategory(catId);
+    while (c) {
+      if (c.name === '学习') return true;
       c = c.parent ? findCategory(c.parent) : null;
     }
     return false;
@@ -6481,6 +6526,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return (state.project_records || []).filter(r => !r.deleted_at && sids[r.sid])
       .reduce((a, r) => a + (Number(r.spentMin) || 0), 0);
   }
+  // —— 统计口径 · 单条「完成时长」（分钟）——
+  // 实际专注时长优先：番茄正计时写入 spentMin（分钟）；兼容仅存 focusSec（秒）的旧数据。
+  // 无实际时长时回退「提醒时间 → 结束时间」的计划跨度（结束留空则按起始+30 分钟计）。
+  // 全局归档库、年视图时长分布、复盘导出共用此口径，避免多套算法各算各的。
+  function statDurMin(x) {
+    if (x) {
+      const sm = Number(x.spentMin) || 0;
+      if (sm > 0) return Math.round(sm);
+      const fs = Number(x.focusSec) || 0;
+      if (fs > 0) return Math.round(fs / 60);
+    }
+    const start = (x && (x.remind_time || x.sub_remind_time)) || '';
+    let end = (x && (x.remind_end || x.sub_remind_end)) || '';
+    if (!end) {
+      if (!start) return 0;
+      const m = /^(\d{1,2}):(\d{2})$/.exec(start);
+      if (!m) return 0;
+      const mins = Number(m[1]) * 60 + Number(m[2]) + 30;
+      end = String(Math.floor(mins / 60) % 24).padStart(2, '0') + ':' + String(mins % 60).padStart(2, '0');
+    }
+    const pa = /^(\d{1,2}):(\d{2})$/.exec(start), pb = /^(\d{1,2}):(\d{2})$/.exec(end);
+    if (!pa || !pb) return 0;
+    const d = (Number(pb[1]) * 60 + Number(pb[2])) - (Number(pa[1]) * 60 + Number(pa[2]));
+    return d < 0 ? d + 24 * 60 : d;
+  }
   // 项目下全部子任务标签（去重，保持首次出现顺序），供标签筛选栏 / 分布图使用
   function getSubTags(pid) {
     const out = [];
@@ -7494,9 +7564,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (p.length !== 3) return '';
     return p[0] + '-' + pad(Number(p[1])) + '-' + pad(Number(p[2]));
   }
-  // 由任务数据推导其「日期模式」：month / range / day（供 formatTimeLabel 等展示层复用）
+  // 由任务数据推导其「日期模式」：month / range / day / week（供 formatTimeLabel 等展示层复用）
   function dateModeOfTask(t) {
     if (!t) return '';
+    if (t.time_mode === 'week') return 'week';   // 指定周：编辑态需还原「本周/下周/下下周」选择记忆
     if (t.plan_year && t.plan_month) return 'month';
     if (t.date_mode === 'range' || (t.date_start && !t.execute_date)) return 'range';
     if (t.execute_date || t.date_mode === 'single') return 'day';
@@ -7730,13 +7801,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     const f = state.finance;
     if (!f) { state.finance = { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] }; return; }
     ['expenseModules', 'incomeModules', 'expenseEntries', 'incomeEntries', 'depositModules', 'depositEntries'].forEach(k => { if (!Array.isArray(f[k])) f[k] = []; });
+    // 用户主动删除的内置（预设）模块记忆：防止 ensureFinancePresets 在冷启动时按固定 _id 把它们补回来（复活）
+    if (!Array.isArray(f.deletedPresets)) f.deletedPresets = [];
     const exp = FINANCE_PRESET_EXPENSE.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'expense', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
     const inc = FINANCE_PRESET_INCOME.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'income', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
     const dep = FINANCE_PRESET_DEPOSIT.map(p => ({ _id: 'preset_' + p.key, name: p.name, icon: p.icon, type: 'deposit', isPreset: true, amountKey: p.amountKey, fields: p.fields, calcs: p.calcs }));
     // 预设模块与代码定义保持同步：仅当用户数据中尚不存在该预设时才新增；
     // 已存在的预设模块完全保留用户自定义（字段 / 公式 / 名称 / 图标 / 金额字段），刷新后不再被代码预设覆盖
     const syncPreset = (arr, presets) => {
-      presets.forEach(p => { if (!arr.find(m => m._id === p._id)) { p.isPreset = true; arr.push(p); } });
+      presets.forEach(p => {
+        if ((f.deletedPresets || []).indexOf(p._id) >= 0) return; // 用户已删除该内置模块：不再补回
+        if (!arr.find(m => m._id === p._id)) { p.isPreset = true; arr.push(p); }
+      });
     };
     syncPreset(f.expenseModules, exp);
     syncPreset(f.incomeModules, inc);
@@ -7776,6 +7852,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   function removeFinanceModule(id) {
     const f = state.finance;
+    // 内置（预设）模块也允许删除：记录到 deletedPresets，防止冷启动 ensureFinancePresets 按固定 _id 复活
+    const del = f.expenseModules.concat(f.incomeModules).concat(f.depositModules).find(m => m._id === id);
+    if (del && del.isPreset) {
+      if (!Array.isArray(f.deletedPresets)) f.deletedPresets = [];
+      if (f.deletedPresets.indexOf(id) < 0) f.deletedPresets.push(id);
+    }
     f.expenseModules = f.expenseModules.filter(m => m._id !== id);
     f.incomeModules = f.incomeModules.filter(m => m._id !== id);
     f.depositModules = f.depositModules.filter(m => m._id !== id);
@@ -7862,7 +7944,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 闲趣随机卡
     getLeisurePool, categoryChainNames,
     // 分类
-    findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, convertTaskToSubTask, descendantCategoryIds, matchCategory, parseTagString,
+    findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, isLearningCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, convertTaskToSubTask, descendantCategoryIds, matchCategory, parseTagString,
     // 进度记录单位（内置可删除/新增）
     getProgressUnits, addProgressUnit, removeProgressUnit, unitLabelOf, trimNum,
     // 奇想 / 临时任务
@@ -7876,6 +7958,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     getProjectStatuses, statusRankOf, statusStyleOf, ensureProjectStatus,
     addProjectStatus, removeProjectStatus, renameProjectStatus, setProjectStatusColor, setProjectStatusOrder, moveProjectStatus,
     ensureTaskBoardInstances, getTaskBoardInstances, updateTaskBoardInstance, stopTaskBoardTimer,
+    statDurMin,
     addIdea, updateIdea, removeIdea, pickIdea,
     addTaskIdea, getTaskIdeas,
     getProjects, getSubs, getIdeas, projectProgress, projectCountdown, subProgress,
@@ -7995,6 +8078,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       state.settings = {
         quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
         autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
+        focusFilterTags: Array.isArray(s.focusFilterTags) ? s.focusFilterTags : [],
         notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
       };
       state.projects = normArr(o.projects);
@@ -9738,6 +9822,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (mode === 'week') {
       // 指定周：冻结「绝对目标 ISO 周」(plan_year/plan_week)，不绑定具体日期；time_mode='week' 进入周看板。
       // 存绝对周 → 随时间自然迁移：到那一周时自动落入「本周」分组（不再永远停在「下周」）；week_offset 仍保留作标识。
+      // 编辑态草稿已回填 plan_year/plan_week（冻结绝对目标周）→ 原样保留，确保「上一次记忆」精确一致、不随编辑时刻漂移；
+      // 新建 / 仅 week_offset 时按相对当前周重新冻结。
+      if (d.plan_year != null && d.plan_week != null) {
+        return { date_mode: 'week', time_mode: 'week', week_offset: (d.week_offset == null ? 0 : d.week_offset), plan_year: d.plan_year, plan_month: null, plan_week: d.plan_week, execute_date: null, date_start: '', date_end: '', cycle: null };
+      }
       const off = (d.week_offset == null ? 0 : d.week_offset);
       const U = window.MPStore.util;
       const base = U.parseDate(U.todayStr());
@@ -9752,6 +9841,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 由已有任务推导编辑态 date_mode（用于初始化 draft）
   function dateModeOfTask(t) {
     if (!t) return '';
+    if (t.time_mode === 'week') return 'week';   // 指定周：编辑态需还原「本周/下周/下下周」选择记忆
     if (t.plan_year && t.plan_month) return 'month';
     if (t.date_mode === 'range' || (t.date_start && !t.execute_date)) return 'range';
     if (t.execute_date || t.date_mode === 'single') return 'day';
@@ -9779,8 +9869,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         cycleStartBlur: false,
       };
     },
-    created() {
-      if (this.draft.cycle) this.timeTab = 'cycle';
+      created() {
+        // 分类切换时：一旦切到「学习」（自身或父级为「学习」）即自动勾选关联番茄正计时；
+        // 切到非学习分类时保持用户当前选择、不自动取消（尊重手动勾选）。
+        // 覆盖「弹窗内手动选/改分类」场景——不止入口预填分类（_learn 初始值）才生效。
+        // 用 getter 形式 $watch：draft 是 prop 对象，选项式点路径 watch 对 prop 嵌套不触发。
+        this.$watch(
+          () => (this.draft ? this.draft.category_id : null),
+          (v) => { if (this.draft && this.$store.isLearningCat(v || null)) this.draft.linkPomodoro = true; }
+        );
+        if (this.draft.cycle) this.timeTab = 'cycle';
       else if (this.draft.date_mode) this.timeTab = 'date';
       // 从列表标签头 ➕ 等入口进入且已预填分类时，自动展开高级设置与标签输入区，使「已选标签」可见
       if (this.draft.category_id) { this.advOpen = true; this.grp.tag = true; }
@@ -9887,8 +9985,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 标签组：有分类或有标签输入
         const hasTag = !!(d.category_id || d.tagInput);
         if (hasTag) { this.grp.tag = true; any = true; }
-        // 时间组：有日期或周期
-        const hasTime = !!(d.cycle || d.execute_date || d.date_start || d.plan_month || d.date_mode === 'single');
+        // 时间组：有日期或周期（含「指定周」：time_mode==='week' 或 date_mode==='week'）
+        const hasTime = !!(d.cycle || d.execute_date || d.date_start || d.plan_month || d.date_mode === 'single' || d.date_mode === 'week' || d.time_mode === 'week');
         if (hasTime && !this.hideTime) { this.grp.time = true; any = true; }
         // 进度记录：已开启
         if (d.progress_info && d.progress_info.enable) any = true;
@@ -10172,7 +10270,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <label class="fld">结束日期<input type="text" v-model="draft.date_end" placeholder="YYYY-MM-DD" @blur="draft.date_end=$store.util.autoFormatDate(draft.date_end)" :class="{invalid: draft.date_end && !$store.util.validateDateInput(draft.date_end).ok}" /></label>
                   </div>
                   <div class="week-pick" v-if="draft.date_mode==='week'">
-                    <span class="tip">归属周（不绑定具体日期，仅进入周看板）：</span>
+                    <span class="tip">归属周：</span>
                     <div class="seg">
                       <button :class="{on: draft.week_offset===0}" @click="setWeekOffset(0)">本周</button>
                       <button :class="{on: draft.week_offset===1}" @click="setWeekOffset(1)">下周</button>
@@ -10247,6 +10345,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </template>
             </div>
           </div>
+          <!-- 关联番茄正计时：勾选后任务表条目右侧展示 ⏱ 全屏专注计时（复用任务表计时按钮）；学习标签默认勾选 -->
+          <div class="board-group sub">
+            <div class="grp-body">
+              <label class="fld check"><input type="checkbox" v-model="draft.linkPomodoro" /> 关联番茄正计时（勾选后任务表条目展示 ⏱ 计时）</label>
+            </div>
+          </div>
           <!-- 安排按钮：是否在条目上显示「安排」按钮（默认勾选；取消则所有场景隐藏）——置于启动进度记录之后 -->
           <div class="board-group sub">
             <div class="grp-body">
@@ -10298,10 +10402,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const _parsed = _cat ? (_hasL2
         ? [{ l1: { _id: _parent._id, name: _parent.name }, l2: { _id: _cat._id, name: _cat.name }, l3: null }]
         : [{ l1: { _id: _cat._id, name: _cat.name }, l2: null, l3: null }]) : [];
+      // 「关联番茄正计时」默认：学习标签（一级分类或其父级为「学习」）默认勾选，其余默认不勾
+      const _learn = window.MPStore.isLearningCat(_cat ? _cat._id : null);
       return {
         draft: {
           title: '', desc: '', material_notes: '', material_link: '',
           category_id: this.categoryId || '',
+          linkPomodoro: _learn,
           parent_category: _parent ? _parent._id : '',
           folderType: this.folderType || 'task',
           tagInput: _tagText, parsedTags: _parsed, level3Hint: '',
@@ -10363,6 +10470,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           material_link: this.draft.material_link || '',
           category_id: this.draft.category_id || null,
           parent_category: this.draft.parent_category || '',
+          // 关联番茄正计时：此前漏写该字段 → 新建任务时勾选框的取值永不落库（恒为 addTask 默认 false）
+          linkPomodoro: !!this.draft.linkPomodoro,
           is_template: this.draft.folderType === 'template',
           is_collection: this.draft.folderType === 'collection',
           enable_remind: !!this.draft.enable_remind,
@@ -10435,11 +10544,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         confirmSubDate: null, confirmSubDone: false,
         // 执行历史：补卡选择（延期完成 / 按时完成）弹窗
         makeupSubDate: null,
+        // 关联番茄正计时：用户是否已手动改动过开关（用于分类切换时是否自动套用「学习默认勾选」）
+        linkTouched: false,
       };
     },
     computed: {
       sub() { const t = this.$store.findTask(this.taskId); return t ? (t.sub_tasks.find(s => s._id === this.subId) || null) : null; },
       isNew() { return !this.subId; },
+      // 子任务本身无分类归属 → 「学习标签默认勾选」需沿父任务分类判定
+      parentCatId() { const t = this.$store.findTask(this.taskId); return t ? (t.category_id || null) : null; },
       // 执行历史：枚举全部生成日期（与主任务 execHistory 口径一致）
       // 周期任务按 cycle_end_date 生成完整区间；区间任务按起止日枚举；每个日期标注完成/延期状态
       finishHist() {
@@ -10503,7 +10616,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     created() {
       const s = this.sub;
-      const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: '', progress_value: '' }, isEmergency: false, hasCheckbox: true, week_offset: null, time_mode: null, cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0, cycle_start_date: '', cycle_delay_mode: 'recount' };
+      const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: '', progress_value: '' }, isEmergency: false, hasCheckbox: true, week_offset: null, time_mode: null, cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0,       // 新建子任务：自身无分类，按【父任务分类】是否为「学习」决定默认勾选关联番茄正计时
+      cycle_start_date: '', cycle_delay_mode: 'recount', linkPomodoro: this.$store.isLearningCat(this.parentCatId) };
       if (s) {
         this.form = Object.assign({}, base, {
           title: s.title || '',
@@ -10511,6 +10625,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           material_notes: s.material_notes || '',
           material_link: s.material_link || '',
           category_id: s.category_id || null,
+          // 关联番茄正计时：与展示层同一套 opt-out 口径——仅显式 false 视为关闭
+          linkPomodoro: s.linkPomodoro !== false,
           parent_category: s.parent_category || '',
           date_mode: dateModeOfTask(s),
           plan_month: (s.plan_year && s.plan_month) ? (s.plan_year + '-' + String(s.plan_month).padStart(2, '0')) : (s.plan_month || ''),
@@ -10523,8 +10639,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           progress_info: s.progress_info ? JSON.parse(JSON.stringify(s.progress_info)) : { enable: false, media_type: '', progress_value: '' },
           isEmergency: !!s.isEmergency,
           hasCheckbox: s.hasCheckbox !== false,
-          week_offset: (s.week_offset != null) ? s.week_offset : null,
+          week_offset: (s.plan_year != null && s.plan_week != null) ? (() => {
+            const U = this.$store.util;
+            const a = U.weekRange(s.plan_year, s.plan_week).start;
+            const cur = U.isoWeek(U.parseDate(U.todayStr()));
+            const b = U.weekRange(cur.year, cur.week).start;
+            return Math.round((a - b) / 86400000 / 7);
+          })() : (s.week_offset != null ? s.week_offset : null),
           time_mode: s.time_mode || null,
+          // 指定周：回填「冻结绝对目标周」+ 相对偏移，使编辑页还原「本周/下周/下下周」记忆（与卡片标签一致）
+          plan_year: (s.plan_year != null) ? s.plan_year : null,
+          plan_week: (s.plan_week != null) ? s.plan_week : null,
           cycle_end_date: s.cycle_end_date || '',
           cycle_end_mode: s.cycle_end_mode || (s.cycle_end_date ? 'date' : ''),
           cycle_end_count: s.cycle_end_count || 0,
@@ -10537,6 +10662,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 浮层栈：作为弹窗登记 dismiss，系统返回优先关闭本弹窗（返回父任务页，不改写路由）
       this._overlayDismiss = () => this.$emit('close');
       this.$root.pushOverlay(this._overlayDismiss);
+    },
+    watch: {
+      // 分类切换时：若用户未手动改动过关联番茄开关，则按「学习标签默认勾选」自动套用
+      'form.category_id'(v) { if (this.form && !this.linkTouched) this.form.linkPomodoro = this.$store.isLearningCat(v || this.parentCatId); },
+      // 仅当「显式 false」或与自动推导值不一致时才算用户手动改过；
+      // 存量数据默认勾选（true）不应被误判为手动改动，否则会锁死上面的自动套用
+      'form.linkPomodoro'(v) { if (this.form && !v) this.linkTouched = true; },
     },
     methods: {
       // 执行历史打卡/撤销核心逻辑（与主任务 toggleOccurrence 口径一致）
@@ -10610,6 +10742,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           material_notes: this.form.material_notes || '',
           material_link: this.form.material_link || '',
           category_id: this.form.category_id || null,
+          linkPomodoro: !!this.form.linkPomodoro,
           parent_category: this.form.parent_category || '',
           // 周期规则存前归一化分隔符（逗号 → 空格），与 TaskFormCore / 主任务详情保存口径一致；
           // 存储结构 {type, rule} 不变（仅 rule 文本归一化），保留原有周期数值逻辑
@@ -10681,7 +10814,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="modal modal-lg">
         <div class="modal-head"><h3>{{ isNew ? '新增子任务' : '编辑子任务' }}</h3><button class="x" @click="$emit('close')">✕</button></div>
         <div class="modal-body" v-if="form">
-          <TaskFormCore ref="tfc" :draft="form" :hide-tag="true" />
+          <!-- auto-expand-filled：与主任务详情一致——长按进入编辑时，凡已有记录的折叠组（含「指定周」时间组）自动展开，还原上一次的记忆 -->
+          <TaskFormCore ref="tfc" :draft="form" :hide-tag="true" :auto-expand-filled="true" />
           <div class="edit-toggle">
             <label class="switch">
               <input type="checkbox" v-model="form.hasCheckbox" />
@@ -11248,8 +11382,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       winEnd: { type: String, default: '' },
       inWeek: { type: Boolean, default: false },
       overdue: { type: Boolean, default: false },
+      // —— 关联番茄正计时：仅「今日」tab 传入 true，给普通子任务副本显示 ⏱ 计时按钮 ——
+      showTimer: { type: Boolean, default: false },
+      // 该副本是否正处于专注计时态（由父页传入，驱动 ⏱ 高亮）
+      timing: { type: Boolean, default: false },
     },
-    emits: ['archive', 'unarchive', 'edit', 'extend'],
+    emits: ['archive', 'unarchive', 'edit', 'extend', 'timer'],
     components: { WeekScheduleBtn: C.WeekScheduleBtn, MaterialBadges: C.MaterialBadges },
     data() {
       return {
@@ -11371,9 +11509,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="row-title">
           <span class="rt-text">{{ sub.title }}</span><span class="rt-badges"><span v-if="sub.isEmergency" class="tag emergency">🚨 紧急</span><MaterialBadges :item="sub" :parent-id="parent ? parent._id : ''" /><span v-if="hasCycle" class="tag cycle">🔁</span><span v-if="capsule" class="cap" :class="'cap-'+capsule.kind"><span class="cap-ico">{{ capsule.icon }}</span><span class="cap-txt">{{ capsule.text }}</span></span></span>
         </div>
-        <div class="row-sub subtask-desc">{{ sub.desc || '无描述' }}<span v-if="(sub.overdueUnfinished || cycleOverdueUnfinished) && !parentOverdue" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in catChips" :key="tg">{{ tg }}</span><span v-if="parentCap" class="cap" :class="'cap-'+parentCap.kind"><span class="cap-ico">{{ parentCap.icon }}</span><span class="cap-txt">{{ parentCap.text }}</span></span></div>
+        <div class="row-sub subtask-desc">{{ sub.desc || '无描述' }}<span v-if="(sub.overdueUnfinished || cycleOverdueUnfinished) && !parentOverdue" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in catChips" :key="tg">{{ tg }}</span><span v-if="parentCap" class="cap" :class="'cap-'+parentCap.kind"><span class="cap-ico">{{ parentCap.icon }}</span><span class="cap-txt">{{ parentCap.text }}</span></span><span v-if="sub.spentMin > 0" class="tag pomodoro">🍅 {{ sub.spentMin }}min</span></div>
         <div class="row-prog prog-sync" v-if="$progressSync(sub)">📊 {{ $progressSync(sub) }}</div>
       </div>
+      <button class="tb-ico" :class="{on: timing}" v-if="showTimer && sub.linkPomodoro !== false && !sub.done && !sub.cycle" @click.stop="$emit('timer', sub._id, parentId)" :title="timing ? '专注计时中' : '开始专注计时'">⏱</button>
       <WeekScheduleBtn v-if="inWeek" :task="sub" :sub-id="sub._id" :parent-id="parentId" />
     </div>`,
   };
@@ -11659,6 +11798,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         tagInput, parsedTags,
         date_mode: dateModeOfTask(t),
         plan_month: (t.plan_year && t.plan_month) ? (t.plan_year + '-' + String(t.plan_month).padStart(2, '0')) : (t.plan_month || ''), execute_date: t.execute_date || '', date_start: t.date_start || '', date_end: t.date_end || '',
+        // 指定周：回填「冻结绝对目标周」+ 相对偏移，使编辑页还原「本周/下周/下下周」记忆（与卡片标签一致）
+        // 相对偏移用 this.$store.util（weekRange/isoWeek 已暴露）内联计算，避免直接调用 store 闭包内私有函数导致 ReferenceError
+        week_offset: (t.plan_year != null && t.plan_week != null) ? (() => {
+          const U = this.$store.util;
+          const a = U.weekRange(t.plan_year, t.plan_week).start;
+          const cur = U.isoWeek(U.parseDate(U.todayStr()));
+          const b = U.weekRange(cur.year, cur.week).start;
+          return Math.round((a - b) / 86400000 / 7);
+        })() : (t.week_offset != null ? t.week_offset : null),
+        time_mode: t.time_mode || null,
+        plan_year: (t.plan_year != null) ? t.plan_year : null,
+        plan_week: (t.plan_week != null) ? t.plan_week : null,
         enable_remind: !!t.enable_remind,
         remind_time: t.remind_time || '',
         cycle: t.cycle ? JSON.parse(JSON.stringify(t.cycle)) : null,
@@ -11670,6 +11821,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         progress_info: t.progress_info ? JSON.parse(JSON.stringify(t.progress_info)) : { enable: false, media_type: 'book', progress_value: '' },
         is_template: !!t.is_template,
         isEmergency: !!t.isEmergency,
+        linkPomodoro: t.linkPomodoro !== false,
         showArrangeBtn: t.showArrangeBtn !== false,
       };
       this.snapshot = JSON.parse(JSON.stringify(t));
@@ -11710,6 +11862,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             is_template: this.form.folderType === 'template',
             is_collection: this.form.folderType === 'collection',
             isEmergency: !!this.form.isEmergency,
+            linkPomodoro: !!this.form.linkPomodoro,
             showArrangeBtn: this.form.showArrangeBtn !== false,
           });
           this.$store.convertTaskToSubTask(this.taskId, this.form.level3Chain, fields);
@@ -11735,6 +11888,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           is_template: this.form.folderType === 'template',
           is_collection: this.form.folderType === 'collection',
           isEmergency: !!this.form.isEmergency,
+          // 关联番茄正计时：本弹窗为【主任务编辑】入口（今日长按主任务即开）；
+          // 漏此行 → 勾选后保存被静默丢弃，表现为「勾选保存不生效 / 没有记忆 / 今日行 ⏱ 不展示」
+          linkPomodoro: !!this.form.linkPomodoro,
           showArrangeBtn: this.form.showArrangeBtn !== false,
         }));
         // 保存后兜底：若编辑了 cycle_end_date 且此时全部日期已打卡完成 → 立即触发自动归档
@@ -12419,9 +12575,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       confirmAdd() { const name = (this.addName || '').trim(); const cost = parseInt(this.addCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.addWishItem({ name, cost, count_type: this.addCountType }); this.closeAdd(); },
       openEdit(wishId) { const item = this.$store.state.wish_items.find(w => w._id === wishId); if (!item) return; this.editWishId = wishId; this.editName = item.name; this.editCost = String(item.cost); this.editCountType = item.count_type || 'one_time'; this.delWishConfirm = false; this.showEditModal = true; },
       closeEdit() { this.showEditModal = false; this.editWishId = null; this.delWishConfirm = false; },
-      confirmEdit() { if (this.editExhausted) return; const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType }); this.$store.incrementEditCount(); this.closeEdit(); },
-      // —— 删除愿望（编辑弹窗内入口，二次确认防误触；不占用每月修改窗口的编辑次数，兑换历史记录仍保留可追溯）——
-      askDelWish() { this.delWishConfirm = true; },
+      confirmEdit() { const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType }); this.$store.incrementEditCount(); this.closeEdit(); },
+      // —— 删除愿望（仅在每月 1–3 号编辑窗口内可用；窗口外按钮 :disabled 不可点）；二次确认防误触 ——
+      askDelWish() { if (this.editExhausted) return; this.delWishConfirm = true; },
       doDelWish() { if (!this.delWishConfirm || !this.editWishId) return; this.$store.removeWishItem(this.editWishId); this.delWishConfirm = false; this.closeEdit(); },
       toggleHist() { this.histOpen = !this.histOpen; this.saveCard(); },
       // 撤销兑换（兑换即生效：任何未撤销的兑换记录均可撤销返还积分）
@@ -12459,7 +12615,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     </div>
   </div>
   <div class="wp-body" v-show="cardOpen">
-    <p class="wp-quota" :class="{ closed: !editWindowOpen }">愿望修改开放日：每月 <strong>1–3 号</strong>（当前{{ editWindowOpen ? '✅ 可修改（不限次数）' : '⛔ 未开放，仅 1–3 号可改' }}），本月已修改 {{ editCountThisMonth }} 次</p>
+    <p class="wp-quota" :class="{ closed: !editWindowOpen }">愿望修改开放日：名称/积分/删除仅每月 <strong>1–3 号</strong> 可操作（不限次数）；<strong>愿望类型</strong> 不受此限制、随时可改。本月已修改 {{ editCountThisMonth }} 次</p>
     <button class="wp-add-btn" @click="openAdd">＋添加愿望</button>
     <div class="wp-list" v-if="items.length">
       <div class="wp-row-wrap" v-for="item in items" :key="item._id">
@@ -12582,16 +12738,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 <div class="modal-mask" v-if="showEditModal" @click.self="closeEdit">
   <div class="modal"><div class="modal-head"><h3>编辑愿望</h3><button class="x" @click="closeEdit">✕</button></div>
     <div class="modal-body">
-      <div class="wp-edit-limit" v-if="editExhausted">愿望只能在每月 <strong>1–3 号</strong> 修改（不限次数），当前不在修改开放日，暂不能修改。添加新愿望不受此限制。</div>
+      <div class="wp-edit-limit" v-if="editExhausted">愿望名称与所需积分仅在每月 <strong>1–3 号</strong> 可修改、删除愿望同理；<strong>愿望类型</strong> 不受此限制、可随时调整。添加新愿望均不受此限制。</div>
       <div class="fld"><label>愿望名称</label><input v-model="editName" placeholder="愿望名称" :disabled="editExhausted" /></div>
       <div class="fld"><label>所需积分（正整数）</label><input v-model="editCost" type="number" placeholder="积分数量" min="1" :disabled="editExhausted" /></div>
       <div class="fld"><label>愿望类型</label>
-        <select v-model="editCountType" :disabled="editExhausted"><option value="one_time">一次性愿望（兑换后自动归档）</option><option value="repeatable">循环愿望（可重复兑换）</option></select>
+        <select v-model="editCountType"><option value="one_time">一次性愿望（兑换后自动归档）</option><option value="repeatable">循环愿望（可重复兑换）</option></select>
       </div>
       <div class="modal-actions wp-edit-acts">
-        <button class="btn danger del-wish-btn" @click="askDelWish">删除愿望</button>
+        <button class="btn danger del-wish-btn" @click="askDelWish" :disabled="editExhausted">删除愿望</button>
         <button class="btn ghost" @click="closeEdit">取消</button>
-        <button class="btn primary" @click="confirmEdit" :disabled="editExhausted || !editName.trim() || !editCost || +editCost <= 0">确认修改</button>
+        <button class="btn primary" @click="confirmEdit" :disabled="!editName.trim() || !editCost || +editCost <= 0">确认修改</button>
       </div>
     </div>
   </div>
@@ -12679,11 +12835,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // —— 周/月计划区块 ➕ 新建：预填时间窗口（与看板时间标签 ➕ 同步）——
       taskAddCat: '', taskAddPreset: '', taskAddMonth: null, taskAddDate: '', taskAddWeek: null,
       // —— 滑动打卡窗口：本周/本月区块传入所在周期窗口，今日区块为空（回落 selectedDate）——
-      dragWin: null }; },
+      dragWin: null,
+      // —— 关联番茄正计时：今日页「任务/子任务」专注计时态（仅本地，落盘仅记累计时长）——
+      // focusSub = { kind: 'task'|'sub', taskId, subId }；kind='task' 时无 subId
+      focusSub: null, focusStart: 0, focusNow: Date.now(),
+      // —— 🧠 专注筛选：单击开关专注模式（按范围过滤今日待办）；长按🧠进入筛选范围编辑（复用闲趣卡标签多选设计）——
+      // focusMode 为会话态（每日手动开关）；focusFilterTags 经 settings 持久化（长按编辑后保存记忆，下次开启直接套用）
+      focusMode: false, focusPickerOpen: false, focusEditTags: [], _focusLP: false, _focusTimer: null }; },
     created() {
-      this.selectedDate = this.$store.util.todayStr();
-      // 该日无待办时，周计划看板默认展开；其余情况保持原折叠设计（待归档的周计划看板为独立组件，不受影响）
-      this.planOpen.week = this.noDayTasks;
+      // —— 原路返回恢复视图：从子任务页（#/subtask/...）返回今日时，还原离开前的
+      //    专注筛选开关 / 按日查看日期 / 周月折叠开合，避免「进子任务页再返回，今日页回到默认视图」——
+      //    与 App 层滚动位置原路恢复同一语义；快照存 store 实例属性（组件销毁不丢、不落盘）
+      const _vc = this.$store._todayViewCache;
+      const _childReturn = !!(this.$root.prevRoute && this.$root.prevRoute.indexOf('/subtask/') === 0);
+      if (_childReturn && _vc) {
+        this.focusMode = !!_vc.focusMode;
+        this.selectedDate = _vc.selectedDate || this.$store.util.todayStr();
+        this.planOpen = Object.assign({ week: false, month: false }, _vc.planOpen || {});
+      } else {
+        this.selectedDate = this.$store.util.todayStr();
+        // 该日「今日待办」与「还没处理的临时任务」都为空时，周计划看板默认展开；其余情况保持原折叠设计
+        // （待归档的周计划看板为独立组件，不受影响）
+        this.planOpen.week = this.noDayTasks && !this.quickViewTasks.length;
+      }
+      // 专注计时时钟（每秒刷新，仅计时中时驱动全屏层时钟）
+      this._focusTick = setInterval(() => { this.focusNow = Date.now(); }, 1000);
     },
     computed: {
       today() { return this.$store.util.todayStr(); },
@@ -12763,10 +12939,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
        * A 区 = 带提醒时间 → 复用统计页纵向时间线 UI（.tl-panel/.tl-list/.tl-item/.tl-axis）
        * B 区 = 无提醒时间 → 沿用原有任务条目样式（.list/.row.task-row/SubTaskCopyCard）
        * ================================================================== */
-      // A 区条目（带提醒时间的主任务 + 子任务副本）
-      timedItems() { return this.mergedDateItems.filter(it => this.hasRemindTime(it.data)); },
+      // 🧠 专注筛选层：开启时按范围过滤今日待办，关闭时原样透传（timedItems/untimedItems 均经此层）
+      mergedForFocus() {
+        if (!this.focusMode) return this.mergedDateItems;
+        return this.mergedDateItems.filter(it => this.inFocus(it.data));
+      },
+      // A 区条目（带提醒时间的主任务 + 子任务副本）—— 数据源经专注筛选层
+      timedItems() { return this.mergedForFocus.filter(it => this.hasRemindTime(it.data)); },
       // B 区条目（未配置提醒时间的主任务 + 子任务副本）
-      untimedItems() { return this.mergedDateItems.filter(it => !this.hasRemindTime(it.data)); },
+      untimedItems() { return this.mergedForFocus.filter(it => !this.hasRemindTime(it.data)); },
       // 该日是否「暂无待办与子任务」（与 empty-tip 显示条件完全一致）：用于决定周计划看板默认展开
       noDayTasks() { return !this.timedGroups.length && !this.untimedItems.length; },
       // A 区时间轴节点：以「提醒时刻」聚合，同一时刻下堆叠多条父/子任务；节点按时刻升序
@@ -12843,10 +13024,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return this.sortPlanItems(tasks.concat(subs));
       },
       // 本周 / 本月两张折叠卡片的统一描述（同一套模板渲染，避免重复控件）
+      // shown = 经 🧠 专注筛选层后的展示列表（关闭时原样透传）；count/v-if/v-for 全部引用 shown
       planBlocks() {
+        const f = this.focusMode;
+        const shown = arr => (f ? arr.filter(it => this.inFocus(it.data)) : arr);
         return [
-          { key: 'week', icon: '📆', win: this.weekWin, items: this.weekPlanItems, inWeek: true, empty: '本周暂无「指定周」待办' },
-          { key: 'month', icon: '📅', win: this.monthWin, items: this.monthPlanItems, inWeek: false, empty: '本月暂无「仅年月」待办' },
+          { key: 'week', icon: '📆', win: this.weekWin, items: this.weekPlanItems, shown: shown(this.weekPlanItems), inWeek: true, empty: '本周暂无「指定周」待办' },
+          { key: 'month', icon: '📅', win: this.monthWin, items: this.monthPlanItems, shown: shown(this.monthPlanItems), inWeek: false, empty: '本月暂无「仅年月」待办' },
         ];
       },
       // 养成手牌：按「计划执行时间」排序（有时间：由早到晚；无时间：统一排末尾）；相对顺序稳定
@@ -12870,8 +13054,94 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       recordHabits() { return this.$store.state.habits.filter(h => h.type === 'RECORD_HABIT' && !h.is_archived); },
       quitHabits() { return this.$store.state.habits.filter(h => h.type === 'QUIT_HABIT' && !h.is_archived); },
       quickViewTasks() { return this.$store.getQuickViewTasks(); },
+      // —— 关联番茄正计时：当前正在专注的普通子任务副本（落盘以累计时长计）——
+      focusActive() { return !!this.focusSub; },
+      focusSubData() {
+        const f = this.focusSub;
+        if (!f) return null;
+        // 任务本体计时：直接取母任务；子任务计时：从母任务的 sub_tasks 中定位
+        if (f.kind === 'task') return this.$store.findTask(f.taskId) || null;
+        const t = this.$store.findTask(f.taskId);
+        if (!t) return null;
+        return (t.sub_tasks || []).find(s => s._id === f.subId) || null;
+      },
+      // 专注层副标题：任务本体显示「任务」，子任务显示所属母任务标题
+      focusKindLabel() {
+        const f = this.focusSub;
+        if (!f) return '';
+        if (f.kind === 'task') return '任务';
+        const t = this.$store.findTask(f.taskId);
+        return (t && t.title) ? t.title : '子任务';
+      },
+      focusSingleSec() {
+        if (!this.focusSub) return 0;
+        return Math.max(0, Math.round((this.focusNow - this.focusStart) / 1000));
+      },
+      focusClock() {
+        const s = this.focusSingleSec;
+        const pad = n => String(n).padStart(2, '0');
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+        return h > 0 ? (h + ':' + pad(m) + ':' + pad(sec)) : (pad(m) + ':' + pad(sec));
+      },
     },
     methods: {
+      // —— 🧠 专注筛选：单击开关专注模式（按范围过滤今日待办）；长按🧠进入筛选范围编辑 ——
+      // 当前生效的筛选范围（持久化于 settings.focusFilterTags；空数组=未配置，回落「学习标签」默认专注）
+      focusTags() { return (this.$store.state.settings && Array.isArray(this.$store.state.settings.focusFilterTags)) ? this.$store.state.settings.focusFilterTags : []; },
+      // 某任务是否命中专注范围：范围为空→学习标签（isLearningCat）；否则按层级键（'1:一级' / '2:一级>二级'）任一命中
+      inFocus(t) {
+        if (!t) return false;
+        const tags = this.focusTags();
+        if (!tags.length) return this.$store.isLearningCat(t.category_id);
+        const chain = this.$store.categoryChainNames ? this.$store.categoryChainNames(t) : [];
+        if (!chain.length) return false;
+        const l1 = chain[0], l2 = chain.length > 1 ? chain[1] : '';
+        return tags.some(k => k === '1:' + l1 || (!!l2 && k === '2:' + l1 + '>' + l2));
+      },
+      // 单击🧠：切换专注模式（长按已接管则跳过本开关）
+      toggleFocus() {
+        if (this._focusLP) { this._focusLP = false; return; }
+        this.focusMode = !this.focusMode;
+      },
+      // 长按🧠：进入筛选范围编辑（复用闲趣卡标签多选设计；编辑后保存记忆）
+      focusDown(e) {
+        this._focusLP = false;
+        if (this._focusTimer) clearTimeout(this._focusTimer);
+        this._focusTimer = setTimeout(() => {
+          this._focusLP = true;
+          this.openFocusPicker();
+        }, 480);
+      },
+      focusUp() { if (this._focusTimer) { clearTimeout(this._focusTimer); this._focusTimer = null; } },
+      // 筛选范围编辑：打开前把已保存范围拷入本地工作副本
+      openFocusPicker() {
+        this.focusEditTags = (this.focusTags() || []).slice();
+        this.focusPickerOpen = true;
+      },
+      closeFocusPicker() { this.focusPickerOpen = false; },
+      // 标签多选：层级键存取，与闲趣卡同款（父子同名互不联动）
+      toggleFocusTag(k) {
+        const i = this.focusEditTags.indexOf(k);
+        if (i >= 0) this.focusEditTags.splice(i, 1);
+        else this.focusEditTags.push(k);
+      },
+      clearFocusTags() { this.focusEditTags = []; },
+      // 保存筛选记忆：写回 settings 并持久化，关闭弹窗（下次开启🧠直接套用）
+      saveFocusTags() {
+        this.$store.state.settings.focusFilterTags = this.focusEditTags.slice();
+        if (this.$store.persist) this.$store.persist();
+        this.focusPickerOpen = false;
+      },
+      // 筛选范围编辑用的任务夹标签树（一级/二级，仅任务夹分类）
+      focusTagTree() {
+        const cats = this.$store.state.categories || [];
+        const isTask = c => !c.is_collection && !c.is_template;
+        const tops = cats.filter(c => isTask(c) && (!c.parent || c.parent === '' || c.parent === '0'));
+        return tops.map(top => {
+          const subs = cats.filter(c => isTask(c) && c.parent === top._id).map(c => c.name);
+          return { name: top.name, subs };
+        });
+      },
       // 全局标准时间标签（仅展示文本，浅绿色）
       timeLabel(t) { return this.$store.formatTimeLabel(t); },
       // 习惯 / 闲趣随机卡 区块折叠：切换 tab 重新挂载即回到默认折叠态（与统计页 toggleCol 同款）
@@ -13124,17 +13394,65 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       onSubArchive(subId, parentId, ws, we) { this.$store.subCopyDone(parentId, subId, ws || this.selectedDate, we || this.selectedDate); },
       onSubUnarchive(subId, parentId, ws, we) { this.$store.subCopyUndone(parentId, subId, ws || this.selectedDate, we || this.selectedDate); },
       onSubEdit(subId, parentId) { this.editSubPid = parentId; this.editSubSid = subId; this.showSubEdit = true; },
+      // —— 关联番茄正计时：点 ⏱ 进入全屏专注（任务本体 / 子任务副本）——
+      // 统一入口：已在专注中的，直接忽略重复点击
+      beginFocus(kind, taskId, subId) {
+        if (this.focusSub) return;
+        this.focusSub = kind === 'task' ? { kind: 'task', taskId } : { kind: 'sub', taskId, subId };
+        this.focusStart = Date.now();
+      },
+      onSubTimer(subId, parentId) {
+        const t = this.$store.findTask(parentId);
+        const s = t ? (t.sub_tasks || []).find(x => x._id === subId) : null;
+        if (!s) return;
+        this.beginFocus('sub', parentId, subId);
+      },
+      // 任务本体（今日待办里的主任务条目）点 ⏱
+      onTaskTimer(taskId) {
+        const t = this.$store.findTask(taskId);
+        if (!t) return;
+        this.beginFocus('task', taskId, null);
+      },
+      finishFocus() {
+        const s = this.focusSubData;
+        if (!s) { this.focusSub = null; return; }
+        const elapsed = Math.max(0, Math.round((this.focusNow - this.focusStart) / 1000));
+        s.focusSec = (s.focusSec || 0) + elapsed;
+        s.spentMin = Math.round((s.focusSec || 0) / 60);
+        this.$store.persist();
+        // 触发今日列表重算（子任务副本为浅拷贝代理），使 🍅Xmin 即时刷新
+        const st = this.$store.state;
+        st.tasks = st.tasks.slice();
+        this.focusSub = null; this.focusStart = 0;
+      },
+      quitFocus() {
+        // 放弃：丢弃本次计时，不累计、不写入
+        this.focusSub = null; this.focusStart = 0;
+      },
+      // id 兼容两类目标：任务本体匹配 taskId，子任务匹配 subId
+      isFocusing(id) {
+        const f = this.focusSub;
+        if (!f) return false;
+        return f.kind === 'task' ? (f.taskId === id) : (f.subId === id);
+      },
     },
     beforeUnmount() {
+      // —— 离开今日页：保存视图快照（专注筛选开关 / 按日查看日期 / 周月折叠开合），
+      //    供「进子任务页 → 原路返回」时恢复视图（created 判 prevRoute 以 /subtask/ 开头才恢复）；
+      //    切主 tab 再回来不恢复，保持既有「新会话」语义 ——
+      this.$store._todayViewCache = { focusMode: this.focusMode, selectedDate: this.selectedDate, planOpen: Object.assign({}, this.planOpen) };
       // 页面离开时强制清理所有未完成的滑动操作锁和定时器，防止卡死
       if (this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; }
       if (this.pressTimer) { clearTimeout(this.pressTimer); this.pressTimer = null; }
+      if (this._focusTick) { clearInterval(this._focusTick); this._focusTick = null; }
       this.$store.swipeCleanup();
     },
     watch: {
       '$store.state.revision'() { this.$forceUpdate(); },
-      // 切到「无待办日」时周计划看板默认展开；切回「有待办日」不强制收起（保持用户态/原设计）；同日期内手动折叠仍生效
-      noDayTasks(v) { if (v) this.planOpen.week = true; },
+      // 切到「今日待办 + 临时任务都为空」的日期时周计划看板默认展开；切回有待办日不强制收起（保持用户态/原设计）
+      noDayTasks(v) { if (v && !this.quickViewTasks.length) this.planOpen.week = true; },
+      // 临时任务清空、且当日本就无待办时，同样默认展开周计划看板（与无待办日展开同口径）
+      quickViewTasks(v) { if (this.noDayTasks && !v.length) this.planOpen.week = true; },
     },
     template: `
     <div class="page today-page">
@@ -13147,16 +13465,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </h2>
 
       <section class="block">
-        <h3 class="block-title">
-          <span>今日待办（{{ dateTaskCount }}）</span>
-          <span class="hn-page">
-            <button class="hn-arrow" @click="prevDay" aria-label="切换昨日">←</button>
-            <span class="hn-mid">
-              <span class="hn-ind">{{ selDateLabel }}</span>
-              <button class="btn-mini hn-back" v-if="!isTodayView" @click="backToToday">回&nbsp;到&nbsp;今&nbsp;日</button>
+        <h3 class="block-title focus-title">
+          <span class="focus-controls">
+            <span class="fc-side fc-left">
+              <button class="hn-arrow focus-brain" :class="{ on: focusMode }" @click="toggleFocus" @pointerdown="focusDown" @pointerup="focusUp" @pointercancel="focusUp" title="🧠 专注筛选：单击开关，长按设置筛选范围">🧠</button>
+              <button class="hn-arrow" @click="prevDay" aria-label="切换昨日">←</button>
             </span>
-            <button class="hn-arrow" @click="nextDay" aria-label="切换次日">→</button>
-            <button class="btn-mini" @click="openTaskAdd">＋添加</button>
+            <span class="hn-page">
+              <span class="hn-mid">
+                <span class="hn-ind">{{ selDateLabel }}</span>
+                <button class="btn-mini hn-back" v-if="!isTodayView" @click="backToToday">回&nbsp;到&nbsp;今&nbsp;日</button>
+              </span>
+            </span>
+            <span class="fc-side fc-right">
+              <button class="hn-arrow" @click="nextDay" aria-label="切换次日">→</button>
+              <button class="hn-arrow add-btn" @click="openTaskAdd" title="添加任务" aria-label="添加任务">＋</button>
+            </span>
           </span>
         </h3>
         <!-- A 区（带提醒时间）：复用统计页纵向时间线组件（.tl-panel/.tl-list/.tl-item/.tl-axis/.tl-dot/.tl-time），
@@ -13171,16 +13495,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               </div>
               <div class="list" style="flex:1;min-width:0;align-self:flex-start;">
                 <template v-for="it in g.items" :key="it._key">
-                  <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="cycleOverdueUnfinished(it.data)" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
+                  <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="cycleOverdueUnfinished(it.data)" :show-timer="true" :timing="isFocusing(it.data._id)" @timer="onSubTimer" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
                   <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data) && !it.data.cycle, 'emergency-bg': it.data.isEmergency, 'is-overdue': isOverdue(it.data) || it.data.overdueUnfinished || cycleOverdueUnfinished(it.data) }" @pointerdown="rowDown($event,it.data)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
                     <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
                     <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
                     <div class="row-main">
                       <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><MaterialBadges :item="it.data" /><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
-                      <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished || cycleOverdueUnfinished(it.data)" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data) && !it.data.overdueUnfinished && !cycleOverdueUnfinished(it.data)">⚠ 延期未完成</span></div>
+                      <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished || cycleOverdueUnfinished(it.data)" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data) && !it.data.overdueUnfinished && !cycleOverdueUnfinished(it.data)">⚠ 延期未完成</span><span v-if="it.data.spentMin > 0" class="tag pomodoro">🍅 {{ it.data.spentMin }}min</span></div>
                       <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
                     </div>
                     <button v-if="canBackToWeek(it.data)" class="row-back-btn" @click.stop="backToWeek(it.data)" @pointerdown.stop @pointerup.stop @pointercancel.stop title="清除日期，退回本周计划">↩ 退回周</button>
+                    <button class="tb-ico" :class="{on: isFocusing(it.data._id)}" v-if="it.data.linkPomodoro !== false" @click.stop="onTaskTimer(it.data._id)" :title="isFocusing(it.data._id) ? '专注计时中' : '开始专注计时'">⏱</button>
                   </div>
                 </template>
               </div>
@@ -13192,20 +13517,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="tl-head" v-if="timedGroups.length && untimedItems.length" style="margin:12px 0 8px;">📋 未设提醒（{{ untimedItems.length }} 条）</div>
         <div class="list" v-if="untimedItems.length">
           <template v-for="it in untimedItems" :key="it._key">
-            <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="cycleOverdueUnfinished(it.data)" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
+            <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="selectedDate" :win-end="selectedDate" :overdue="cycleOverdueUnfinished(it.data)" :show-timer="true" :timing="isFocusing(it.data._id)" @timer="onSubTimer" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
             <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data) && !it.data.cycle, 'emergency-bg': it.data.isEmergency, 'is-overdue': isOverdue(it.data) || it.data.overdueUnfinished || cycleOverdueUnfinished(it.data) }" @pointerdown="rowDown($event,it.data)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
               <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
               <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（今日置顶，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
               <div class="row-main">
                 <div class="row-title"><span class="rt-text">{{ it.data.title }}</span><span class="rt-badges"><span v-if="it.data.isEmergency" class="tag emergency">🚨 紧急</span><MaterialBadges :item="it.data" /><span v-if="it.data.cycle" class="tag cycle">🔁</span><span v-if="it.data.is_template" class="tag tpl">📋</span><span v-if="capOn(it.data)" class="cap" :class="'cap-'+capOn(it.data).kind"><span class="cap-ico">{{ capOn(it.data).icon }}</span><span class="cap-txt">{{ capOn(it.data).text }}</span></span></span></div>
-                <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished || cycleOverdueUnfinished(it.data)" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data) && !it.data.overdueUnfinished && !cycleOverdueUnfinished(it.data)">⚠ 延期未完成</span></div>
+                <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished || cycleOverdueUnfinished(it.data)" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span><span class="row-overdue" v-if="isOverdue(it.data) && !it.data.overdueUnfinished && !cycleOverdueUnfinished(it.data)">⚠ 延期未完成</span><span v-if="it.data.spentMin > 0" class="tag pomodoro">🍅 {{ it.data.spentMin }}min</span></div>
                 <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
               </div>
               <button v-if="canBackToWeek(it.data)" class="row-back-btn" @click.stop="backToWeek(it.data)" @pointerdown.stop @pointerup.stop @pointercancel.stop title="清除日期，退回本周计划">↩ 退回周</button>
+              <button class="tb-ico" :class="{on: isFocusing(it.data._id)}" v-if="it.data.linkPomodoro !== false" @click.stop="onTaskTimer(it.data._id)" :title="isFocusing(it.data._id) ? '专注计时中' : '开始专注计时'">⏱</button>
             </div>
           </template>
         </div>
-        <p v-if="!timedGroups.length && !untimedItems.length" class="empty-tip">该日暂无待办与子任务</p>
+        <p v-if="!timedGroups.length && !untimedItems.length" class="empty-tip">{{ focusMode ? '专注筛选下暂无匹配任务' : '该日暂无待办与子任务' }}</p>
       </section>
 
       <!-- 本周 / 本月待办：复用看板折叠分组组件（.board-group/.grp-head/.cnt/.caret/.grp-body），
@@ -13213,12 +13539,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <section class="block">
         <div class="board-group" v-for="b in planBlocks" :key="b.key">
           <button class="grp-head" @click="planOpen[b.key] = !planOpen[b.key]">
-            <span>{{ b.icon }} {{ b.win.label }} <span class="cnt">（{{ b.items.length }}）</span><span class="caret">{{ planOpen[b.key] ? '▼' : '▶' }}</span></span>
+            <span>{{ b.icon }} {{ b.win.label }} <span class="cnt">（{{ b.shown.length }}）</span><span class="caret">{{ planOpen[b.key] ? '▼' : '▶' }}</span></span>
             <span class="grp-add" title="在该时间下新建任务" @pointerdown.stop @click.stop="addTaskForWindow(b.win)">＋</span>
           </button>
           <div class="grp-body" v-if="planOpen[b.key]">
-            <div class="list" v-if="b.items.length">
-              <template v-for="it in b.items" :key="it._key">
+            <div class="list" v-if="b.shown.length">
+              <template v-for="it in b.shown" :key="it._key">
                 <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="b.win.ws" :win-end="b.win.we" :in-week="b.inWeek" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" />
                 <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data) && !it.data.cycle, 'emergency-bg': it.data.isEmergency }" @pointerdown="rowDown($event,it.data,b.win)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
                   <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
@@ -13232,7 +13558,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 </div>
               </template>
             </div>
-            <p v-else class="empty-tip">{{ b.empty }}</p>
+            <p v-else class="empty-tip">{{ (focusMode && !b.shown.length) ? '专注筛选下暂无匹配任务' : b.empty }}</p>
           </div>
         </div>
       </section>
@@ -13288,6 +13614,35 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </section>
 
+      <!-- 🧠 专注筛选范围编辑：复用闲趣卡标签多选悬浮窗设计；标签源为任务夹分类树；保存后记忆，下次开启直接套用 -->
+      <div class="lz-tag-picker-mask" v-if="focusPickerOpen" @click.self="closeFocusPicker">
+        <div class="lz-tag-picker">
+          <div class="modal-head">
+            <h3>专注筛选范围（可多选）</h3>
+            <button class="x" @click="closeFocusPicker">✕</button>
+          </div>
+          <div class="lz-picker-body">
+            <div class="lz-check-group" v-for="node in focusTagTree()" :key="'pf' + node.name">
+              <label class="lz-check">
+                <input type="checkbox" :checked="focusEditTags.indexOf('1:' + node.name) >= 0" @change="toggleFocusTag('1:' + node.name)" />
+                <span class="lz-check-name">{{ node.name }}</span>
+              </label>
+              <div class="lz-check-subs" v-if="node.subs.length">
+                <label class="lz-check sub" v-for="sub in node.subs" :key="'pfs' + sub">
+                  <input type="checkbox" :checked="focusEditTags.indexOf('2:' + node.name + '>' + sub) >= 0" @change="toggleFocusTag('2:' + node.name + '>' + sub)" />
+                  <span class="lz-check-name">{{ sub }}</span>
+                </label>
+              </div>
+            </div>
+            <p class="lz-picker-tip" v-if="!focusTagTree().length">任务夹下还没有标签</p>
+          </div>
+          <div class="modal-actions">
+            <button class="btn ghost" @click="clearFocusTags">清空</button>
+            <button class="btn primary" @click="saveFocusTags">保存筛选记忆</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 闲趣随机卡：所有任务 / 习惯列表最底部，底部导航之上；安排/进度记录均走 store，各 tab 实时同步 -->
       <LeisureCard @open-detail="(id, pre) => { detailId = id; focusProgressOn = !!pre; preStartOn = !!pre; }" />
 
@@ -13314,6 +13669,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <!-- 阅读习惯打卡 → 书籍进度同步弹窗 -->
       <ReadingSyncModal v-if="pendingReading" :data="pendingReading" @confirm="onSyncConfirm" @skip="onSyncSkip" />
+
+      <!-- 全屏专注计时（今日普通子任务副本）：完成=本次时长计入子任务耗时；放弃=丢弃本次 -->
+      <transition name="pop">
+        <div class="tb-focus" v-if="focusActive">
+          <div class="tb-focus-inner">
+            <div class="tb-focus-title">{{ focusSubData ? focusSubData.title : '' }}</div>
+            <div class="tb-focus-sub">{{ focusKindLabel }} · 专注计时</div>
+            <div class="tb-focus-clock">{{ focusClock }}</div>
+            <div class="tb-focus-tip">专注中 · 点「完成」结束并把本次时长计入子任务耗时</div>
+            <button class="tb-focus-done" @click="finishFocus">✓ 完成</button>
+            <button class="tb-focus-quit" @click="quitFocus">✕ 放弃计时</button>
+          </div>
+        </div>
+      </transition>
     </div>`,
   };
 
@@ -13666,6 +14035,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             hasLevel3 = pr.hasLevel3; level3Chain = pr.level3Chain;
           }
         }
+        // 学习标签 → 默认关联番茄正计时（与 TaskFormCore 自动勾选口径一致：解析已识别学习则预勾选）
+        const linkPomodoro = !!(category_id && S0.isLearningCat(category_id));
         // 名称来源：批量(>1)模式直接采用原始输入行（raw），不剥离时间/地点词块；
         //          单条模式沿用 AI 提炼后的核心标题（it.title）
         const rawTitle = (it.raw || it.title || '').trim();
@@ -13704,6 +14075,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           material_notes: it.material_notes || '',
           material_link: it.material_link || '',
           parent_category, category_id,
+          linkPomodoro,
           isHabit: !!it.isHabit,
           folderType: fFolder, tagInput, parsedTags, hasLevel3, level3Chain,
           date_mode: it.date_mode || (it.date_start ? 'range' : (it.execute_date ? 'day' : '')),
@@ -13783,6 +14155,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 未手动选标签时保持未分类（空标签），不强行归入「临时任务」
           category_id: d.category_id || null,
           parent_category: d.parent_category || '',
+          linkPomodoro: !!d.linkPomodoro,
           is_template: d.folderType === 'template',
           is_collection: d.folderType === 'collection',
           enable_remind: !!d.enable_remind,
@@ -13846,6 +14219,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             material_link: '',
             category_id: effCat || null,
             parent_category: effParent || '',
+            linkPomodoro: !!(effCat && this.$store.isLearningCat(effCat)),
             is_template: folder === 'template',
             is_collection: folder === 'collection',
             enable_remind: false,
@@ -14189,8 +14563,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 因被收藏任务间接引用而误显示在收藏夹，保证跨文件夹标签互不干涉。
           // 分组顺序：含「已开启进度记录」任务的分组前置（组内任务排序见 sortProgressTop），
           // 其余分组保持原顺序（稳定排序）；关闭进度后组自动回落原位。
-          return this.collectionCats.slice().sort((a, b) =>
-            (this.catProgressOn(b._id) ? 1 : 0) - (this.catProgressOn(a._id) ? 1 : 0));
+          // 任务数量为 0 的一级标签自动隐藏（与任务夹 / 模版夹一致：仅展示含在册任务的分类）。
+          return this.collectionCats
+            .filter(c => this.folderCatCount(c) > 0)
+            .slice().sort((a, b) =>
+              (this.catProgressOn(b._id) ? 1 : 0) - (this.catProgressOn(a._id) ? 1 : 0));
         }
         const qv = this.$store.getQuickViewCatId();
         // 内置「临时任务」仅任务夹展示：通用过滤中剔除 qv，仅任务夹单独置顶；模版夹/收藏夹不出现该内置标签
@@ -14208,6 +14585,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.folderView === 'collection') list = this.sortProgressTop(list);
         return list;
       },
+      // 未分类（无一级标签）任务中已排期数（与分类口径一致：仅父任务；关闭安排按钮视为已安排）
+      folderUncatScheduled() {
+        return this.folderUncatTasks.filter(t => this.taskScheduled(t)).length;
+      },
       // 全局搜索结果：跨「任务夹 / 收藏夹 / 模版夹」所有未归档父任务 + 子任务，多字段模糊匹配
       // （标题 / 描述 / 素材备注 / 灵感素材 / 一级#标签 / 二级##标签）；标签关键词直接命中带该标签的任务；
       //  子任务命中则展示该子任务条目。搜索状态不持久化（data 初始化为空、切Tab清空、不写入 saveUiState）。
@@ -14217,8 +14598,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!segs.length) return [];
         // 状态词识别：任一段含「已归档」→ 仅命中已归档条目（父任务/子任务）；该词剥离后不参与文本匹配
         const onlyArchived = segs.some(sg => sg.indexOf('已归档') >= 0);
+        // 状态词识别：任一段精确为「未安排」→ 仅搜「任务夹」下未安排（无任何日期且安排按钮未关闭）的任务/子任务；
+        // 该词剥离后不作为文本匹配，仅作范围与状态筛选（其他搜索保持原三文件夹全量范围）。
         const kws = [];
+        let unplanned = false;
         segs.forEach(sg => {
+          if (sg.trim().toLowerCase() === '未安排') { unplanned = true; return; }
           const rest = sg.split('已归档').join(' ').trim().toLowerCase();
           if (rest) kws.push(rest);
         });
@@ -14226,16 +14611,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 仅当显式输入「已归档」时两组内容等同（全为归档），排序无副作用；每个结果带 archived 标记供 UI 灰色蒙版。
         const out = [];
         const arch = [];
-        const folders = ['task', 'collection', 'template'];
+        // 「未安排」搜索：仅任务夹范围（Please just follow the task folder）；其它搜索保持原三夹全量
+        const folders = unplanned ? ['task'] : ['task', 'collection', 'template'];
         folders.forEach(fv => {
           const tasks = this.scopeTasksOf(fv);
           tasks.forEach(t => {
+            if (unplanned) {
+              if (t.is_archived) return;                  // 已归档不可再安排，跳过
+              if (this.taskScheduled(t)) return;          // 已安排（有日期或关闭安排按钮）跳过
+            }
             if (onlyArchived && !t.is_archived) return;   // 「已归档」筛选：父任务仅保留已归档
             if (this.taskMatches(t, kws)) {
               const item = { isSub: false, task: t, folder: fv, archived: !!t.is_archived };
               (item.archived ? arch : out).push(item);
             }
             (t.sub_tasks || []).forEach(s => {
+              if (unplanned) {
+                if (s.is_archived) return;
+                if (this.taskScheduled(s)) return;
+              }
               if (onlyArchived && !s.is_archived) return; // 「已归档」筛选：子任务仅保留已归档
               if (this.subMatches(t, s, kws)) {
                 const item = { isSub: true, sub: s, parent: t, folder: fv, archived: !!s.is_archived };
@@ -14439,6 +14833,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       folderCatCount(c) {
         const ids = [c._id].concat(this.$store.descendantCategoryIds(c._id));
         return this.folderScopeTasks.filter(t => ids.indexOf(t.category_id) >= 0).length;
+      },
+      // 某分类（含其下各级子标签）在本文件夹范围内的「已安排」任务数：
+      // 已安排 = 有任意日期（周期 / 指定周 / 单点 / 区间 / 年月周计划）或 用户主动关闭了「安排」按钮（视为已处理）
+      folderCatScheduled(c) {
+        const ids = [c._id].concat(this.$store.descendantCategoryIds(c._id));
+        return this.folderScopeTasks.filter(t => ids.indexOf(t.category_id) >= 0 && this.taskScheduled(t)).length;
+      },
+      // 任务是否已安排（与 WeekScheduleBtn.noDate 口径一致；兼容「安排按钮关闭 = 已安排」语义）
+      // 关闭「安排」按钮（showArrangeBtn===false）即视为已安排，不计入未安排统计
+      taskScheduled(t) {
+        if (!t) return false;
+        if (t.showArrangeBtn === false) return true;   // 主动关闭「安排」按钮 → 视为已安排
+        if (t.cycle) return true;
+        if (t.time_mode) return true;                  // 'week' / 'month'
+        if (t.execute_date) return true;
+        if (t.date_start) return true;                 // 自定义区间
+        if (t.plan_year && (t.plan_month || t.plan_week)) return true;
+        return false;
       },
       // 归属某分类（一级 / 二级 / 三级）的任务
       folderTasksOf(catId) {
@@ -14751,7 +15163,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <!-- 全局搜索（切换按钮下方，选项卡上方；跨任务夹/收藏夹/模版夹全量检索，含已归档；不持久化，刷新/切Tab自动清空） -->
       <div class="inbox-search">
         <div class="arch-filter">
-          <input v-model="searchKeyword" placeholder="搜索标题/描述/素材备注/灵感素材/标签…（用 # 分隔多关键词，需同时满足；输入「已归档」筛已归档）" />
+          <input v-model="searchKeyword" placeholder="搜索标题/描述/素材备注/灵感素材/标签…（用 # 分隔多关键词，需同时满足；输入「已归档」筛已归档；输入「未安排」搜任务夹下未安排任务）" />
           <button v-if="searchKeyword" class="search-clear" @click="searchKeyword=''" title="清空搜索">✕</button>
         </div>
         <template v-if="searchKeyword.trim()">
@@ -14785,6 +15197,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               </div>
               <div class="row-prog prog-sync" v-if="r.isSub ? $progressSync(r.sub) : $progressSync(r.task)">📊 {{ r.isSub ? $progressSync(r.sub) : $progressSync(r.task) }}</div>
             </div>
+            <!-- 搜索结果条目附「安排」按钮（未归档且未安排时可直接排期；已归档/已安排自动隐藏） -->
+            <WeekScheduleBtn v-if="!r.archived" :task="r.isSub ? r.sub : r.task" :sub-id="r.isSub ? r.sub._id : ''" :parent-id="r.isSub ? (r.parent && r.parent._id) || '' : ''" />
           </div>
           <p v-if="!searchResults.length" class="empty-tip">暂无匹配任务</p>
         </template>
@@ -14806,14 +15220,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <!-- 一级标签：可折叠分组（点选折叠/展开，长按编辑） -->
         <div class="board-group" v-for="c in folderTopCats" :key="c._id">
           <button class="grp-head" @pointerdown="catPress(c,$event)" @pointerup="catRelease(c)" @pointerleave="catMove" @pointermove="catMove" @click="onCatClick(c)">
-            <span>📂 {{ c.name }} <span class="cnt">（{{ folderCatCount(c) }}）</span><span class="caret">{{ catExpanded(c._id) ? '▼' : '▶' }}</span></span>
+            <span>📂 {{ c.name }} <span class="cnt">（{{ folderCatScheduled(c) }}/{{ folderCatCount(c) }}）</span><span class="caret">{{ catExpanded(c._id) ? '▼' : '▶' }}</span></span>
             <span class="grp-add" title="在该标签下新建任务" @pointerdown.stop @click.stop="addTaskUnderCat(c._id, folderView)">＋</span>
           </button>
           <div class="grp-body" v-if="catExpanded(c._id)">
             <!-- 二级标签：可折叠子分组 -->
             <div class="cat-sub-row" v-for="s in folderSubCatsOf(c._id)" :key="s._id">
               <button class="cat-sub-head" @pointerdown="catPress(s,$event)" @pointerup="catRelease(s)" @pointerleave="catMove" @pointermove="catMove" @click="onCatClick(s)">
-                <span>📁 {{ s.name }} <span class="cnt">（{{ folderCatCount(s) }}）</span><span class="caret">{{ subExpand[s._id] ? '▼' : '▶' }}</span></span>
+                <span>📁 {{ s.name }} <span class="cnt">（{{ folderCatScheduled(s) }}/{{ folderCatCount(s) }}）</span><span class="caret">{{ subExpand[s._id] ? '▼' : '▶' }}</span></span>
                 <span class="grp-add" title="在该标签下新建任务" @pointerdown.stop @click.stop="addTaskUnderCat(s._id, folderView)">＋</span>
               </button>
               <div class="cat-sub-body" v-if="subExpand[s._id]">
@@ -14832,7 +15246,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <!-- 三级标签：第三层嵌套（复用 .cat-sub-row / .cat-sub-body，不新增 CSS） -->
                 <div class="cat-sub-row" v-for="c3 in folderSubCatsOf(s._id)" :key="c3._id">
                   <button class="cat-sub-head" @pointerdown="catPress(c3,$event)" @pointerup="catRelease(c3)" @pointerleave="catMove" @pointermove="catMove" @click="onCatClick(c3)">
-                    <span>📂 {{ c3.name }} <span class="cnt">（{{ folderCatCount(c3) }}）</span><span class="caret">{{ subExpand[c3._id] ? '▼' : '▶' }}</span></span>
+                    <span>📂 {{ c3.name }} <span class="cnt">（{{ folderCatScheduled(c3) }}/{{ folderCatCount(c3) }}）</span><span class="caret">{{ subExpand[c3._id] ? '▼' : '▶' }}</span></span>
                     <span class="grp-add" title="在该标签下新建任务" @pointerdown.stop @click.stop="addTaskUnderCat(c3._id, folderView)">＋</span>
                   </button>
                   <div class="cat-sub-body" v-if="subExpand[c3._id]">
@@ -14881,7 +15295,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <!-- 未分类任务（无一级标签）：移除「全部任务」视图后，仍保留入口，避免数据"消失" -->
         <div class="board-group" v-if="folderUncatTasks.length">
           <button class="grp-head" @click="uncatOpen=!uncatOpen">
-            <span>🗂 未分类 <span class="cnt">（{{ folderUncatTasks.length }}）</span><span class="caret">{{ uncatOpen ? '▼' : '▶' }}</span></span>
+            <span>🗂 未分类 <span class="cnt">（{{ folderUncatScheduled }}/{{ folderUncatTasks.length }}）</span><span class="caret">{{ uncatOpen ? '▼' : '▶' }}</span></span>
           </button>
           <div class="grp-body" v-if="uncatOpen">
             <div class="row task-row swipeable" v-for="t in folderUncatTasks" :key="t._id" @click="onRowClick(t)" :style="rowDragStyle(t)" @pointerdown="rowDown($event,t)" @pointermove="rowMove($event,t)" @pointerup="rowUp($event,t)" @pointercancel="rowUp($event,t)" :class="{hint: showHint(t), 'has-sub': $hasSub(t), 'emergency-bg': t.isEmergency}">
@@ -15733,15 +16147,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const mm = String(mins % 60).padStart(2, '0');
         return hh + ':' + mm;
       },
-      // 时长（分钟）：结束 − 起始；跨午夜 +24h
+      // 时长（分钟）：统一走 store 口径 statDurMin —— 实际专注时长优先，否则回退计划跨度。
+      // 这样今日 tab 计时出的 🍅 才能同步进全局归档库与年视图时长分布（不再各算各的）。
       tlDurMin(x) {
-        const start = x.remind_time || x.sub_remind_time || '';
-        const end = this.tlEndOf(x);
-        const pa = /^(\d{1,2}):(\d{2})$/.exec(start), pb = /^(\d{1,2}):(\d{2})$/.exec(end);
-        if (!pa || !pb) return 0;
-        let d = (Number(pb[1]) * 60 + Number(pb[2])) - (Number(pa[1]) * 60 + Number(pa[2]));
-        if (d < 0) d += 24 * 60;
-        return d;
+        return this.$store.statDurMin(x);
       },
       // 时长（分钟）→ 展示串，如 12h30m / 4h10m / 45m
       fmtDur(min) {
@@ -16222,10 +16631,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                @pointercancel="onArchRowUp()">
             <div class="swipe-hint" :class="archHintDir(t._id)" v-if="archHintDir(t._id)">{{ archHintText(t._id) }}</div>
             <div class="row-main" :class="{dragging: archDragId===t._id && archMoved}" :style="{ transform: (archDragId===t._id ? 'translateX('+archX+'px)' : '') }" @click="onArchRowMainClick(t)">
-              <div class="row-title">{{ t._title }}<span v-if="t._abandoned" class="tag abandon-badge">🚫 已放弃</span><span v-if="t._expired" class="tag expire-badge" title="指定月计划已过期，未完成自动归档">⚠ 逾期未完成</span><span v-if="t.backfilled" class="tag muted" title="归档补卡记录">📥 补卡</span><MaterialBadges :item="t" /></div>
+              <div class="row-title">{{ t._title }}<span v-if="t._abandoned" class="tag abandon-badge">🚫 已放弃</span><span v-if="t.backfilled" class="tag muted" title="归档补卡记录">📥 补卡</span><MaterialBadges :item="t" /></div>
               <div class="row-sub">
                 <span class="tag" :class="'t-'+t._type">{{ t._typeLabel }}</span>
                 <span class="tag" v-if="t._date">📅 {{ t._date }}</span>
+                <!-- 🍅 专注计时标识：与今日 tab 卡片同款，展示该条目累计的实际专注时长 -->
+                <span v-if="t.spentMin > 0" class="tag pomodoro" title="番茄正计时累计专注时长">🍅 {{ t.spentMin }}min</span>
                 <!-- 归档态标签：无#、层级│分隔、绿色胶囊；项目携带原有 tags，子任务父任务名并入三级 -->
                 <span class="tag cat" v-for="tg in $archTagList(t)" :key="tg">{{ tg }}</span>
                 <span class="tag cat" v-if="!$archTagList(t).length">无分类</span>
@@ -16725,7 +17136,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectSubEditModal = {
     name: 'ProjectSubEditModal',
     props: { pid: { type: String, required: true }, sid: { type: String, default: '' }, ideaId: { type: String, default: '' }, seedTitle: { type: String, default: '' }, seedTags: { type: Array, default: () => [] } },
-    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, showDelConfirm: false }; },
+    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, linkPomodoro: false, showDelConfirm: false }; },
     computed: {
       // 本项目已有的子任务标签，作为快捷选择项（排除已选），减少重复手输
       tagSuggestions() {
@@ -16757,6 +17168,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           this.unit = s.unit || '';   // 单位改为自由文本，直接回填
           this.tags = (s.tags || []).slice();
           this.inTaskBoard = !!s.inTaskBoard;
+          // 关联番茄正计时：与展示层同一套 opt-out 口径——仅显式 false 视为关闭，
+          // 字段缺失（上线前存量）保持勾选，避免「打开弹窗随手保存」把 ⏱ 写死为不显示
+          this.linkPomodoro = s.linkPomodoro !== false;
           const em = Number(s.estMin) || 0;
           this.estH = em ? +(em / 60).toFixed(2) : 0;   // 分钟 → 小时（保留两位小数）
           this.planFillHours = s.planFillMin ? +(Number(s.planFillMin) / 60).toFixed(2) : 0;
@@ -16826,6 +17240,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           sub_done: nowDone,
           // 是否进入任务表：勾选后每日生成独立打卡实例（前提：已开启目标计划）
           inTaskBoard: !!this.inTaskBoard && !!this.enableTotal,
+          // 关联番茄正计时：勾选后任务表条目右侧展示 ⏱ 全屏专注计时（复用任务表计时按钮）
+          linkPomodoro: !!this.linkPomodoro,
         };
         // 完成态切换时同步完成时间戳与紧急标记（与 toggleSubDone 口径一致）
         if (nowDone && !wasDone) { patch.done_at = Date.now(); patch.isEmergency = false; }
@@ -16895,6 +17311,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <label class="fld">预计耗时 · 小时（可选）<input type="number" min="0" step="0.5" v-model="estH" placeholder="如 1.5" /></label>
             </div>
             <label class="fld check"><input type="checkbox" v-model="inTaskBoard" /> 进入任务表</label>
+            <label class="fld check"><input type="checkbox" v-model="linkPomodoro" /> 关联番茄正计时（勾选后任务表条目展示 ⏱ 计时）</label>
           </template>
           <div class="fld-row">
             <label class="fld">开始日期（可选）
@@ -19074,12 +19491,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         showViz: false, vizType: 'pie', vizRange: 'years', vizScope: 'all', vizCat: '',
         showTpl: false,
         confirmDelEntry: false,
+        confirmDelModule: false,   // 编辑模块弹窗内「删除模块」二次确认
         showFinMenu: false,
         finMsg: '', finMsgTimer: null,
         searchText: '',
         palette: ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16', '#f97316', '#14b8a6'],
         dragId: null, dragging: false,
         dragFieldKid: null, draggingField: false, fieldSeq: 0,
+        exportConfirm: { show: false, text: '', payload: null },
       };
     },
     computed: {
@@ -19316,7 +19735,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       openEditModule(mod) {
         this.moduleType = mod.type;
         this.moduleEdit = {
-          _id: mod._id, name: mod.name, icon: mod.icon, type: mod.type,
+          _id: mod._id, name: mod.name, icon: mod.icon, type: mod.type, isPreset: !!mod.isPreset,
           fields: (mod.fields || []).map(f => ({ _kid: this._kid(), key: f.key, label: f.label, type: f.type, unit: f.unit || '', options: (f.options || []).join('，'), required: !!f.required })),
           calcs: (mod.calcs || []).map(c => Object.assign({}, c)),
         };
@@ -19366,7 +19785,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         else this.$store.addFinanceModule(me.type, { name: me.name, icon: me.icon, fields: fields, calcs: calcs });
         this.closeModule();
       },
-      delModule(mod) { if (confirm('删除模块将同时删除其下所有记录，确定？')) this.$store.removeFinanceModule(mod._id); },
+      // —— 编辑模块弹窗内删除（复用 chart-confirm 二次确认弹窗；删除入口从模块卡片 🗑️ 移入编辑 🖊️）——
+      askDeleteModule() { this.confirmDelModule = true; },
+      cancelDeleteModule() { this.confirmDelModule = false; },
+      delModuleEdit() {
+        if (!this.moduleEdit || !this.moduleEdit._id) return;
+        this.$store.removeFinanceModule(this.moduleEdit._id);
+        this.confirmDelModule = false;
+        this.closeModule();
+      },
       startDrag(e, item, type) {
         if (e.pointerType === 'mouse' && e.button !== 0) return;
         this.dragId = item._id; this.dragType = type || null; this.dragging = true; this._lastTarget = null;
@@ -19505,8 +19932,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // —— 财务数据悬浮菜单 ——
       toggleFinMenu() { this.showFinMenu = !this.showFinMenu; },
-      onExport() { this.showFinMenu = false; this.exportFinanceData(); },
+      onExport() { this.showFinMenu = false; this.askExport({ kind: 'all' }); },
       onImport() { this.showFinMenu = false; this.$nextTick(() => { if (this.$refs.finFile) this.$refs.finFile.click(); }); },
+      // —— 导出数据二次确认 ——
+      askExport(payload) {
+        let text = '是否确定导出该数据？';
+        if (payload.kind === 'area') {
+          const n = payload.type === 'expense' ? '支出' : (payload.type === 'deposit' ? '存款' : '收入');
+          text = '是否确定导出【' + n + '】台账区的全部数据？';
+        } else if (payload.kind === 'module') {
+          text = '是否确定导出模块【' + (payload.mod.name || '未命名模块') + '】的数据？';
+        } else if (payload.kind === 'all') {
+          text = '是否确定导出全部财务复盘数据？';
+        }
+        this.exportConfirm = { show: true, text: text, payload: payload };
+      },
+      doExportConfirm() {
+        const p = this.exportConfirm.payload;
+        this.exportConfirm.show = false;
+        if (!p) return;
+        if (p.kind === 'area') this.exportAreaXlsx(p.type);
+        else if (p.kind === 'module') this.exportModuleXlsx(p.mod);
+        else if (p.kind === 'all') this.exportFinanceData();
+      },
+      cancelExportConfirm() { this.exportConfirm.show = false; },
       pieOf(entries, modules) {
         const scope = this.vizScope;
         let list = modules;
@@ -19662,7 +20111,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="fin-section">
         <div class="fin-sec-head">
           <span class="fin-sec-title-grp">🏦 存款台账区 <span class="fin-sec-sum">合计 {{ fmtMoney(areaDepositTotal()) }}</span></span>
-          <span class="fin-sec-act"><button class="btn mini" @click="exportAreaXlsx('deposit')">📤 导出本区</button></span>
+          <span class="fin-sec-act"><button class="btn mini" @click="askExport({kind:'area', type:'deposit'})">📤 导出本区</button></span>
         </div>
         <div v-for="mod in modulesDeposit" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
           <div class="fin-mod-head">
@@ -19673,8 +20122,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="fin-mod-btns">
               <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
               <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
-              <button class="fin-ibtn xls" @click="exportModuleXlsx(mod)" title="按字段导出本模块 Excel">📤</button>
-              <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
+              <button class="fin-ibtn xls" @click="askExport({kind:'module', mod: mod})" title="按字段导出本模块 Excel">📤</button>
             </div>
           </div>
           <div v-if="entriesOf(mod).length === 0" class="empty-tip">本周期暂无记录</div>
@@ -19700,7 +20148,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="fin-section">
         <div class="fin-sec-head">
           <span class="fin-sec-title-grp">📥 收入台账区 <span class="fin-sec-sum">合计 {{ fmtMoney(areaIncomeTotal()) }}</span></span>
-          <span class="fin-sec-act"><button class="btn mini" @click="exportAreaXlsx('income')">📤 导出本区</button></span>
+          <span class="fin-sec-act"><button class="btn mini" @click="askExport({kind:'area', type:'income'})">📤 导出本区</button></span>
         </div>
         <div v-for="mod in modulesIncome" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
           <div class="fin-mod-head">
@@ -19711,8 +20159,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="fin-mod-btns">
               <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
               <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
-              <button class="fin-ibtn xls" @click="exportModuleXlsx(mod)" title="按字段导出本模块 Excel">📤</button>
-              <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
+              <button class="fin-ibtn xls" @click="askExport({kind:'module', mod: mod})" title="按字段导出本模块 Excel">📤</button>
             </div>
           </div>
           <div v-if="entriesOf(mod).length === 0" class="empty-tip">本周期暂无记录</div>
@@ -19738,7 +20185,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="fin-section">
         <div class="fin-sec-head">
           <span class="fin-sec-title-grp">📤 支出台账区 <span class="fin-sec-sum neg">合计 {{ fmtMoney(areaExpenseTotal()) }}</span></span>
-          <span class="fin-sec-act"><button class="btn mini" @click="exportAreaXlsx('expense')">📤 导出本区</button></span>
+          <span class="fin-sec-act"><button class="btn mini" @click="askExport({kind:'area', type:'expense'})">📤 导出本区</button></span>
         </div>
         <div v-for="mod in modulesExpense" :key="mod._id" class="block fin-mod" :data-id="mod._id" :class="{ 'is-drag': dragging && dragId === mod._id }">
           <div class="fin-mod-head">
@@ -19749,8 +20196,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="fin-mod-btns">
               <button class="fin-ibtn add" @click="openAddEntry(mod)" title="新增记录" aria-label="新增记录">＋</button>
               <button class="fin-ibtn edit" @click="openEditModule(mod)" title="编辑模块" aria-label="编辑模块">✎</button>
-              <button class="fin-ibtn xls" @click="exportModuleXlsx(mod)" title="按字段导出本模块 Excel">📤</button>
-              <button v-if="!mod.isPreset" class="fin-ibtn del" @click="delModule(mod)" title="删除模块" aria-label="删除模块">🗑</button>
+              <button class="fin-ibtn xls" @click="askExport({kind:'module', mod: mod})" title="按字段导出本模块 Excel">📤</button>
             </div>
           </div>
           <div v-if="entriesOf(mod).length === 0" class="empty-tip">本周期暂无记录</div>
@@ -19830,6 +20276,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </div>
 
+      <!-- 导出数据二次确认 -->
+      <div class="chart-confirm" v-if="exportConfirm.show" @click.self="cancelExportConfirm">
+        <div class="idea-choice-box" @click.stop>
+          <div class="idea-choice-title">导出确认</div>
+          <p style="font-size:13px;color:var(--sub);margin:0 0 12px">{{ exportConfirm.text }}</p>
+          <div class="modal-actions">
+            <button class="btn ghost" @click="cancelExportConfirm">取消</button>
+            <button class="btn primary" @click="doExportConfirm">确定导出</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 模块编辑弹窗 -->
       <div class="modal-mask" v-if="showModule" @click.self="closeModule">
         <div class="modal fin-modal">
@@ -19878,8 +20336,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
             <button class="btn mini" @click="addModuleCalc">＋ 计算项</button>
             <div class="modal-actions">
+              <button class="btn danger" v-if="moduleEdit._id" @click="askDeleteModule" title="删除模块">删除模块</button>
               <button class="btn" @click="closeModule">取消</button>
               <button class="btn primary" @click="saveModule">保存模块</button>
+            </div>
+          </div>
+        </div>
+        <!-- 删除模块二次确认（编辑模块弹窗内触发） -->
+        <div class="chart-confirm" v-if="confirmDelModule" @click.self="cancelDeleteModule">
+          <div class="idea-choice-box" @click.stop>
+            <div class="idea-choice-title">确定要删除该模块？</div>
+            <p style="font-size:13px;color:var(--sub);margin:0 0 12px">删除后将同时移除该模块下的所有记录，无法恢复</p>
+            <div class="modal-actions">
+              <button class="btn ghost" @click="cancelDeleteModule">取消</button>
+              <button class="btn danger" @click="delModuleEdit">确定删除</button>
             </div>
           </div>
         </div>
@@ -19992,6 +20462,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         carMsg: '', carMsgTimer: null,
         dragId: null, dragging: false,
         dragFieldKid: null, draggingField: false, fieldSeq: 0,
+        carExportConfirm: { show: false, text: '', payload: null },
         kindOptions: [
           { value: 'skill', label: '专业技能' }, { value: 'cert', label: '证书' }, { value: 'comp', label: '竞赛' },
           { value: 'intern', label: '实习' }, { value: 'project', label: '项目' }, { value: 'club', label: '社团经历' },
@@ -20443,6 +20914,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         } catch (e) { this.setCarMsg('导出失败：' + (e && e.message ? e.message : e)); }
       },
       importCareerData() { this.showData = false; this.$nextTick(() => { if (this.$refs.carFile) this.$refs.carFile.click(); }); },
+      // —— 导出数据二次确认 ——
+      askCarExport(payload) {
+        let text = '是否确定导出该数据？';
+        if (payload.kind === 'all') text = '是否确定导出全部职业数据（JSON）？';
+        else if (payload.kind === 'entries') text = '是否确定导出履历素材（纯文本）？';
+        else if (payload.kind === 'resumes') text = '是否确定导出简历草稿？';
+        else if (payload.kind === 'jds') text = '是否确定导出 JD 匹配记录？';
+        this.carExportConfirm = { show: true, text: text, payload: payload };
+      },
+      doCarExportConfirm() {
+        const p = this.carExportConfirm.payload;
+        this.carExportConfirm.show = false;
+        if (!p) return;
+        if (p.kind === 'all') this.exportCareerData();
+        else if (p.kind === 'entries') this.exportEntries();
+        else if (p.kind === 'resumes') this.exportResumes();
+        else if (p.kind === 'jds') this.exportJDs();
+      },
+      cancelCarExportConfirm() {
+        // 关闭导出确认弹窗时同步收起数据菜单，避免遮罩残留
+        this.carExportConfirm.show = false; this.showData = false;
+      },
       importCareerFile(e) {
         const file = e.target.files && e.target.files[0];
         if (!file) return;
@@ -20470,12 +20963,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <button class="fin-act" @click="showData = !showData">🗂 数据</button>
               <div v-if="showData" class="fin-pop-backdrop" @click="showData = false"></div>
               <div v-if="showData" class="fin-pop">
-                <button class="fin-pop-item" @click="exportCareerData">📤 导出全部数据（JSON）</button>
+                <button class="fin-pop-item" @click="askCarExport({kind:'all'})">📤 导出全部数据（JSON）</button>
                 <button class="fin-pop-item" @click="importCareerData">📥 导入全部数据（JSON）</button>
                 <div style="height:1px;background:var(--line);margin:5px 4px"></div>
-                <button class="fin-pop-item" @click="exportEntries">📤 导出履历（纯文本）</button>
-                <button class="fin-pop-item" @click="exportResumes">📤 导出简历草稿</button>
-                <button class="fin-pop-item" @click="exportJDs">📤 导出 JD 匹配</button>
+                <button class="fin-pop-item" @click="askCarExport({kind:'entries'})">📤 导出履历（纯文本）</button>
+                <button class="fin-pop-item" @click="askCarExport({kind:'resumes'})">📤 导出简历草稿</button>
+                <button class="fin-pop-item" @click="askCarExport({kind:'jds'})">📤 导出 JD 匹配</button>
               </div>
               <input ref="carFile" type="file" accept="application/json,.json" style="display:none" @change="importCareerFile" />
             </div>
@@ -20643,6 +21136,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
             <div class="fld"><label>简历内容（可编辑）</label><textarea v-model="resumeContent" rows="14"></textarea></div>
             <div class="modal-actions"><button class="btn" @click="showResume = false">取消</button><button class="btn primary" @click="saveResume">💾 保存版本</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 导出数据二次确认 -->
+      <div class="chart-confirm" v-if="carExportConfirm.show" @click.self="cancelCarExportConfirm">
+        <div class="idea-choice-box" @click.stop>
+          <div class="idea-choice-title">导出确认</div>
+          <p style="font-size:13px;color:var(--sub);margin:0 0 12px">{{ carExportConfirm.text }}</p>
+          <div class="modal-actions">
+            <button class="btn ghost" @click="cancelCarExportConfirm">取消</button>
+            <button class="btn primary" @click="doCarExportConfirm">确定导出</button>
           </div>
         </div>
       </div>
@@ -21066,6 +21571,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // —— 填报：复用编排表填报弹窗（完成量/耗时/备注直接写母本 records）——
       // 打开前记录母本 spentMin 基线，关闭时把增量同步到实例耗时（副本母本互通）
+      // 任务表条目是否关联番茄正计时：反查母本子任务的 linkPomodoro 开关
+      // —— opt-out 口径：仅「显式 false」才隐藏；字段缺失（功能上线前的存量数据）视为开启，
+      //    避免新增开关把历史条目的 ⏱ 一次性收没
+      subLinkPomodoro(it) {
+        const s = (this.$store.state.project_subs || []).find(x => x.sid === it.sid);
+        return !(s && s.linkPomodoro === false);
+      },
       openRecord(it) {
         this.recordSid = it.sid;
         this.recordIid = it.iid;
@@ -21176,8 +21688,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
             <!-- 图标操作区：计时（进入全屏专注）/ 填报（复用原弹窗）/ 撤销；阻断条目长按手势 -->
             <div class="tb-side" @pointerdown.stop @pointerup.stop @pointercancel.stop>
-              <button class="tb-ico" :class="{on: it.timing}" v-if="!it.done" @click.stop="onTimerBtn(it)" :title="it.timing ? '专注计时中' : '开始专注计时'">⏱</button>
-              <button class="tb-ico" v-if="!it.done" @click.stop="openRecord(it)" title="填报（完成量/耗时/备注）">📝</button>
+              <button class="tb-ico" :class="{on: it.timing}" v-if="!it.done && this.subLinkPomodoro(it)" @click.stop="onTimerBtn(it)" :title="it.timing ? '专注计时中' : '开始专注计时'">⏱</button>
+              <!-- 填报按钮已按要求移除：完成量/耗时仍可点击卡片标题进入填报弹窗 -->
               <button class="tb-ico" v-if="it.done" @click.stop="toggleDone(it)" title="撤销完成">↩</button>
             </div>
           </div>
