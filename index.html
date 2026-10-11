@@ -13028,8 +13028,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const _d = new Date(this.today + 'T00:00:00');
         const _isSunday = _d.getDay() === 0;
         const _isLastDay = _d.getDate() === new Date(_d.getFullYear(), _d.getMonth() + 1, 0).getDate();
-        this.planOpen.week = (this.noDayTasks && !this.quickViewTasks.length) || _isSunday;
-        this.planOpen.month = _isLastDay;
+        // 任务条数为 0 时一律自动折叠（即便满足周日/月末/无待办规则也不展开）
+        const _wkCnt = (this.planBlocks.find(b => b.key === 'week') || {}).shown?.length || 0;
+        const _moCnt = (this.planBlocks.find(b => b.key === 'month') || {}).shown?.length || 0;
+        const _wantWeek = (this.noDayTasks && !this.quickViewTasks.length) || _isSunday;
+        const _wantMonth = _isLastDay;
+        this.planOpen.week = _wantWeek && _wkCnt > 0;
+        this.planOpen.month = _wantMonth && _moCnt > 0;
       }
       // 专注计时时钟（每秒刷新，仅计时中时驱动全屏层时钟）
       this._focusTick = setInterval(() => { this.focusNow = Date.now(); }, 1000);
@@ -13648,9 +13653,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     watch: {
       '$store.state.revision'() { this.$forceUpdate(); },
       // 切到「今日待办 + 临时任务都为空」的日期时周计划看板默认展开；切回有待办日不强制收起（保持用户态/原设计）
-      noDayTasks(v) { if (v && !this.quickViewTasks.length) this.planOpen.week = true; },
+      // 本周任务条数为 0 时即便满足上述条件也不展开
+      noDayTasks(v) {
+        const _wkCnt = (this.planBlocks.find(b => b.key === 'week') || {}).shown?.length || 0;
+        if (v && !this.quickViewTasks.length && _wkCnt > 0) this.planOpen.week = true;
+      },
       // 临时任务清空、且当日本就无待办时，同样默认展开周计划看板（与无待办日展开同口径）
-      quickViewTasks(v) { if (this.noDayTasks && !v.length) this.planOpen.week = true; },
+      quickViewTasks(v) {
+        const _wkCnt = (this.planBlocks.find(b => b.key === 'week') || {}).shown?.length || 0;
+        if (this.noDayTasks && !v.length && _wkCnt > 0) this.planOpen.week = true;
+      },
     },
     template: `
     <div class="page today-page">
@@ -13743,7 +13755,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="grp-body" v-if="planOpen[b.key]">
             <div class="list" v-if="b.shown.length">
               <template v-for="it in b.shown" :key="it._key">
-                <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="b.win.ws" :win-end="b.win.we" :in-week="b.inWeek" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" @quick="onQuickSub" />
+                <SubTaskCopyCard v-if="it.type==='sub'" :sub="it.data" :parent="$store.findTask(it.data._parentId)" :win-start="b.win.ws" :win-end="b.win.we" :in-week="b.inWeek" :show-timer="b.inWeek" :timing="isFocusing(it.data._id)" @timer="onSubTimer" @archive="onSubArchive" @unarchive="onSubUnarchive" @edit="onSubEdit" @quick="onQuickSub" />
                 <div v-else class="row task-row swipeable" @click="onRowClick(it.data)" :style="rowStyle(it.data)" :class="{ 'has-sub': $hasSub(it.data) && !it.data.cycle, 'emergency-bg': it.data.isEmergency }" @pointerdown="rowDown($event,it.data,b.win)" @pointermove="rowMove($event,it.data)" @pointerup="rowUp($event,it.data)" @pointercancel="rowUp($event,it.data)">
                   <div class="swipe-hint" :class="rowHintDir(it.data._id)" v-if="rowHintDir(it.data._id)">{{ rowHintText(it.data._id) }}</div>
                   <button class="row-emg-btn" :class="{on:it.data.isEmergency}" @click.stop="toggleEmergency(it.data)" :title="it.data.isEmergency ? '取消紧急置顶' : '设为紧急置顶（置顶展示，时间/周期不变）'">{{ it.data.isEmergency ? '🚨' : '🚩' }}</button>
@@ -13752,6 +13764,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <div class="row-sub">{{ it.data.desc || '无描述' }}<span v-if="it.data.overdueUnfinished" class="tag overdue-unfinished">⚠ 逾期未完成</span><span class="tag cat" v-for="tg in $catTagList(it.data)" :key="tg">{{ tg }}</span></div>
                     <div class="row-prog prog-sync" v-if="$progressSync(it.data)">📊 {{ $progressSync(it.data) }}</div>
                   </div>
+                  <button class="tb-ico" :class="{on: isFocusing(it.data._id)}" v-if="b.inWeek && it.data.linkPomodoro !== false" @click.stop="onTaskTimer(it.data._id)" :title="isFocusing(it.data._id) ? '专注计时中' : '开始专注计时'">⏱</button>
                   <WeekScheduleBtn v-if="it.data.time_mode==='week'" :task="it.data" />
                 </div>
               </template>
