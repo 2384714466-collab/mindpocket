@@ -82,6 +82,9 @@ body {
 .undo-banner .undo-msg { font-weight: 500; }
 .undo-banner .undo-action { background: rgba(45,108,255,.10); color: #2d6cff; border-radius: 999px; padding: 2px 10px; font-weight: 600; }
 .undo-banner:active { opacity: .85; }
+.storage-banner { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 61; display: inline-flex; align-items: center; gap: 6px; max-width: 92vw; padding: 8px 14px; background: #fff3f0; color: #c0392b; border: 1px solid #f3c5bd; border-radius: 12px; box-shadow: 0 4px 14px rgba(192,57,43,.18); font-size: 13px; line-height: 1.4; cursor: pointer; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+.storage-banner .sb-ico { font-size: 15px; flex: none; }
+.storage-banner:active { opacity: .85; }
 .boot { padding: 40px; text-align: center; color: var(--sub); }
 
 .page-title { font-size: 22px; font-weight: 700; margin: 4px 0 10px; }
@@ -460,6 +463,16 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .wk-sched { position: relative; display: inline-flex; }
 .wk-sched-mask { position: fixed; inset: 0; z-index: 9990; background: transparent; }
 .wk-sched-pop { position: fixed; z-index: 9991; width: 240px; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 10px; }
+/* 收藏夹条目「进度」快捷输入按钮 + 居中弹层（按任务归属夹：收藏夹任务显示「进度」，其余显示「安排」） */
+.pq-btn { background: #eefaf3; color: #1f9d63; border-color: #b7e3cd; }
+.prog-quick-mask { position: fixed; inset: 0; z-index: 9995; background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
+.prog-quick-pop { width: 268px; background: #fff; border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 14px; }
+.prog-quick-pop h4 { margin: 0 0 6px; font-size: 14px; font-weight: 600; color: var(--text); }
+.prog-quick-pop h4 small { font-weight: 400; color: var(--sub); font-size: 12px; }
+.pq-cur { font-size: 12px; color: var(--sub); margin-bottom: 8px; }
+.pq-input { width: 100%; box-sizing: border-box; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 10px; font-size: 15px; font-family: inherit; color: var(--text); }
+.prog-quick-acts { display: flex; gap: 8px; margin-top: 12px; }
+.prog-quick-acts button { flex: 1; height: 34px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 600; cursor: pointer; }
 .wk-sched-h { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
 .wk-sched-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
 .wk-sched-days button { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #f4f7fc; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px 0; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; touch-action: manipulation; }
@@ -867,8 +880,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .arch-cell.today { border-color: var(--primary); border-style: dashed; }
 .arch-cell .arch-cell-day { font-size: 12px; line-height: 1; }
 .arch-cell .arch-cell-count { font-size: 9px; color: var(--primary); font-weight: 700; margin-top: 1px; }
-/* 时间线日期：淡黄圆点显著标识（该日有可展开的时间线） */
+/* 时间线日期：淡黄圆点显著标识（该日有可展开的时间线）；节假日优先用红色，故非节假日才用淡黄点 */
 .arch-cell.has-tl::after { content: ''; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #ffe08a; box-shadow: 0 0 0 1px rgba(214,160,0,.45); }
+/* 节假日日期：不改动热力图底色，仅右上角红点显著标识（既有时间线又逢节假日则红点覆盖黄点） */
+.arch-cell.is-holiday::after { content: ''; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #ef4a4a; box-shadow: 0 0 0 1px rgba(200,40,40,.45); }
 /* 年视图：12 月热力图 */
 .arch-year-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .arch-ym { text-align: center; padding: 8px 4px; border-radius: var(--radius-sm); background: #f7f8fc; cursor: pointer; font-size: 12px; color: var(--text); transition: background .15s; }
@@ -2109,6 +2124,68 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return tryWriteBackups((list || []).slice().reverse());
   }
 
+  // —— 主数据存储后端：IndexedDB 为「权威存储」，localStorage 仅作同步镜像 / 无 IDB 时的兜底 ——
+  // 根因：localStorage 硬上限约 5MB，业务数据（项目/财务/职业/归档）增长后写满，
+  //   原 writeStorageNow 静默吞掉 QuotaExceededError，导致内存中的新变更永不落盘，
+  //   刷新即回退到最后一次成功写入（表现为「回到数小时前」）。IndexedDB 配额远大于 localStorage，
+  //   彻底规避该问题；localStorage 镜像保留以保证冷启动瞬时可读、且 IDB 不可用时仍可工作。
+  var _lsMirrorFailed = false;   // 最近一次 localStorage 镜像写入是否因配额失败
+  var _bootRevision = 0;         // 启动时刻 revision，用于判断异步升级前用户是否已改动数据
+  var _lsSavedAt = 0;            // 当前 localStorage 镜像的 savedAt（用于与 IDB 比较新旧）
+  function _idbOpenMain() {
+    return new Promise(function (resolve, reject) {
+      if (typeof indexedDB === 'undefined') { reject(new Error('no-indexeddb')); return; }
+      let req;
+      try { req = indexedDB.open('mindpocket_main', 1); }
+      catch (e) { reject(e); return; }
+      req.onupgradeneeded = function () {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('state')) db.createObjectStore('state');
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error || new Error('idb-open-failed')); };
+    });
+  }
+  function _idbSaveMain(payload) {
+    // 注意：state 是 Vue 响应式代理，结构化克隆（IndexedDB put）无法克隆代理对象，
+    // 故以 JSON 字符串落盘（字符串始终可克隆），读取时再解析。
+    const str = JSON.stringify(payload);
+    return _idbOpenMain().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const tx = db.transaction('state', 'readwrite');
+        tx.objectStore('state').put(str, 'payload');
+        tx.oncomplete = function () { resolve(true); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+  function _idbLoadMain() {
+    return _idbOpenMain().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        const tx = db.transaction('state', 'readonly');
+        const r = tx.objectStore('state').get('payload');
+        r.onsuccess = function () { resolve(r.result ? JSON.parse(r.result) : null); };
+        r.onerror = function () { reject(r.error); };
+      });
+    });
+  }
+  function _buildPayload() {
+    return {
+      savedAt: Date.now(),
+      habits: state.habits, tasks: state.tasks, categories: state.categories, settings: state.settings,
+      projects: state.projects, project_subs: state.project_subs,
+      project_records: state.project_records, project_ideas: state.project_ideas,
+      project_folders: state.project_folders,
+      sub_custom_statuses: state.sub_custom_statuses,
+      taskBoard: state.taskBoard,
+      wish_items: state.wish_items, wish_records: state.wish_records,
+      archive_ledger: state.archive_ledger,
+      progressUnits: state.progressUnits,
+      finance: state.finance,
+      career: state.career,
+    };
+  }
+
   // 进度记录可选单位（书籍默认「章」而非「页」；内置单位均可被用户删除/新增，不固定）
   const DEFAULT_PROGRESS_UNITS = [
     { id: 'book', icon: '📚', label: '书籍（章）' },
@@ -2322,7 +2399,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     archive_ledger: [],
     progressUnits: DEFAULT_PROGRESS_UNITS.map(u => ({ ...u })),
     finance: { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] },
-    career: { categories: [], entries: [], jds: [], resumes: [], tags: [] }, undoHint: null });
+    career: { categories: [], entries: [], jds: [], resumes: [], tags: [] }, undoHint: null, storageError: null });
 
   /* ----------------------------- 持久化 ----------------------------- */
   // 防抖落盘：高频调用（连续打卡、滑动、批量编辑）合并为一次 localStorage 写入，避免卡顿。
@@ -2333,23 +2410,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 真正执行 localStorage 写入（防抖窗口到点才调用）
   function writeStorageNow() {
     if (_persistTimer) { clearTimeout(_persistTimer); _persistTimer = null; }
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        habits: state.habits, tasks: state.tasks, categories: state.categories, settings: state.settings,
-        projects: state.projects, project_subs: state.project_subs,
-        project_records: state.project_records, project_ideas: state.project_ideas,
-        project_folders: state.project_folders,
-        sub_custom_statuses: state.sub_custom_statuses,
-        taskBoard: state.taskBoard,
-        wish_items: state.wish_items, wish_records: state.wish_records,
-        archive_ledger: state.archive_ledger,   // 模版归档永久流水（须随主数据落盘，否则刷新即丢）
-        progressUnits: state.progressUnits,
-        finance: state.finance,
-        career: state.career,
-      }));
-      // 本地自动备份不再随每次落盘触发（旧「实时备份」逻辑）；改为：① 固定每 30 分钟一份 ② 切后台 / 关闭页面立即补一份
-      // （见下方 _onPageHide 与启动时 setInterval），避免高频落盘产生大量冗余快照。
-    } catch (e) { console.error('[MP] persist failed', e); }
+    const payload = _buildPayload();
+    // 1) 同步镜像写 localStorage（冷启动快速读取；配额不足时静默失败，不影响 IDB 主权存储）
+    _lsMirrorFailed = false;
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); _lsSavedAt = payload.savedAt; }
+    catch (e) { _lsMirrorFailed = true; console.warn('[MP] localStorage 镜像写入失败（配额），改用 IndexedDB 主权存储', e); }
+    // 2) 权威存储写 IndexedDB（配额远大于 localStorage，彻底规避「本地存储不足导致数据丢失」）
+    _idbSaveMain(payload).then(function () {
+      if (state.storageError) state.storageError = null; // 存储恢复正常，清除告警
+    }).catch(function (e) {
+      // 仅当 localStorage 镜像同样写不下，才是真正「存不下」，必须提示用户（绝不静默丢数据）
+      if (_lsMirrorFailed) {
+        state.storageError = '保存失败：本地存储空间不足，请清理项目 / 财务 / 职业等大量数据后重试';
+        console.error('[MP] persist failed on BOTH stores', e);
+      } else {
+        console.error('[MP] IndexedDB 写入失败（镜像可用）', e);
+      }
+    });
   }
   // 立即落盘（绕过防抖）：页面卸载 / 路由切换 / 关键单向操作前调用，防止防抖窗口内数据丢失
   function flushPersist() {
@@ -2466,74 +2543,105 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 统一滑动阈值：区分点击与滑动的像素距离
   var SWIPE_ACTIVATE_PX = 8;   // 超过此距离视为滑动（取消长按）
   var SWIPE_TRIGGER_PX = 80;   // 超过此距离触发操作（左滑完成/右滑撤销）
+  // 把一份解析后的数据对象应用为当前内存状态（含迁移 / 自动归档 / 懒结算等启动期处理）。
+  // 抽离出来以便「localStorage 镜像」与「IndexedDB 主权副本」共用同一套落地逻辑。
+  function _applyLoaded(o) {
+    if (!o || typeof o !== 'object') return;
+    state.habits = o.habits || [];
+    state.tasks = o.tasks || [];
+    state.categories = o.categories || [];
+    const s = o.settings || {};
+    const n = (s && s.notify && typeof s.notify === 'object') ? s.notify : {};
+    state.settings = {
+      quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
+      autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
+      focusFilterTags: Array.isArray(s.focusFilterTags) ? s.focusFilterTags : [],
+      notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
+    };
+    // 项目模块四表：兼容旧版 localStorage（不存在则初始化为空数组）
+    state.projects = o.projects || [];
+    state.project_subs = o.project_subs || [];
+    state.project_records = o.project_records || [];
+    state.project_ideas = o.project_ideas || [];
+    state.project_folders = o.project_folders || [];
+    state.sub_custom_statuses = o.sub_custom_statuses || [];
+    // 任务表实例（含填报时长 durationSec / 手动耗时 manualMin / 计时态）—— 刷新必须原样恢复，否则重新生成实例会丢失已填报时长
+    state.taskBoard = (o.taskBoard && Array.isArray(o.taskBoard.instances)) ? o.taskBoard : { instances: [] };
+    state.wish_items = o.wish_items || [];
+    state.wish_records = o.wish_records || [];
+    state.archive_ledger = Array.isArray(o.archive_ledger) ? o.archive_ledger : [];
+    state.progressUnits = (o.progressUnits && Array.isArray(o.progressUnits) && o.progressUnits.length)
+      ? o.progressUnits
+      : DEFAULT_PROGRESS_UNITS.map(u => ({ ...u }));
+    state.finance = o.finance || { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] };
+    ensureFinancePresets();
+    // 迁移：补全 hasDate 标记（旧数据未存该字段；按已保存的 year/month 推断）
+    (state.finance.expenseEntries || []).forEach(normFinHasDate);
+    (state.finance.incomeEntries || []).forEach(normFinHasDate);
+    state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
+    if (!Array.isArray(state.career.categories)) state.career.categories = [];
+    if (!Array.isArray(state.career.entries)) state.career.entries = [];
+    if (!Array.isArray(state.career.jds)) state.career.jds = [];
+    if (!Array.isArray(state.career.resumes)) state.career.resumes = [];
+    if (!Array.isArray(state.career.tags)) state.career.tags = [];
+    ensureCareerPresets();
+    ensureDebtPenalties(); // 欠条逾期罚息落账（每满 1 周未还清补记 原价×0.5，幂等；读取欠款口径时亦有惰性补记兜底）
+    autoRollOverdueSpecified(); // 逾期「指定周/月」与单点/区间任务自动顺延到本周可见窗口并标记「逾期未完成」（先于 autoExtendOverdue，避免开关把已顺延日期覆盖到今天导致漏标/重复顺延）
+    autoExtendOverdue(); // 过期任务自动延期（仅在开关开启时生效）
+    autoArchiveExpiredCycles(); // 周期任务到期自动归档（母本归档，停止副本同步）
+    autoArchiveCompletedCycles(); // 周期母本副本全完成批量校验（打开页面兜底，跨天场景补触发）
+    // 懒结算：对历史日期进行习惯积分结算（幂等，不会重复扣/加）
+    lazySettleHabits();
+    // 迁移：二级/三级分类归属补全 parent_category（部分入口只存了 category_id、漏存 parent_category），
+    // 使卡片「一级│二级」层级链图标完整（幂等：仅补缺失项，已正确的归属不变）
+    let _pcFixed = false;
+    (state.tasks || []).forEach(t => {
+      if (t.category_id && !t.parent_category) {
+        const c = findCategory(t.category_id);
+        if (c && c.parent) { t.parent_category = c.parent; _pcFixed = true; }
+      }
+      (t.sub_tasks || []).forEach(s => {
+        if (s.category_id && !s.parent_category) {
+          const c = findCategory(s.category_id);
+          if (c && c.parent) { s.parent_category = c.parent; _pcFixed = true; }
+        }
+      });
+    });
+    if (_pcFixed) persist();
+  }
   function load() {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return false;
+      if (!raw) { _lsSavedAt = 0; return false; }
       const o = JSON.parse(raw);
-      state.habits = o.habits || [];
-      state.tasks = o.tasks || [];
-      state.categories = o.categories || [];
-      const s = o.settings || {};
-      const n = (s && s.notify && typeof s.notify === 'object') ? s.notify : {};
-      state.settings = {
-        quickToQuickView: typeof s.quickToQuickView === 'boolean' ? s.quickToQuickView : true,
-        autoExtend: typeof s.autoExtend === 'boolean' ? s.autoExtend : false,
-        focusFilterTags: Array.isArray(s.focusFilterTags) ? s.focusFilterTags : [],
-        notify: { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', ...n },
-      };
-      // 项目模块四表：兼容旧版 localStorage（不存在则初始化为空数组）
-      state.projects = o.projects || [];
-      state.project_subs = o.project_subs || [];
-      state.project_records = o.project_records || [];
-      state.project_ideas = o.project_ideas || [];
-      state.project_folders = o.project_folders || [];
-      state.sub_custom_statuses = o.sub_custom_statuses || [];
-      // 任务表实例（含填报时长 durationSec / 手动耗时 manualMin / 计时态）—— 刷新必须原样恢复，否则重新生成实例会丢失已填报时长
-      state.taskBoard = (o.taskBoard && Array.isArray(o.taskBoard.instances)) ? o.taskBoard : { instances: [] };
-      state.wish_items = o.wish_items || [];
-      state.wish_records = o.wish_records || [];
-      state.archive_ledger = Array.isArray(o.archive_ledger) ? o.archive_ledger : [];
-      state.progressUnits = (o.progressUnits && Array.isArray(o.progressUnits) && o.progressUnits.length)
-        ? o.progressUnits
-        : DEFAULT_PROGRESS_UNITS.map(u => ({ ...u }));
-      state.finance = o.finance || { expenseModules: [], incomeModules: [], expenseEntries: [], incomeEntries: [], depositModules: [], depositEntries: [] };
-      ensureFinancePresets();
-      // 迁移：补全 hasDate 标记（旧数据未存该字段；按已保存的 year/month 推断）
-      (state.finance.expenseEntries || []).forEach(normFinHasDate);
-      (state.finance.incomeEntries || []).forEach(normFinHasDate);
-      state.career = (o.career && typeof o.career === 'object') ? o.career : { categories: [], entries: [], jds: [], resumes: [], tags: [] };
-      if (!Array.isArray(state.career.categories)) state.career.categories = [];
-      if (!Array.isArray(state.career.entries)) state.career.entries = [];
-      if (!Array.isArray(state.career.jds)) state.career.jds = [];
-      if (!Array.isArray(state.career.resumes)) state.career.resumes = [];
-      if (!Array.isArray(state.career.tags)) state.career.tags = [];
-      ensureCareerPresets();
-      ensureDebtPenalties(); // 欠条逾期罚息落账（每满 1 周未还清补记 原价×0.5，幂等；读取欠款口径时亦有惰性补记兜底）
-      autoRollOverdueSpecified(); // 逾期「指定周/月」与单点/区间任务自动顺延到本周可见窗口并标记「逾期未完成」（先于 autoExtendOverdue，避免开关把已顺延日期覆盖到今天导致漏标/重复顺延）
-      autoExtendOverdue(); // 过期任务自动延期（仅在开关开启时生效）
-      autoArchiveExpiredCycles(); // 周期任务到期自动归档（母本归档，停止副本同步）
-      autoArchiveCompletedCycles(); // 周期母本副本全完成批量校验（打开页面兜底，跨天场景补触发）
-      // 懒结算：对历史日期进行习惯积分结算（幂等，不会重复扣/加）
-      lazySettleHabits();
-      // 迁移：二级/三级分类归属补全 parent_category（部分入口只存了 category_id、漏存 parent_category），
-      // 使卡片「一级│二级」层级链图标完整（幂等：仅补缺失项，已正确的归属不变）
-      let _pcFixed = false;
-      (state.tasks || []).forEach(t => {
-        if (t.category_id && !t.parent_category) {
-          const c = findCategory(t.category_id);
-          if (c && c.parent) { t.parent_category = c.parent; _pcFixed = true; }
-        }
-        (t.sub_tasks || []).forEach(s => {
-          if (s.category_id && !s.parent_category) {
-            const c = findCategory(s.category_id);
-            if (c && c.parent) { s.parent_category = c.parent; _pcFixed = true; }
-          }
-        });
-      });
-      if (_pcFixed) persist();
+      _lsSavedAt = (o && o.savedAt) || 0;
+      _applyLoaded(o);
       return true;
     } catch (e) { console.error('[MP] load failed', e); return false; }
+  }
+  // 冷启动后异步从 IndexedDB 主权存储同步：localStorage 镜像可能因配额满而陈旧 / 缺失，
+  // 此时以 IDB 中「更新（savedAt 更大）」的副本覆盖内存与镜像，彻底修复「刷新回到数小时前」。
+  function _upgradeFromIdb() {
+    if (typeof indexedDB === 'undefined') return;
+    _idbLoadMain().then(function (payload) {
+      // IDB 尚无数据：把当前（来自 localStorage 镜像）状态写入 IDB，建立主权副本，避免后续因镜像满而丢数据
+      if (!payload || typeof payload !== 'object') {
+        _idbSaveMain(_buildPayload()).catch(function () {});
+        return;
+      }
+      const idbSavedAt = payload.savedAt || 0;
+      // 仅当 IDB 更新、或 localStorage 镜像缺失时才覆盖，避免回退到更旧副本
+      if (idbSavedAt <= _lsSavedAt) return;
+      // 用户在启动后极短窗口内已改动数据（revision 变化），不打断，交给后续持久化自愈
+      if (state.revision !== _bootRevision) return;
+      try {
+        _applyLoaded(payload);
+        _lsSavedAt = idbSavedAt;
+        notifyChange(); // 广播刷新各页面
+        // 把 IDB 权威副本同步回 localStorage 镜像（best-effort；镜像满时失败也无妨，IDB 才是主权）
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch (e) {}
+      } catch (e) { console.error('[MP] idb 升级应用失败', e); }
+    }).catch(function () { /* 无 IDB 数据或读取失败：维持 localStorage 镜像即可 */ });
   }
 
   /* ----------------------------- 种子数据（首次运行） ----------------------------- */
@@ -5202,13 +5310,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 无日期任务「安排」：快捷安排到某天单点执行日（不改变原无日期语义；仅追加单点日期）
   // 闲趣收藏任务「安排到某天」：先转正（脱离收藏池），再设置单点执行日。
   // 收藏任务按既有规则无法绑定时间（updateTask 会强制清除时间字段），故必须先转正再安排；
-  // 转正后任务进入正式日程（今日/周看板按日期可见），并随 isCollectionTask=false 退出随机候选池。
+  // 转正 = 同时清除 is_collection 标记「与」收藏分类归属（parent_category/category_id 置空），
+  // 否则 isCollCat(category_id) 仍判定为收藏任务 → 安排后既不进随机池、也不进今日/周/月（表现为「安排失效」）。
+  function convertCollectionOut(t) {
+    if (!t) return;
+    if (t.is_collection || (t.category_id && isCollCat(t.category_id))) {
+      t.is_collection = false;
+      t.parent_category = '';
+      t.category_id = null;
+    }
+  }
   function scheduleCollectionToDay(id, ds) {
     if (!ds) return;
     const t = findTask(id);
     if (!t) return;
-    if (t.is_collection) t.is_collection = false;
+    convertCollectionOut(t);
     scheduleTaskToDate(id, null, ds);
+    persist();
+  }
+  // 收藏任务「指定整周」同样需先转正（脱离收藏夹），否则 time_mode='week' 后仍被 isCollCat 拦住、不进周看板。
+  function scheduleCollectionWeek(id, off) {
+    if (off == null) return;
+    const t = findTask(id);
+    if (!t) return;
+    convertCollectionOut(t);
+    assignWeekByOffset(id, null, off);
     persist();
   }
   function scheduleTaskToDate(id, subId, dateStr) {
@@ -7505,6 +7631,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   if (!load()) { seed(); }
   migrate();
   ensureQuickView();
+  _bootRevision = state.revision;  // 记录启动期 revision，供异步 IDB 升级判断是否已被用户改动
+  _upgradeFromIdb();               // 冷启动后异步从 IndexedDB 主权存储同步（修复镜像满导致的回退）
   // 启动阶段（含 load 内自动归档扫描）不弹「可撤销」提示；初始化完成后才启用，避免程序化变更误弹
   setTimeout(function () { _uiHintEnabled = true; }, 800);
 
@@ -7609,8 +7737,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function getLeisurePool() {
     return state.tasks.filter(t =>
       t && !t.is_archived && !t.is_template && isCollectionTask(t) &&
-      !(t.progress_info && t.progress_info.enable)
+      !(t.progress_info && t.progress_info.enable) &&
+      !isTaskScheduled(t)   // 已「安排」到具体日期/周期/周/月的收藏任务退出随机池（转正后按日期进入正式日程）
     );
+  }
+  // 任务是否已被「安排」到具体时间（单点日期 / 区间 / 周期 / 指定周 / 月计划）：
+  // 闲趣随机卡据此把已安排的任务移出候选池 —— 与「启动进度记录」同样不再进入随机卡池。
+  // 注意：必须按实际绑定的时间字段判定，不能用 dateModeOfTask（其把默认 date_mode:'single' 也判为 'day'，
+  // 会误伤所有尚未安排的收藏任务，使其错误退出随机池）。
+  function isTaskScheduled(t) {
+    if (!t) return false;
+    if (t.execute_date) return true;                  // 单点执行日
+    if (t.date_start) return true;                     // 自定义区间
+    if (t.cycle) return true;                          // 周期
+    if (t.time_mode === 'week' && t.plan_year != null && t.plan_week != null) return true; // 指定周
+    if (t.plan_year && t.plan_month) return true;       // 月计划
+    return false;
   }
   // 某任务所属分类链上的全部名称（一级 → 末级），供闲趣随机卡标签筛选做归属判定。
   // 注意：必须按分类 _id 去重（防父链循环访问），绝不能按名字去重 ——
@@ -8010,7 +8152,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, scheduleCollectionWeek, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
     // 模版归档永久流水（每次「完成归档一次」追加一条，重置不清）
     ledgerAdd, ledgerRemove, ledgerList,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
@@ -10502,13 +10644,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <!-- 关联番茄正计时：勾选后任务表条目右侧展示 ⏱ 全屏专注计时（复用任务表计时按钮）；学习标签默认勾选 -->
           <div class="board-group sub">
             <div class="grp-body">
-              <label class="fld check"><input type="checkbox" v-model="draft.linkPomodoro" /> 关联番茄正计时（勾选后任务表条目展示 ⏱ 计时）</label>
+              <label class="fld check"><input type="checkbox" v-model="draft.linkPomodoro" /> 关联番茄正计时</label>
             </div>
           </div>
-          <!-- 安排按钮：是否在条目上显示「安排」按钮（默认勾选；取消则所有场景隐藏）——置于启动进度记录之后 -->
+          <!-- 安排/进度按钮：是否在条目上显示「安排」或「进度」按钮（默认勾选；取消则所有场景隐藏）——
+               注意：具体显示哪一个由任务自身归属夹决定——收藏夹任务显示「进度」，其余显示「安排」 -->
           <div class="board-group sub">
             <div class="grp-body">
-              <label class="fld check"><input type="checkbox" v-model="draft.showArrangeBtn" /> 安排按钮是否展现于条目</label>
+              <label class="fld check"><input type="checkbox" v-model="draft.showArrangeBtn" /> 安排/进度按钮是否展现于条目</label>
             </div>
           </div>
         </div>
@@ -11489,7 +11632,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 双击周标签：将无日期任务「指定」到该整周（本/下周/下下周），不绑定具体日期
       assignSpecWeek(off) {
         const pid = this.subId ? this.parentId : (this.task._id || this.parentId);
-        this.$store.assignWeekByOffset(pid, this.subId || null, off);
+        if (this.convertCollection) this.$store.scheduleCollectionWeek(pid, off);
+        else this.$store.assignWeekByOffset(pid, this.subId || null, off);
         this.open = false;
       },
       // 三周窗口自由移动：以「当前周」为锚的绝对偏移换算为相对偏移（off - curOff），
@@ -11529,6 +11673,99 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </Teleport>
     </span>`,
+  };
+
+  /* =====================================================================
+   * ProgressQuickBtn —— 收藏夹条目「进度」快捷输入按钮
+   * 按任务自身归属夹决定：收藏夹任务用它替换「安排」按钮（点击弹出居中输入框），
+   * 输入当前进度数值（如 320）即落库，条目复用 $progressSync 统一展示
+   * 「📊 进度已同步至：320（页）」。
+   * 单位沿用该任务「任务编辑 · 启动进度记录」里已设的 progress_info.media_type，
+   * 与编辑弹窗口径完全一致（不做二次单位推断，避免两处单位打架）。
+   * ===================================================================== */
+  C.ProgressQuickBtn = {
+    name: 'ProgressQuickBtn',
+    props: {
+      task: { type: Object, required: true },
+      // noButton：仅渲染悬浮更新进度窗口（不渲染自身「进度」按钮），供外部按钮（如闲趣卡「启动进度记录」）触发 openPop()
+      noButton: { type: Boolean, default: false },
+    },
+    data() { return { open: false, val: '' }; },
+    computed: {
+      // 是否展现「进度」按钮：与「安排」按钮共用同一任务级开关（默认展现）。
+      // 文案已统一为「安排/进度按钮是否展现于条目」，故取消勾选时「进度」一并隐藏。
+      showBtn() { return this.task ? (this.task.showArrangeBtn !== false) : false; },
+      // 单位文案：内置 id → 自定义单位 label → 手填纯文本（与任务编辑弹窗同一解析口径）
+      unitLabel() {
+        const pi = this.task && this.task.progress_info;
+        return this.$unitLabel(pi ? pi.media_type : '');
+      },
+      curText() {
+        const pi = this.task && this.task.progress_info;
+        if (!pi || !pi.enable) return '';
+        const pv = (pi.progress_value || '').trim();
+        if (!pv) return '';
+        return '当前：' + pv + (this.unitLabel ? ' ' + this.unitLabel : '');
+      },
+      placeholder() { return '当前进度（第几' + (this.unitLabel || '章') + '）'; },
+    },
+    methods: {
+      openPop() {
+        const pi = (this.task && this.task.progress_info) || {};
+        // 预填已有进度，便于在原值基础上直接修改
+        this.val = (pi.progress_value != null && String(pi.progress_value).trim() !== '')
+          ? String(pi.progress_value)
+          : ((pi.done != null && pi.done !== '') ? String(pi.done) : '');
+        this.open = true;
+        this.$nextTick(() => {
+          try { const el = this.$refs.pqInput; if (el) { el.focus(); el.select(); } } catch (e) {}
+        });
+      },
+      close() { this.open = false; },
+      save() {
+        const raw = String(this.val || '').trim();
+        const n = Number(raw);
+        if (raw === '' || !isFinite(n) || n < 0) { this.close(); return; }
+        const v = Math.round(n * 10) / 10;   // 最多保留 1 位小数，与阅读同步口径一致
+        const pi = (this.task && this.task.progress_info) || {};
+        if (v === 0) {
+          // 输入 0 = 关闭进度记录（不保留上次数值，避免误显）
+          this.$store.setProgress(this.task._id, {
+            enable: false,
+            media_type: pi.media_type || 'book', // 沿用任务编辑里的单位
+            progress_value: '0',
+            done: 0,
+            total: Number(pi.total) || 0,
+          });
+        } else {
+          this.$store.setProgress(this.task._id, {
+            enable: true,                       // 快捷输入即视为开启进度记录
+            media_type: pi.media_type || 'book', // 沿用任务编辑里的单位
+            progress_value: Number.isInteger(v) ? String(v) : v.toFixed(1),
+            done: v,
+            total: Number(pi.total) || 0,
+          });
+        }
+        this.close();
+      },
+    },
+    template: `
+    <span class="wk-sched" v-if="showBtn && !noButton">
+      <button class="row-sched-btn pq-btn" @click.stop="openPop()" @pointerdown.stop title="快捷输入当前进度">进度</button>
+    </span>
+    <Teleport to="body" v-if="open">
+        <div class="prog-quick-mask" @click.stop="close">
+          <div class="prog-quick-pop" @click.stop>
+            <h4>更新进度<small v-if="unitLabel">（单位：{{ unitLabel }}）</small></h4>
+            <div class="pq-cur" v-if="curText">{{ curText }}</div>
+            <input ref="pqInput" class="pq-input" v-model="val" :placeholder="placeholder" inputmode="decimal" @keyup.enter="save" />
+            <div class="prog-quick-acts">
+              <button class="btn ghost" @click.stop="close">取消</button>
+              <button class="btn primary" @click.stop="save">确定</button>
+            </div>
+          </div>
+        </div>
+      </Teleport>`,
   };
 
   /* =====================================================================
@@ -12207,15 +12444,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * LeisureCard —— 闲趣随机卡（今日页底部休闲专属模块）
    * ---------------------------------------------------------------------
    * 定位：所有正式待办列表最底部、底部导航之上，低饱和柔和配色弱化紧迫感。
-   * 数据源：仅「已收藏 且 未归档 且 未启动进度记录」任务（store.getLeisurePool），
-   *        完成 / 归档内容自动过滤；已启动进度记录的视为正式进行中，退出随机池；
+   * 数据源：仅「已收藏 且 未归档 且 未启动进度记录 且 未安排」任务（store.getLeisurePool），
+   *        完成 / 归档内容自动过滤；已启动进度记录或已「安排」到具体日期的视为正式进行中，退出随机池；
    *        收藏新增、取消、改标签后候选池随响应式状态实时刷新，无需手动同步。
    * 交互：标签筛选（层级键，父子同名互不联动）→ 单条随机 → 去向（左滑归档 / 换一件 /
    *        安排到某天 / 启动进度记录），全部在面板内完成；数据走 store，各 tab 实时同步。
    * ===================================================================== */
   C.LeisureCard = {
     name: 'LeisureCard',
-    components: { WeekScheduleBtn: C.WeekScheduleBtn },
+    components: { WeekScheduleBtn: C.WeekScheduleBtn, ProgressQuickBtn: C.ProgressQuickBtn },
     data() {
       return {
         collapsed: true,                          // 整卡默认收起；切 tab 重新挂载即回到默认折叠态
@@ -12335,16 +12572,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.showToast('已归档「' + this.shortName(t.title) + '」', 'archive', t._id);
         this.pickRandom();
       },
-      // —— 启动当前任务的进度记录：开启 progress_info.enable，任务随即退出随机池 ——
-      // 数据走 store（reactive + persist），收藏 / 今日 / 详情等各 tab 实时同步；
-      // 启动后直接打开任务编辑弹窗（emit → TodayPage detailId）：弹窗 created 快照时 enable 已为 true，进度记录编辑区自动展开，可立即填写。
+      // —— 启动当前任务的进度记录：复用「进度」按钮的悬浮更新进度窗口（不再打开任务编辑定位弹窗）——
+      // 打开弹层即时填写当前进度，确认即 setProgress(enable=true) → 任务退出随机池；
+      // 取消 / 关闭弹层则不落库，任务留在候选池（不算启动）。数据走 store，各 tab 实时同步。
       startProgress() {
         const t = this.current;
         if (!t) return;
-        // 预启动：不直接写库——打开任务编辑（表单层勾选开启进度记录），点「确定」保存后才算启动成功（退池）；
-        // 取消 / 关闭弹窗则还原快照，任务留在候选池，相当于没有开启成功。
-        this.showToast('已进入「' + this.shortName(t.title) + '」进度记录编辑，点「确定」完成启动');
-        this.$emit('open-detail', t._id, true);
+        if (this.$refs.progBtn) this.$refs.progBtn.openPop();
       },
       shortName(s) { const x = String(s || ''); return x.length > 10 ? x.slice(0, 10) + '…' : x; },
       showToast(msg, type, undoId) {
@@ -12460,6 +12694,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <button class="lz-btn main" @click="reroll">换一件</button>
           <WeekScheduleBtn :task="current" force convert-collection />
           <button class="lz-btn warm" @click="startProgress">启动进度记录</button>
+          <!-- 复用「进度」按钮的悬浮更新进度窗口（no-button：仅挂弹层，由「启动进度记录」按钮触发 openPop） -->
+          <ProgressQuickBtn ref="progBtn" :task="current" no-button />
         </div>
 
         <div class="lz-toast" v-if="toast"
@@ -12963,6 +13199,49 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   };
 
   /* =====================================================================
+   * 页面 UI 状态缓存（通用）—— 返回上一页时原路还原其交互态
+   * ---------------------------------------------------------------------
+   * 机制：各主页面在「离开（beforeUnmount）」时把声明的 uiFields 快照进内存表
+   * PAGE_UI[key]，再次「进入（created）」时按 key 还原。返回箭头（back()）与
+   * 手机系统返回（hashchange）都走 onHash → 动态组件重挂载 → created，因此两者
+   * 都被覆盖，无需分别处理。展开折叠 / 搜索结果 / 视图选择（如今日「后天」）等
+   * 均可「原状返回」。内存表不落盘，整页刷新后回到默认态（符合「重新进入」语义）。
+   * ===================================================================== */
+  var PAGE_UI = {};
+  function _uiClone(v) {
+    if (v && typeof v === 'object') { try { return JSON.parse(JSON.stringify(v)); } catch (e) {} }
+    return v;
+  }
+  var MP_UI = {
+    created() {
+      var key = (typeof this.uiKey === 'function') ? this.uiKey() : (this.uiKey || '');
+      if (!key) return;
+      var s = PAGE_UI[key]; if (!s) return;
+      var fields = this.uiFields || [];
+      for (var i = 0; i < fields.length; i++) {
+        var f = fields[i];
+        if (f in s) this[f] = _uiClone(s[f]); // 快照表是纯对象，in 判断可靠
+      }
+    },
+    beforeUnmount() {
+      var key = (typeof this.uiKey === 'function') ? this.uiKey() : (this.uiKey || '');
+      if (!key) return;
+      var fields = this.uiFields || [];
+      var snap = {};
+      for (var i = 0; i < fields.length; i++) {
+        var f = fields[i];
+        // 注意：不能用 hasOwnProperty 判 this —— Vue3 实例代理的 getOwnPropertyDescriptor
+        // 陷阱对 data 属性返回 undefined（has 陷阱却命中），直接取值即可（未声明字段得 undefined，无害）。
+        snap[f] = _uiClone(this[f]);
+      }
+      PAGE_UI[key] = snap;
+    },
+  };
+  // 挂到全局组件/混入注册表：本 IIFE 末尾 window.MPComponents = C 只导出挂在 C 上的成员；
+  // 裸 var MP_UI 无法被后续 IIFE（app.js：财务/职业页）看见，故统一走 C.MP_UI 引用（与 C.MaterialLinkMixin 同约定）。
+  C.MP_UI = MP_UI;
+
+  /* =====================================================================
    * TodayPage —— 今日页
    * ===================================================================== */
   // 中国法定节假日（供今日页「距离最近节假日」倒数；跨年需覆盖到下一年的元旦兜底）
@@ -13009,18 +13288,27 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // focusMode 为会话态（每日手动开关）；focusFilterTags 经 settings 持久化（长按编辑后保存记忆，下次开启直接套用）
       focusMode: false, focusPickerOpen: false, focusEditTags: [], _focusLP: false, _focusTimer: null }; },
     created() {
-      // —— 原路返回恢复视图：从子任务页（#/subtask/...）返回今日时，还原离开前的
-      //    专注筛选开关 / 按日查看日期 / 周月折叠开合，避免「进子任务页再返回，今日页回到默认视图」——
-      //    与 App 层滚动位置原路恢复同一语义；快照存 store 实例属性（组件销毁不丢、不落盘）
+      // —— 原路返回恢复视图 ——
+      // 分两类，语义不同：
+      // ① 视图偏好（专注筛选开关 / 按日查看日期）：从任一非今日页面返回时都还原
+      //    （含「切主 Tab 再回来」），满足「切换视图为后天就仍然是后天」；
+      // ② 周月计划展开态：仅「从子页面返回」（带返回箭头的子任务/项目详情/可视化页）时原状还原，
+      //    主 Tab 之间切换视为重新进入，仍走默认展开规则（周日展开本周 / 月末展开本月等）。
+      // 快照存 store 实例属性（组件销毁不丢、不落盘）；首次进入（无 _vc）走默认逻辑。
       const _vc = this.$store._todayViewCache;
-      const _childReturn = !!(this.$root.prevRoute && this.$root.prevRoute.indexOf('/subtask/') === 0);
-      if (_childReturn && _vc) {
+      const _prev = (this.$root && this.$root.prevRoute) || '';
+      const _isSubPage = _prev.indexOf('/subtask/') === 0 || _prev.indexOf('/project/') === 0 || _prev === '/projviz';
+      if (_vc && _prev && _prev !== '/today') {
         this.focusMode = !!_vc.focusMode;
         this.selectedDate = _vc.selectedDate || this.$store.util.todayStr();
-        this.planOpen = Object.assign({ week: false, month: false }, _vc.planOpen || {});
       } else {
         this.selectedDate = this.$store.util.todayStr();
-        // 默认展开规则（仅初次进入今日页生效；手动折叠/展开后不被覆盖）：
+      }
+      if (_vc && _isSubPage) {
+        // 子页面返回：展开折叠原状还原
+        this.planOpen = Object.assign({ week: false, month: false }, _vc.planOpen || {});
+      } else {
+        // 默认展开规则（仅初次进入 / 主 Tab 切回今日页生效；手动折叠/展开后不被覆盖）：
         // ① 该日「今日待办」与「还没处理的临时任务」都为空时，周计划看板默认展开；
         // ② 周日 → 本周标签默认展开（本周收尾，便于回看本周「指定周」待办）；
         // ③ 每月最后一天 → 本月标签默认展开（便于回看本月「仅年月」待办）。
@@ -14543,7 +14831,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * ===================================================================== */
   C.InboxPage = {
     name: 'InboxPage',
-    components: { MaterialBadges: C.MaterialBadges, TaskDetailModal: C.TaskDetailModal, CategoryManageModal: C.CategoryManageModal, AiTaskPreviewModal: C.AiTaskPreviewModal, TaskAddModal: C.TaskAddModal, CategoryEditModal: C.CategoryEditModal, InboxSubPage: C.InboxSubPage, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal, WeekScheduleBtn: C.WeekScheduleBtn, QuickTimeSheet: C.QuickTimeSheet },
+    components: { MaterialBadges: C.MaterialBadges, TaskDetailModal: C.TaskDetailModal, CategoryManageModal: C.CategoryManageModal, AiTaskPreviewModal: C.AiTaskPreviewModal, TaskAddModal: C.TaskAddModal, CategoryEditModal: C.CategoryEditModal, InboxSubPage: C.InboxSubPage, SubTaskCopyCard: C.SubTaskCopyCard, SubTaskEditModal: C.SubTaskEditModal, WeekScheduleBtn: C.WeekScheduleBtn, ProgressQuickBtn: C.ProgressQuickBtn, QuickTimeSheet: C.QuickTimeSheet },
     data() {
       const LS = (k, d) => { try { const v = localStorage.getItem('mindpocket:' + k); return v === null ? d : v; } catch (e) { return d; } };
       return {
@@ -14885,6 +15173,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           localStorage.setItem('mindpocket:inboxUi', JSON.stringify({
             folderView: this.folderView, pageTab: this.pageTab, boardSub: this.boardSub,
             modeFilter: this.modeFilter, activeCat: this.activeCat,
+            searchKeyword: this.searchKeyword,
             // 一级/二级标签展开树：随路由栈进入子任务页再返回时还原，避免展开态丢失
             catOpen: this.catOpen, uncatOpen: this.uncatOpen,
             catExpand: this.catExpand, subExpand: this.subExpand,
@@ -14903,6 +15192,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             if (s.boardSub) this.boardSub = s.boardSub;
             if (s.modeFilter) this.modeFilter = s.modeFilter;
             if (typeof s.activeCat === 'string') this.activeCat = s.activeCat;
+            // 搜索关键词：随路由栈返回时原路还原（避免「进子任务页 → 返回」搜索结果丢失）；
+            // $nextTick 二次赋值以抵抗 pageTab watch / setPageTab 清空搜索的副作用
+            if (typeof s.searchKeyword === 'string') {
+              this.searchKeyword = s.searchKeyword;
+              const _kw = s.searchKeyword;
+              this.$nextTick(() => { this.searchKeyword = _kw; });
+            }
             // 一级/二级标签展开树：持久化以支持「进入子任务页 → 返回」原路还原展开视图
             if (typeof s.catOpen === 'boolean') this.catOpen = s.catOpen;
             if (typeof s.uncatOpen === 'boolean') this.uncatOpen = s.uncatOpen;
@@ -15460,8 +15756,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               </div>
               <div class="row-prog prog-sync" v-if="r.isSub ? $progressSync(r.sub) : $progressSync(r.task)">📊 {{ r.isSub ? $progressSync(r.sub) : $progressSync(r.task) }}</div>
             </div>
-            <!-- 搜索结果条目附「安排」按钮（未归档且未安排时可直接排期；已归档/已安排自动隐藏） -->
-            <WeekScheduleBtn v-if="!r.archived" :task="r.isSub ? r.sub : r.task" :sub-id="r.isSub ? r.sub._id : ''" :parent-id="r.isSub ? (r.parent && r.parent._id) || '' : ''" />
+            <!-- 搜索结果条目附按钮：按任务归属夹决定显示「进度」（收藏夹任务）或「安排」（其余） -->
+            <ProgressQuickBtn v-if="!r.archived && isCollTask(r.isSub ? r.sub : r.task)" :task="r.isSub ? r.sub : r.task" />
+            <WeekScheduleBtn v-else-if="!r.archived" :task="r.isSub ? r.sub : r.task" :sub-id="r.isSub ? r.sub._id : ''" :parent-id="r.isSub ? (r.parent && r.parent._id) || '' : ''" />
           </div>
           <p v-if="!searchResults.length" class="empty-tip">暂无匹配任务</p>
         </template>
@@ -15503,7 +15800,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                     <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
                   </div>
-                  <WeekScheduleBtn :task="t" />
+                  <ProgressQuickBtn v-if="isCollTask(t)" :task="t" />
+                  <WeekScheduleBtn v-else :task="t" />
               <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(t, folderTasksOf(s._id), $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
                 </div>
                 <!-- 三级标签：第三层嵌套（复用 .cat-sub-row / .cat-sub-body，不新增 CSS） -->
@@ -15523,7 +15821,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                           <div class="row-sub">{{ pt.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(pt)" :key="tg">{{ tg }}</span></div>
                           <div class="row-prog prog-sync" v-if="$progressSync(pt)">📊 {{ $progressSync(pt) }}</div>
                         </div>
-                        <WeekScheduleBtn :task="pt" />
+                        <ProgressQuickBtn v-if="isCollTask(pt)" :task="pt" />
+                        <WeekScheduleBtn v-else :task="pt" />
                         <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(pt, folderTasksOf(c3._id), $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
                       </div>
                       <div class="row task-row swipeable" v-for="st in folderSubTasksOf(pt)" :key="st._id" @click="onSubEdit(st._id, pt._id)" :class="{hint: showHint(st), 'emergency-bg': st.isEmergency}">
@@ -15547,7 +15846,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
               </div>
-              <WeekScheduleBtn :task="t" />
+              <ProgressQuickBtn v-if="isCollTask(t)" :task="t" />
+              <WeekScheduleBtn v-else :task="t" />
               <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(t, folderTasksOf(c._id), $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
             </div>
             <p v-if="!folderSubCatsOf(c._id).length && !folderTasksOf(c._id).length" class="empty-tip">该分类下暂无内容</p>
@@ -15569,7 +15869,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <div class="row-sub">{{ t.desc || '无描述' }}<span class="tag cat" v-for="tg in $catTagList(t)" :key="tg">{{ tg }}</span></div>
               <div class="row-prog prog-sync" v-if="$progressSync(t)">📊 {{ $progressSync(t) }}</div>
               </div>
-              <WeekScheduleBtn :task="t" />
+              <ProgressQuickBtn v-if="isCollTask(t)" :task="t" />
+              <WeekScheduleBtn v-else :task="t" />
               <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onTaskHandleDown(t, folderUncatTasks, $event)" @pointermove.stop="onTaskHandleMove($event)" @pointerup.stop="onTaskHandleUp($event)" @pointercancel.stop="onTaskHandleUp($event)" @click.stop>⠿</span>
             </div>
           </div>
@@ -15859,8 +16160,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.StatsPage = {
     name: 'StatsPage',
     components: { MaterialBadges: C.MaterialBadges, TaskDetailModal: C.TaskDetailModal, TaskAddModal: C.TaskAddModal, HabitEditModal: C.HabitEditModal, HabitManageModal: C.HabitManageModal, ProjectEditModal: C.ProjectEditModal, TimelineTimeModal: C.TimelineTimeModal, CycleSummaryModal: C.CycleSummaryModal },
+    mixins: [C.MP_UI],
     data() {
       return {
+        uiKey: 'stats', uiFields: ['collapsed', 'tab', 'archView', 'archType', 'archCat', 'archKeyword', 'archYear', 'archMonth'],
         tab: 'month', year: new Date().getFullYear(), month: new Date().getMonth() + 1,
         chartHabitId: null, showHabitPicker: false, archCat: '__all__', archKeyword: '', detailId: null,
         // 时间线编辑弹窗 / 周期任务汇总弹窗 状态（点击时间线条目 / 查看汇总按钮时写入）
@@ -16051,6 +16354,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const daysInMonth = new Date(this.archYear, this.archMonth, 0).getDate();
         const today = this.today;
         const tlSet = this.archTimelineDateSet();
+        const holSet = this.archHolidayDateSet();
         const cells = [];
         for (let i = 0; i < startWeek; i++) cells.push(null);
         for (let d = 1; d <= daysInMonth; d++) {
@@ -16068,6 +16372,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (!c) return;
           c.bg = this.archHeatBg(c.count, maxCount);
           c.hasTimeline = tlSet.has(c.date);
+          c.isHoliday = holSet.has(c.date);
         });
         return cells;
       },
@@ -16259,6 +16564,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           add(t);
           (t.sub_tasks || []).forEach(s => { if (s) add(s); });
         });
+        return set;
+      },
+      // 节假日日期集合：来自 TODAY_PAGE_HOLIDAYS（中国法定节假日，含跨年兜底），
+      // 将每个假期的 [start, end] 区间展开为按天命中的日期集合。
+      // 日历点阵中命中集合的日期仅以右上角红点标识（不动热力图底色；节假日优先于时间线黄点）。
+      archHolidayDateSet() {
+        const set = new Set();
+        for (const h of TODAY_PAGE_HOLIDAYS) {
+          const s = new Date(h.start + 'T00:00:00').getTime();
+          const e = new Date(h.end + 'T00:00:00').getTime();
+          if (isNaN(s) || isNaN(e)) continue;
+          for (let t = s; t <= e; t += 86400000) {
+            const dt = new Date(t);
+            set.add(dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0'));
+          }
+        }
         return set;
       },
       color(p) { if (p === null) return '#eee'; if (p >= 80) return '#2ecc71'; if (p >= 50) return '#f1c40f'; if (p > 0) return '#e67e22'; return '#e74c3c'; },
@@ -16976,10 +17297,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <span class="wkday" v-for="w in ['日','一','二','三','四','五','六']" :key="w">{{ w }}</span>
               <template v-for="(cell, ci) in archMonthGrid" :key="ci">
                 <div v-if="!cell" class="arch-cell empty"></div>
-                <div v-else class="arch-cell" :class="{ 'has-data': cell.count > 0, sel: cell.isSel, today: cell.isToday, 'has-tl': cell.hasTimeline }"
+                <div v-else class="arch-cell" :class="{ 'has-data': cell.count > 0, sel: cell.isSel, today: cell.isToday, 'is-holiday': cell.isHoliday, 'has-tl': cell.hasTimeline && !cell.isHoliday }"
                      :style="cell.bg ? { background: cell.bg } : null"
                      @pointerdown="onArchCellDown(cell.date, $event)" @pointermove="onArchCellMove" @pointerup="onArchCellUp" @pointercancel="onArchCellUp"
-                     @click="onArchCellClick(cell.date)" :title="cell.date + (cell.count ? ' · '+cell.count+'条归档' : '') + (cell.hasTimeline ? ' · 有时间线' : '')">
+                     @click="onArchCellClick(cell.date)" :title="cell.date + (cell.count ? ' · '+cell.count+'条归档' : '') + (cell.isHoliday ? ' · 节假日' : '') + (cell.hasTimeline ? ' · 有时间线' : '')">
                   <span class="arch-cell-day">{{ cell.day }}</span>
                   <span class="arch-cell-count" v-if="cell.count">{{ cell.count }}</span>
                 </div>
@@ -17732,7 +18053,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <label class="fld">预计耗时 · 小时（可选）<input type="number" min="0" step="0.5" v-model="estH" placeholder="如 1.5" /></label>
             </div>
             <label class="fld check"><input type="checkbox" v-model="inTaskBoard" /> 进入任务表</label>
-            <label class="fld check"><input type="checkbox" v-model="linkPomodoro" /> 关联番茄正计时（勾选后任务表条目展示 ⏱ 计时）</label>
+            <label class="fld check"><input type="checkbox" v-model="linkPomodoro" /> 关联番茄正计时</label>
           </template>
           <div class="fld-row">
             <label class="fld">开始日期（可选）
@@ -18569,11 +18890,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* -------- ProjectsPage —— 项目总览页 -------- */
   C.ProjectsPage = {
     name: 'ProjectsPage',
-    mixins: [C.MaterialLinkMixin], // 素材链接识别：与详情页/待归档任务共用同一实现（搜索灵感结果可展示 🔗）
+    mixins: [C.MaterialLinkMixin, C.MP_UI], // 素材链接识别：与详情页/待归档任务共用同一实现（搜索灵感结果可展示 🔗）；MP_UI=返回原状还原
     components: { MaterialBadges: C.MaterialBadges, ProjectEditModal: C.ProjectEditModal },
     data() {
       return {
+        uiKey: 'projects', uiFields: ['searchKeyword', 'filterTags', 'openFids', 'showArchived'],
         tab: 'tb', showEdit: false, editPid: '',
+        // 返回还原 tab 期间为 true：抑制 tab watch 清空搜索词（搜索词由 MP_UI 快照还原）
+        _tabRestoring: false,
         showArchived: false, // 已归档项目折叠区（默认收起）
         // 标签筛选（多选）；下拉菜单式（与排序菜单同款交互，互斥）
         showTagMenu: false, filterTags: [],
@@ -18713,6 +19037,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     watch: {
       // 约束③：切换 进行中 / 已归档 Tab 自动清空搜索词（刷新由 data 初始化 '' 保证）
       tab(v) {
+        // 返回还原子 Tab 期间不清空：搜索词由 MP_UI 快照原路还原（见 restoreTab 内 _tabRestoring）
+        if (this._tabRestoring) return;
         this.searchKeyword = '';
         // 子视图（任务表 / 编排表）即时持久化：保证「点进项目再返回」能还原离开前所在子视图。
         // 不依赖 beforeUnmount（该钩子在本页路由切换时未必触发），此处切换即落盘，restoreTab 内部返回分支据此还原。
@@ -18738,9 +19064,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         try {
           const t = localStorage.getItem('mindpocket:projectsTab');
           if (fromInternal) {
-            if (t === 'running' || t === 'tb') this.tab = t;   // 内部返回：还原上次子视图
+            if (t === 'running' || t === 'tb') {
+              // 返回还原子 Tab 时抑制 tab watch 清空搜索词：搜索词由 MP_UI 快照在混入 created
+              // （先于本 created 执行）已原路还原，此处若放行 watch 会把搜索结果抹掉。
+              this._tabRestoring = true;
+              this.tab = t;   // 内部返回：还原上次子视图
+              this.$nextTick(() => { this._tabRestoring = false; });
+            }
           } else {
+            this._tabRestoring = true;
             this.tab = 'tb';                                    // 主 Tab 切回：默认任务表
+            this.$nextTick(() => { this._tabRestoring = false; });
           }
         } catch (e) {}
         // 标签筛选：从本地记忆恢复（进入/退出子页面保持记忆）；标签可能已被删除，仅保留仍存在的。
@@ -19907,9 +20241,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   /* ================== 财务复盘 独立 Tab（数据隔离，不与任务/项目互通） ================== */
   C.FinancePage = {
+    mixins: [C.MP_UI],
     data() {
       const now = new Date();
       return {
+        uiKey: 'finance', uiFields: ['searchText', 'vizType', 'vizRange', 'vizScope', 'vizCat', 'year', 'month', 'allYears'],
         year: now.getFullYear(), month: 0, allYears: true,
         showEntry: false, entryMode: 'add', entryModule: null, editId: null, draft: null,
         showModule: false, moduleEdit: null, moduleType: 'expense',
@@ -20823,8 +21159,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   /* ================== 职业 独立 Tab（数据隔离，不与任务/项目/财务互通） ================== */
   C.CareerPage = {
+    mixins: [C.MP_UI],
     data() {
       return {
+        uiKey: 'career', uiFields: ['tab', 'filterTag', 'filterYear', 'vizType'],
         tab: 'resume',
         showCat: false, catEdit: null,
         showEntry: false, entryMode: 'add', entryCat: null, editId: null, draft: null, confirmDelEntry: false,
@@ -21601,7 +21939,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   const App = {
     data() {
-      return { route: '/today', prevRoute: '/inbox', overlayStack: [], undoBanner: { show: false }, _undoTimer: null, _undoShownAt: 0 };
+      return { route: '/today', prevRoute: '/inbox', overlayStack: [], undoBanner: { show: false }, _undoTimer: null, _undoShownAt: 0, storageBanner: { show: false, msg: '' }, _storageTimer: null };
     },
     computed: {
       page() {
@@ -21677,6 +22015,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           this._undoTimer = setTimeout(() => { this.undoBanner.show = false; }, 2000);
         }
       },
+      // 存储告警：本地存储（localStorage + IndexedDB）均写不下时，显示持久提示，绝不静默丢数据
+      '$store.state.storageError'(v) {
+        if (v) {
+          this.storageBanner = { show: true, msg: v };
+          if (this._storageTimer) clearTimeout(this._storageTimer);
+          this._storageTimer = setTimeout(() => { this.storageBanner.show = false; }, 8000);
+        }
+      },
     },
     methods: {
       go(path) { location.hash = path; },
@@ -21714,6 +22060,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.undoBanner.show = false;
         if (this.$store && this.$store.undoLast) this.$store.undoLast();
       },
+      // 关闭存储告警横幅（点击后同时清除 store 的告警标记）
+      dismissStorageBanner() {
+        this.storageBanner.show = false;
+        if (this._storageTimer) { clearTimeout(this._storageTimer); this._storageTimer = null; }
+        try { if (this.$store && this.$store.state) this.$store.state.storageError = null; } catch (e) {}
+      },
     },
     mounted() {
       window.addEventListener('hashchange', this.onHash);
@@ -21750,6 +22102,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="undo-banner" v-if="undoBanner.show" @click="undoStep">
         <span class="undo-ico">↩︎</span>
         <span class="undo-msg">撤销上一步</span>
+      </div>
+      <div class="storage-banner" v-if="storageBanner.show" @click="dismissStorageBanner">
+        <span class="sb-ico">⚠️</span>
+        <span>{{ storageBanner.msg }}</span>
       </div>
       <main class="app-main">
         <component :is="page" :pid="routePid" :tid="routeSubTid" :idea-id="routeIdeaId" :sub-id="routeSubId" />
