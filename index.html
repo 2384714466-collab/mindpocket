@@ -2621,27 +2621,50 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   // 冷启动后异步从 IndexedDB 主权存储同步：localStorage 镜像可能因配额满而陈旧 / 缺失，
   // 此时以 IDB 中「更新（savedAt 更大）」的副本覆盖内存与镜像，彻底修复「刷新回到数小时前」。
+  // 启动数据最终化：在「最终内存数据」上做迁移 / 快视图，并立即落盘到 localStorage + IDB（建立 / 更新主权副本）
+  function _bootAfterData() {
+    migrate();
+    ensureQuickView();
+    flushPersist();
+    _needsSeed = false;
+  }
   function _upgradeFromIdb() {
-    if (typeof indexedDB === 'undefined') return;
+    if (typeof indexedDB === 'undefined') {
+      // 无 IDB（如隐私模式 / file:// 受限）：localStorage 已确认读不到则只能 seed（首次运行）
+      if (_needsSeed) { seed(); _bootAfterData(); }
+      return;
+    }
     _idbLoadMain().then(function (payload) {
-      // IDB 尚无数据：把当前（来自 localStorage 镜像）状态写入 IDB，建立主权副本，避免后续因镜像满而丢数据
-      if (!payload || typeof payload !== 'object') {
-        _idbSaveMain(_buildPayload()).catch(function () {});
-        return;
-      }
-      const idbSavedAt = payload.savedAt || 0;
-      // 仅当 IDB 更新、或 localStorage 镜像缺失时才覆盖，避免回退到更旧副本
-      if (idbSavedAt <= _lsSavedAt) return;
-      // 用户在启动后极短窗口内已改动数据（revision 变化），不打断，交给后续持久化自愈
-      if (state.revision !== _bootRevision) return;
-      try {
+      const idbValid = !!(payload && typeof payload === 'object');
+      const idbSavedAt = idbValid ? (payload.savedAt || 0) : 0;
+      if (idbValid && idbSavedAt > _lsSavedAt) {
+        // IDB 更新（localStorage 被清 / 镜像满回退）：以 IDB 覆盖内存与镜像，避免回到更旧副本
         _applyLoaded(payload);
         _lsSavedAt = idbSavedAt;
         notifyChange(); // 广播刷新各页面
-        // 把 IDB 权威副本同步回 localStorage 镜像（best-effort；镜像满时失败也无妨，IDB 才是主权）
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch (e) {}
-      } catch (e) { console.error('[MP] idb 升级应用失败', e); }
-    }).catch(function () { /* 无 IDB 数据或读取失败：维持 localStorage 镜像即可 */ });
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(payload)); } catch (e) {} // 同步回镜像（best-effort）
+        _bootAfterData();
+        return;
+      }
+      if (!_needsSeed) {
+        // 内存已是 localStorage 数据且 IDB 不更新：把内存同步进 IDB 建立主权副本，避免后续因镜像满丢数据
+        _idbSaveMain(_buildPayload()).catch(function () {});
+        return;
+      }
+      // 内存为空（localStorage 读不到）且 IDB 无更新：若有（较旧）数据仍优先用之，否则首次运行 seed
+      if (idbValid) {
+        _applyLoaded(payload);
+        _lsSavedAt = idbSavedAt;
+        notifyChange();
+        _bootAfterData();
+      } else {
+        seed();
+        _bootAfterData();
+      }
+    }).catch(function () {
+      // IDB 读取失败：退回 localStorage 镜像；内存仍空（localStorage 也读不到）则只能 seed
+      if (_needsSeed) { seed(); _bootAfterData(); }
+    });
   }
 
   /* ----------------------------- 种子数据（首次运行） ----------------------------- */
@@ -7628,11 +7651,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         career,
       });
     }
-  if (!load()) { seed(); }
-  migrate();
-  ensureQuickView();
+  // 非破坏性启动：localStorage 读不到数据时不立即 seed，先交给 _upgradeFromIdb 用 IDB 兜底；
+  // 仅当「localStorage 与 IDB 都无可用数据」才真正 seed，避免误把可恢复的 IDB 数据覆盖成初始化数据。
+  var _needsSeed = false;
+  if (load()) {
+    migrate();
+    ensureQuickView();
+  } else {
+    _needsSeed = true;
+  }
   _bootRevision = state.revision;  // 记录启动期 revision，供异步 IDB 升级判断是否已被用户改动
-  _upgradeFromIdb();               // 冷启动后异步从 IndexedDB 主权存储同步（修复镜像满导致的回退）
+  _upgradeFromIdb();               // 冷启动后异步从 IndexedDB 主权存储同步（修复镜像满 / localStorage 被清导致的回退）
   // 启动阶段（含 load 内自动归档扫描）不弹「可撤销」提示；初始化完成后才启用，避免程序化变更误弹
   setTimeout(function () { _uiHintEnabled = true; }, 800);
 
@@ -21991,15 +22020,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       route(newRoute, oldRoute) {
         this._scrollCache = this._scrollCache || {};
         if (oldRoute) this._scrollCache[oldRoute] = { win: window.scrollY || window.pageYOffset || 0 };
-        this.$nextTick(() => {
-          const isChildReturn = oldRoute && (oldRoute.indexOf('/subtask/') === 0 || oldRoute.indexOf('/project/') === 0);
-          if (isChildReturn && this._scrollCache[newRoute]) {
-            window.scrollTo(0, this._scrollCache[newRoute].win || 0);   // 原路返回：恢复进入子任务页时的滑动位置
-          } else {
-            const main = this.$el && this.$el.querySelector ? this.$el.querySelector('.app-main') : null;
-            if (main) main.scrollTop = 0;          // 兜底：若 .app-main 本身是滚动容器
-            window.scrollTo(0, 0);                 // 主滚动容器为 window/body 时的复位
+        const isChildReturn = oldRoute && (oldRoute.indexOf('/subtask/') === 0 || oldRoute.indexOf('/project/') === 0);
+        // 目标滚动位置：原路返回子任务/项目页 → 恢复进入子任务页时的滑动位置；其余切换 → 复位到顶部
+        const targetY = (isChildReturn && this._scrollCache[newRoute]) ? (this._scrollCache[newRoute].win || 0) : null;
+        const applyScroll = (y) => {
+          const main = this.$el && this.$el.querySelector ? this.$el.querySelector('.app-main') : null;
+          if (y === null) {                         // 普通切换：复位到顶部
+            if (main) main.scrollTop = 0;            // 兜底：若 .app-main 本身是滚动容器
+            window.scrollTo(0, 0);                   // 主滚动容器为 window/body 时的复位
+          } else {                                   // 原路返回：恢复进入子任务页时的滑动位置
+            if (main && main.scrollHeight > main.clientHeight + 4) main.scrollTop = y;
+            window.scrollTo(0, y);
           }
+        };
+        // 立即（DOM 补丁后）执行一次；再于后续动画帧补两次。
+        // 规避「展开标签 / 长列表 / 字体图片晚一帧才撑开高度」导致 window.scrollTo 提前被夹到较小 maxScroll、
+        // 返回后实际落点偏顶（看似「折叠标签 / 跳到顶部 / 周月计划默认态」）的时序问题。
+        this.$nextTick(() => { applyScroll(targetY); });
+        this.$nextTick(() => {
+          requestAnimationFrame(() => {
+            applyScroll(targetY);
+            requestAnimationFrame(() => { applyScroll(targetY); });
+          });
         });
       },
       // 若当前选中的标签已不再存在（被全部删除/移除），自动取消筛选，避免停在空列表
