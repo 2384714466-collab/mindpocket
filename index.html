@@ -597,7 +597,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 @keyframes pop { from { transform: scale(.92); opacity: .6; } to { transform: scale(1); opacity: 1; } }
 .confirm-text { text-align: center; font-size: 15px; font-weight: 600; margin: 6px 0 4px; }
 /* 编辑页删除区：与常规编辑内容间距分隔，区隔普通设置与高危操作 */
-.del-zone { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
 
 /* 习惯新增：类型分段选择 */
 .seg { display: flex; gap: 8px; margin: 0 0 12px; }
@@ -917,6 +916,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .qts-sheet { width: 100%; max-width: 320px; margin: auto; background: #fff; border-radius: 18px; padding: 16px; box-shadow: 0 14px 44px rgba(20,24,40,.32); display: flex; flex-direction: column; gap: 8px; }
 .qts-title { font-size: 14px; font-weight: 700; color: var(--text); text-align: center; margin-bottom: 2px; }
 .qts-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.qts-btns.four { grid-template-columns: repeat(4, 1fr); }
+.qts-btns.four .qts-btn { font-size: 12px; padding: 9px 0; }
 .qts-btn { padding: 9px 2px; border-radius: 10px; border: 1px solid var(--line); background: #f5f6fa; font-size: 13px; font-weight: 600; color: var(--text); text-align: center; }
 .qts-btn:active { transform: translateY(1px); }
 .qts-btn.danger { background: #fff0f0; border-color: #f3c2c9; color: #d23b3b; }
@@ -1013,7 +1014,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* 弹层外部透明遮罩：点击关闭（输入不丢） */
 .quick-mask { position: fixed; inset: 0; z-index: var(--z-quick-mask); background: transparent; }
 .quick-pop {
-  position: fixed; right: 16px; bottom: 152px; z-index: var(--z-quick);
+  position: fixed; right: 16px; top: 27vh; z-index: var(--z-quick);
   width: min(92vw, 360px); box-sizing: border-box;
   background: #fff; border: 1px solid var(--line); border-radius: var(--radius-md); padding: 14px;
   box-shadow: 0 12px 32px rgba(40, 50, 90, .22);
@@ -1171,6 +1172,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .idea-badge { font-size: 11px; padding: 2px 9px; border-radius: var(--radius-sm); }
 .idea-badge.todo { background: #fff3e0; color: #e08e0b; }
 .idea-badge.picked { background: #e8f6ee; color: #1f9d57; }
+/* 素材「关联子任务」长方圆角标签：靠右展示在条目右上角（蓝紫系，与「已领取」绿色徽标区分） */
+.pidea-libs { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; margin-left: auto; max-width: 60%; }
+.lib-tag { font-size: 11px; line-height: 1.4; padding: 3px 10px; border-radius: var(--radius-sm); background: #eef0ff; color: #545fc9; border: 1px solid #dde1fa; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* 编辑弹窗内的「关联子任务」多选胶囊（点击切换选中，不关弹窗） */
+.lib-pick { display: flex; flex-wrap: wrap; gap: 6px; max-height: 132px; overflow-y: auto; padding: 2px; }
+.lib-chip { font-size: 12px; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: #fff; color: var(--text); cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.lib-chip.on { background: #eef0ff; border-color: #b9c0f5; color: #4a53c8; font-weight: 600; }
+.lib-chip:active { background: #f0f1f6; }
+.lib-sel-count { font-size: 12px; color: #545fc9; }
+.lib-pick-empty { font-size: 12px; color: var(--sub); margin: 2px 0 0; }
 .pidea-content { white-space: pre-wrap; background: #f7f8fc; border-radius: var(--radius-sm); padding: 10px; font-size: 13px; color: var(--text); line-height: 1.6; margin: 8px 0; max-height: 160px; overflow-y: auto; }
 .pidea-preview { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f7f8fc; border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px; color: var(--text); line-height: 1.5; margin: 8px 0; }
 .link-ico { flex: 0 0 auto; width: 28px; height: 28px; border: none; background: transparent; color: var(--primary); font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; border-radius: var(--radius-sm); }
@@ -1194,6 +1205,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 /* done：已完成恒灰（用户自定义配色对它不生效，配合「完成自动置后」恒排最后） */
 .psub-status.done { background: #f0f0f3; color: #9aa0ad; }
 .psub-status.custom { background: #fff4e0; color: #c77800; } /* 自定义非完成状态，琥珀色区分 */
+/* 子任务卡 ↩ 撤销按钮（右滑已让位给「移动归属项目」，撤销归档/撤销完成改点此触发） */
+/* 右滑「移动归属项目」弹层内的目标项目列表 */
+.move-proj-list { display: flex; flex-direction: column; gap: 8px; max-height: 46vh; overflow-y: auto; margin-bottom: 4px; }
+.move-proj-arch { font-size: 11px; color: var(--sub); margin-left: 6px; }
 /* 状态选择器（子任务编辑弹窗） */
 .status-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .status-chip { font-size: 12px; padding: 5px 11px; border-radius: var(--radius-md); border: 1px solid #e3e5ee; background: #fff; color: var(--sub); cursor: pointer; }
@@ -3769,6 +3784,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const idx = (t.cycle_history || []).map(h => h.execute_date).lastIndexOf(today);
       if (idx >= 0) t.cycle_history.splice(idx, 1);
     }
+    // 子任务「是否提醒」副本：撤销归档 → 联动撤销母本子任务的完成态（强制置位，与 markCopyDone 对称）
+    // 双向互联：其中一个撤销归档，两者都撤销完成。母本无论是否已归档都撤销完成并还原「进行中」；
+    // 若母本已归档则一并撤销归档并清除归档前快照（避免项目 tab 已归档区条目滞留「已完成」）。
+    // 计数子任务额外按真实填报记录回算 finished：与 toggleSubDone 撤销口径一致——
+    // 此前经项目 tab 标记「已完成」把 finished 拉满到 total（无记录时记为 100%），副本撤销归档后
+    // 回落到真实进度而非停留在「已完成」，否则母本子任务条目会滞留「已完成」样式。
+    if (t.is_sub_remind_copy && t.source_sub_sid && !t.cycle && !(t.date_mode === 'range' && t.date_start)) {
+      const _ss = state.project_subs.find(x => x.sid === t.source_sub_sid);
+      if (_ss) {
+        if (_ss.is_archived) {   // 母本已归档：撤销归档 + 清归档前快照（回到活跃态，而非停在已归档区）
+          _ss.is_archived = false; _ss.archived_at = ''; _ss.archived_ms = 0; _ss.arch_kind = '';
+          delete _ss.arch_prev_done; delete _ss.arch_prev_status; delete _ss.arch_prev_finished;
+        }
+        _ss.sub_done = false; _ss.done_at = null; _ss.status = '进行中'; _ss.isEmergency = false;
+        if (_ss.enableTotal && _ss.total > 0) {
+          const _sum = state.project_records.filter(r => r.sid === _ss.sid && !r.deleted_at)
+            .reduce((a, r) => a + (Number(r.actualNum) || 0), 0);
+          _ss.finished = _sum;
+        }
+        touch(_ss); persist();
+      }
+    }
     persist();
   }
 
@@ -4149,7 +4186,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   // 快速时间设置：按任务当前类型把排期改到目标时间（day=明天/后天/大后天；week=本/下/下下周；month=本/下/下下月）
   // 智能映射：day 作用于单点/区间/无时间任务（区间整体平移保持长度）；week/month 作用于指定周/指定月任务。
-  function quickSetTime(target, unit, offset) {
+  function quickSetTime(target, unit, offset, relative) {
     if (!target) return;
     const today = todayStr();
     const patchTo = (patch) => {
@@ -4166,7 +4203,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const e = cur.date_end || cur.date_start;
         patchTo({ date_mode: 'range', date_start: addDays(cur.date_start, n), date_end: addDays(e, n), execute_date: cur.date_start, time_mode: null, plan_year: null, plan_month: null, plan_week: null, week_offset: null });
       } else {
-        patchTo({ date_mode: 'single', execute_date: addDays(today, Number(offset) || 0), date_start: '', date_end: '', time_mode: null, plan_year: null, plan_month: null, plan_week: null, week_offset: null });
+        // 单点任务：relative（平移档）= 以「已设置日期」为基准前后推；否则（明天/后天/大后天）= 以今日为基准绝对设日
+        const base = relative ? (cur.execute_date || today) : today;
+        patchTo({ date_mode: 'single', execute_date: addDays(base, Number(offset) || 0), date_start: '', date_end: '', time_mode: null, plan_year: null, plan_month: null, plan_week: null, week_offset: null });
       }
     } else if (unit === 'week') {
       const off = Number(offset) || 0;
@@ -4499,6 +4538,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const pts = Math.max(0, 7 - delay);
           addPoints(pts, 'study_work', (delay > 0 ? '延期完成(' + delay + '天): ' : '按时完成: ') + t.title, t._id);
         }
+      }
+    }
+    // —— 子任务「是否提醒」副本：左滑完成后反向标记母本子任务为已完成（强制置位，与副本撤销归档对称）——
+    // 不再用 !isSubComplete 守卫：无论母本此前是否靠「进度」判定完成，完成副本都显式置 sub_done=true，
+    // 使母本完成态由副本镜像（sub_done）统一驱动。
+    if (t.is_sub_remind_copy && t.source_sub_sid && !t.cycle && !(t.date_mode === 'range' && t.date_start)) {
+      const _ss = state.project_subs.find(x => x.sid === t.source_sub_sid);
+      if (_ss) {
+        _ss.sub_done = true; _ss.done_at = Date.now(); _ss.status = '已完成'; _ss.isEmergency = false;
+        touch(_ss); persist();
       }
     }
   }
@@ -6172,7 +6221,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     );
     state.projects = state.projects.filter(p => p.pid !== pid);
     state.project_subs = state.project_subs.filter(s => s.pid !== pid);
-    // 级联清理项目灵感库（以 pid 维度隔离），兑现"所有数据、任务无法恢复"
+    // 级联清理项目灵感库（以 pid 维度隔离），兑现"所有数据、任务无法恢复"；该项目素材随项目一并删除，关联子任务引用自然失效
     state.project_ideas = state.project_ideas.filter(i => i.pid !== pid);
     persist();
   }
@@ -6236,8 +6285,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       planDaily: 1, enableTotal: false, total: null, finished: 0,
       sub_start: null, sub_end: null, sub_done: false, status: '进行中',
       tags: [], estMin: 0, planFillMin: 0, spentMin: 0, done_at: null,
-      isEmergency: false, cycle_start_date: '',
+      isEmergency: false,       cycle_start_date: '',
       inTaskBoard: false, // 是否进入任务表：勾选后每日生成独立打卡实例
+      enable_remind: false, // 是否提醒：勾选后以 sub_start 为锚点生成主任务副本进入今日与周看板
     }, newSync(), s || {});
     state.project_subs.push(sub);
     persist();
@@ -6248,6 +6298,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!s) return;
     Object.assign(s, patch);
     touch(s);
+    persist();
+  }
+  // 移动子任务到其他项目（归属项目迁移）：仅变更 pid，标题/进度/打卡记录/归档态/积分等全部原样保留。
+  // 任务表实例（taskBoard）里的 pid 一并跟随更新，保证按项目分组展示不漂移。
+  function moveSubToProject(sid, targetPid) {
+    const s = state.project_subs.find(x => x.sid === sid);
+    if (!s || !targetPid || s.pid === targetPid) return;
+    const dest = state.projects.find(x => x.pid === targetPid && !x.deleted_at);
+    if (!dest) return;
+    s.pid = targetPid;
+    touch(s);
+    const tb = state.taskBoard;
+    if (tb && Array.isArray(tb.instances)) {
+      tb.instances.forEach(it => { if (it.sid === sid) { it.pid = targetPid; } });
+    }
+    // 同步「是否提醒」主任务副本的归属项目
+    state.tasks.forEach(t => { if (t.is_sub_remind_copy && t.source_sub_sid === sid) t.source_pid = targetPid; });
     persist();
   }
   // —— 任务表：子任务每日打卡实例 ——
@@ -6262,6 +6329,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     state.project_subs.forEach(s => {
       if (s.deleted_at) return;
       if (!s.enableTotal || !s.inTaskBoard) return;          // 必须开启目标计划且勾选进入任务表
+      // 日期范围守卫：仅「开始~结束」区间内才生成；开始/结束未填 → 维持「每天进入」语义
+      if (s.sub_start && date < s.sub_start) return;          // 早于开始日不生成
+      if (s.sub_end && date > s.sub_end) return;              // 晚于结束日不生成
       if (isSubComplete(s) || s.is_archived) return;         // 完成 / 归档的母本不再生成
       if (have[s.sid + '|' + date]) return;                   // 当日已生成则跳过
       tb.instances.push({
@@ -6279,6 +6349,44 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 否则 recordSnapshot 会压入一份「内容完全相同」的快照，让顶部误弹「撤销上一步」
     // （撤销后数据毫无变化，属于纯噪音提示）。
     if (added > 0) persist();
+  }
+  // —— 子任务「是否提醒」副本：维持一张以 sub_start 为锚点的主任务副本 ——
+  // 副本带 is_sub_remind_copy + source_sub_sid / source_pid 反向关联母本子任务；
+  // 进入「今日 tab」（execute_date = sub_start）与「周看板」（time_mode='week' + plan_year/plan_week = ISO 周）。
+  // 左滑完成后由 markCopyDone 反向标记母本子任务为已完成；副本（主任务）归档后自然进入全局已归档仓库。
+  function syncRemindCopy(sid) {
+    const s = state.project_subs.find(x => x.sid === sid);
+    if (!s) return;
+    const existing = state.tasks.find(t => t.is_sub_remind_copy && t.source_sub_sid === sid);
+    const want = !!s.enable_remind && !!s.sub_start && !isSubComplete(s) && !s.deleted_at && !s.is_archived;
+    if (!want) {
+      if (existing) {
+        for (let i = state.tasks.length - 1; i >= 0; i--) {
+          if (state.tasks[i] === existing) { state.tasks.splice(i, 1); persist(); break; }
+        }
+      }
+      return;
+    }
+    const w = isoWeek(parseDate(s.sub_start));
+    if (!existing) {
+      addTask({
+        title: s.title || '提醒',
+        execute_date: s.sub_start,
+        time_mode: 'week', plan_year: w.year, plan_week: w.week,
+        tags: (s.tags || []).slice(), category: '',
+        source_sub_sid: s.sid, source_pid: s.pid, is_sub_remind_copy: true,
+        enable_remind: false, isEmergency: false,
+      });
+    } else {
+      Object.assign(existing, {
+        title: s.title || '提醒',
+        execute_date: s.sub_start,
+        time_mode: 'week', plan_year: w.year, plan_week: w.week,
+        tags: (s.tags || []).slice(),
+        source_pid: s.pid,
+      });
+      touch(existing); persist();
+    }
   }
   // 读取某日全部实例（含已完成，按生成时间升序）
   // 同一项目的子任务前后挨着放在一起：先按生成时间升序，再按「项目首次出现次序」稳定分组
@@ -6322,6 +6430,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!s.deleted_at) rollbackEntityPoints([sid], 'project_sub', s.title); // 重复删除不重复清算
     s.deleted_at = Date.now();
     touch(s);
+    // 级联清理素材上的失效关联：子任务已删除，其他素材上的关联标签同步剔除，避免残留空标签
+    state.project_ideas.forEach(i => {
+      if (Array.isArray(i.linked_subs) && i.linked_subs.indexOf(sid) >= 0) {
+        i.linked_subs = i.linked_subs.filter(x => x !== sid);
+        touch(i);
+      }
+    });
+    // 级联移除该子任务的「是否提醒」主任务副本
+    for (let i = state.tasks.length - 1; i >= 0; i--) {
+      const tk = state.tasks[i];
+      if (tk.is_sub_remind_copy && tk.source_sub_sid === sid) state.tasks.splice(i, 1);
+    }
     persist();
   }
   // 子任务是否已完成：两种来源任一成立即为完成
@@ -6347,12 +6467,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           .reduce((a, r) => a + (Number(r.actualNum) || 0), 0);
         s.finished = sum;
       }
+      linkSubRemindArchive(sid, false);  // 母本撤销完成 → 提醒副本移出全局已归档库（双向联动）
     } else {
       if (s.enableTotal && s.total > 0) s.finished = Number(s.total);
       s.sub_done = true;
       s.done_at = Date.now(); // 记录完成时刻 → 完成区内按完成先后排列
       s.status = '已完成';   // 标记完成 → 工作流状态同步为已完成
       s.isEmergency = false;  // 标记完成即清空紧急标记（视为已处理）
+      linkSubRemindArchive(sid, true);  // 母本标记完成 → 提醒副本同步归档（双向镜像 markCopyDone）
     }
     touch(s); persist();
   }
@@ -6393,6 +6515,32 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     s.finished = (s.arch_prev_finished != null) ? s.arch_prev_finished : s.finished;
     delete s.arch_prev_done; delete s.arch_prev_status; delete s.arch_prev_finished;
     touch(s); persist();
+  }
+  // —— 子任务「是否提醒」副本：母本子任务（project_subs）↔ 副本（tasks: is_sub_remind_copy）双向互联 ——
+  // 镜像关系：一方完成 ↔ 另一方归档；一方撤销归档 ↔ 另一方撤销完成（"其中一个撤销归档就都撤销完成"）。
+  // 归档副本 = 进入全局已归档库；撤销归档副本 = 移出全局已归档库、回到今日 / 周看板。仅当存在关联副本才联动。
+  // 关联副本的归档 / 撤销复用单点完成路径口径（is_archived + autoArchivedByCopies），与 markCopyDone 出口一致。
+  function linkSubRemindArchive(sid, archived) {
+    const copy = state.tasks.find(t => t.is_sub_remind_copy && t.source_sub_sid === sid);
+    if (!copy) return;
+    if (archived && !copy.is_archived) {
+      copy.is_archived = true; copy.archived_ms = Date.now(); copy.archived_at = todayStr(); copy.autoArchivedByCopies = true;
+      touch(copy); persist();
+    } else if (!archived && copy.is_archived) {
+      // 复用通用撤销归档：回滚积分 + 恢复快照（其内置钩子会按「母本是否仍完成」判断，不会对已撤销的母本二次处理）
+      undoArchive(copy._id);
+    }
+  }
+  // 母本子任务撤销完成（并联动把提醒副本移出全局已归档库）。
+  // 用于：项目 tab 中「已完成」子任务右滑（撤销归档语义）——母本非归档态但已标记完成时的撤销入口。
+  function uncompleteSubRemind(sid) {
+    const s = state.project_subs.find(x => x.sid === sid);
+    if (!s) return;
+    const wasComplete = isSubComplete(s);
+    s.sub_done = false; s.done_at = null; s.status = '进行中'; s.isEmergency = false;
+    touch(s);
+    if (wasComplete) linkSubRemindArchive(sid, false);  // 仅当确实撤销了完成时，才联动副本移出归档库
+    else persist();
   }
 
   /* —— 项目子任务状态：按项目隔离 + 可自定义颜色 + 可自定义排序 ——
@@ -6645,7 +6793,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   // —— ProjectIdea 项目灵感素材表 ——
   function addIdea(pid, idea) {
-    const o = Object.assign({ idea_id: uid('idea'), pid: pid, title: '', content: '', link: '', createAt: Date.now(), is_picked: false }, newSync(), idea || {});
+    // linked_subs：本素材关联的本项目子任务（存 sid 数组，多选），用于条目右上角标签与灵感库页筛选
+    const o = Object.assign({ idea_id: uid('idea'), pid: pid, title: '', content: '', link: '', linked_subs: [], createAt: Date.now(), is_picked: false }, newSync(), idea || {});
     state.project_ideas.push(o);
     persist();
     return o;
@@ -6656,6 +6805,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     Object.assign(o, patch);
     touch(o);
     persist();
+  }
+  // 移动灵感素材到其他项目（归属项目迁移）：仅变更 pid，标题/内容/链接/关联子任务等全部原样保留。
+  function moveIdeaToProject(idea_id, targetPid) {
+    const o = state.project_ideas.find(x => x.idea_id === idea_id);
+    if (!o || !targetPid || o.pid === targetPid) return;
+    const dest = state.projects.find(x => x.pid === targetPid && !x.deleted_at);
+    if (!dest) return;
+    o.pid = targetPid;
+    touch(o);
+    persist();
+  }
+  // 可移动到的目标项目列表（排除自身所在项目与已删除项目；进行中优先，已归档置后）
+  function movableProjects(excludePid) {
+    const list = state.projects.filter(p => !p.deleted_at && p.pid !== excludePid);
+    const running = list.filter(p => p.status !== 'archive');
+    const archived = list.filter(p => p.status === 'archive');
+    return running.concat(archived).map(p => ({
+      pid: p.pid, name: p.name || '未命名项目', status: p.status || 'running',
+    }));
   }
   function removeIdea(idea_id) { // 软删除，原始素材保留
     const o = state.project_ideas.find(x => x.idea_id === idea_id);
@@ -6680,6 +6848,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   function getSubs(pid) { return state.project_subs.filter(s => s.pid === pid && !s.deleted_at); }
   function getIdeas(pid) { return state.project_ideas.filter(i => i.pid === pid && !i.deleted_at); }
+  // 素材「关联子任务」：按 sid 取子任务标题；子任务已删除/不存在返回 ''，调用方据此跳过该标签
+  function linkedSubName(sid) {
+    const s = state.project_subs.find(x => x.sid === sid && !x.deleted_at);
+    return s ? (s.title || '未命名子任务') : '';
+  }
+  // 可关联的本项目子任务（未删除；关联限定在当前项目内，候选即本项目全部子任务）
+  function linkedSubOptions(pid) {
+    return state.project_subs
+      .filter(s => !s.deleted_at && s.pid === pid)
+      .map(s => ({ sid: s.sid, name: s.title || '未命名子任务' }));
+  }
   // 任务灵感库：复用 project_ideas 表，以 task_id 维度隔离（pid 置空，不会污染项目列表）
   function addTaskIdea(taskId, idea) {
     const o = Object.assign({ idea_id: uid('idea'), task_id: taskId, pid: null, title: '', content: '', link: '', createAt: Date.now(), is_picked: false }, newSync(), idea || {});
@@ -8201,14 +8380,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 项目模块
     addProject, updateProject, archiveProject, reopenProject, deleteProject, archiveProjectSub, undoArchiveProjectSub,
     addFolder, renameFolder, deleteFolder, getFolders, moveProjectToFolder, archiveFolder, reopenFolder, moveFolderToFolder,
-    addSub, updateSub, removeSub, addCustomSubStatus, removeCustomSubStatus, renameCustomSubStatus, isSubComplete, toggleSubDone, addRecord, getRecords, deleteRecord,
+    addSub, updateSub, removeSub, moveSubToProject, addCustomSubStatus, removeCustomSubStatus, renameCustomSubStatus, isSubComplete, toggleSubDone, addRecord, getRecords, deleteRecord,
     // 项目子任务状态（按项目隔离 + 颜色 + 自定义顺序）
     SUB_STATUS_COLORS, SUB_STATUS_BUILTIN, SUB_STATUS_DONE, statusColorOf,
     getProjectStatuses, statusRankOf, statusStyleOf, ensureProjectStatus,
     addProjectStatus, removeProjectStatus, renameProjectStatus, setProjectStatusColor, setProjectStatusOrder, moveProjectStatus,
-    ensureTaskBoardInstances, getTaskBoardInstances, updateTaskBoardInstance, stopTaskBoardTimer,
+    ensureTaskBoardInstances, getTaskBoardInstances, updateTaskBoardInstance, stopTaskBoardTimer, syncRemindCopy, uncompleteSubRemind, linkSubRemindArchive,
     statDurMin,
-    addIdea, updateIdea, removeIdea, pickIdea,
+    addIdea, updateIdea, removeIdea, pickIdea, moveIdeaToProject, movableProjects,
+    linkedSubName, linkedSubOptions,
     addTaskIdea, getTaskIdeas,
     getProjects, getSubs, getIdeas, projectProgress, projectCountdown, subProgress,
     getSubsOrdered, fmtSpent, subSpentMin, getSubTags, projectFocusMin, isSubDoneLike,
@@ -16044,11 +16224,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       hasDate() { return this.$store.hasYMD(this.task); },
       sheetTitle() { return this.hasDate ? '⏰ 调整时间 / 放弃' : '放弃任务'; },
       dayBtns() { return [{ label: '明天', offset: 1 }, { label: '后天', offset: 2 }, { label: '大后天', offset: 3 }]; },
+      // 日档平移档：在现有日期基础上前推/后移 1~2 天（负数=提前；区间任务整体平移保持长度）
+      dayShiftBtns() { return [{ label: '提前1天', offset: -1 }, { label: '提前2天', offset: -2 }, { label: '推后1天', offset: 1 }, { label: '推后2天', offset: 2 }]; },
       weekBtns() { return [{ label: '本周', offset: 0 }, { label: '下周', offset: 1 }, { label: '下下周', offset: 2 }]; },
       monthBtns() { return [{ label: '本月', offset: 0 }, { label: '下月', offset: 1 }, { label: '下下月', offset: 2 }]; },
     },
     methods: {
-      pick(unit, offset) { this.$store.quickSetTime(this.target, unit, offset); this.$emit('close'); },
+      pick(unit, offset, relative) { this.$store.quickSetTime(this.target, unit, offset, relative); this.$emit('close'); },
       askAbandon() { this.confirming = true; },
       doAbandon() { this.$store.abandonTask(this.target); this.confirming = false; this.$emit('close'); },
       cancelAbandon() { this.confirming = false; },
@@ -16059,6 +16241,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="qts-title">{{ sheetTitle }}</div>
         <template v-if="hasDate">
           <div class="qts-grp">日</div>
+          <div class="qts-btns four">
+            <button class="qts-btn" v-for="b in dayShiftBtns" :key="'ds'+b.offset" @click="pick('day', b.offset, true)">{{ b.label }}</button>
+          </div>
           <div class="qts-btns">
             <button class="qts-btn" v-for="b in dayBtns" :key="'d'+b.offset" @click="pick('day', b.offset)">{{ b.label }}</button>
           </div>
@@ -17907,7 +18092,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectSubEditModal = {
     name: 'ProjectSubEditModal',
     props: { pid: { type: String, required: true }, sid: { type: String, default: '' }, ideaId: { type: String, default: '' }, seedTitle: { type: String, default: '' }, seedTags: { type: Array, default: () => [] } },
-    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, linkPomodoro: false, showDelConfirm: false }; },
+    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, enableRemind: false, linkPomodoro: false, showDelConfirm: false }; },
     computed: {
       // 本项目已有的子任务标签，作为快捷选择项（排除已选），减少重复手输
       tagSuggestions() {
@@ -17939,6 +18124,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           this.unit = s.unit || '';   // 单位改为自由文本，直接回填
           this.tags = (s.tags || []).slice();
           this.inTaskBoard = !!s.inTaskBoard;
+          this.enableRemind = !!s.enable_remind;
           // 关联番茄正计时：与展示层同一套 opt-out 口径——仅显式 false 视为关闭，
           // 字段缺失（上线前存量）保持勾选，避免「打开弹窗随手保存」把 ⏱ 写死为不显示
           this.linkPomodoro = s.linkPomodoro !== false;
@@ -18011,18 +18197,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           sub_done: nowDone,
           // 是否进入任务表：勾选后每日生成独立打卡实例（前提：已开启目标计划）
           inTaskBoard: !!this.inTaskBoard && !!this.enableTotal,
+          // 是否提醒：勾选后以开始日期为锚点生成主任务副本进入今日与周看板
+          enable_remind: !!this.enableRemind,
           // 关联番茄正计时：勾选后任务表条目右侧展示 ⏱ 全屏专注计时（复用任务表计时按钮）
           linkPomodoro: !!this.linkPomodoro,
         };
         // 完成态切换时同步完成时间戳与紧急标记（与 toggleSubDone 口径一致）
         if (nowDone && !wasDone) { patch.done_at = Date.now(); patch.isEmergency = false; }
         else if (!nowDone && wasDone) { patch.done_at = null; }
+        let newSid = this.sid;
         if (this.sid) this.$store.updateSub(this.sid, patch);
-        else this.$store.addSub(this.pid, patch);
+        else { const ns = this.$store.addSub(this.pid, patch); newSid = ns.sid; }
         // 进入任务表的子任务：保存后为其生成今日打卡实例（已存在则幂等跳过）
         if (this.inTaskBoard && this.enableTotal) {
           try { this.$store.ensureTaskBoardInstances(this.$store.util.todayStr()); } catch (e) {}
         }
+        // 是否提醒副本：保存后维持主任务副本（新增场景 newSid 已就绪）
+        try { this.$store.syncRemindCopy(newSid); } catch (e) {}
         if (this.ideaId) this.$store.pickIdea(this.ideaId);
         this.$emit('close');
       },
@@ -18092,6 +18283,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <input type="text" v-model="sub_end" placeholder="YYYY-MM-DD" @blur="sub_end=$store.util.autoFormatDate(sub_end)" :class="{invalid: sub_end && !$store.util.validateDateInput(sub_end).ok}" />
             </label>
           </div>
+          <!-- 是否提醒：勾选后以开始日期为锚点生成主任务副本进入今日 tab 与周看板 -->
+          <label class="fld check"><input type="checkbox" v-model="enableRemind" :disabled="!sub_start" /> 是否提醒（以开始日期生成任务副本进入今日与周看板）</label>
           <!-- 工作流状态：内置 进行中 / 已完成 + 本项目自定义状态（各项目独立）；选「已完成」即标记完成 -->
           <!-- chip 仅供「选中」；新增 / 改名 / 删除 / 改色 / 排序 全部由子任务页 ⚙「状态管理」负责 -->
           <label class="fld">状态
@@ -18535,11 +18728,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     name: 'ProjectIdeaEditModal',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
     props: { pid: { type: String, required: true }, ideaId: { type: String, default: '' } },
-    data() { return { title: '', content: '', link: '', showFull: false, fullDraft: '', showDelConfirm: false }; },
+    data() { return { title: '', content: '', link: '', linkedSubs: [], showFull: false, fullDraft: '', showDelConfirm: false }; },
+    computed: {
+      // 可关联的子任务：本项目内全部未删除子任务（关联限定在当前项目内）
+      subOptions() { return this.$store.linkedSubOptions ? this.$store.linkedSubOptions(this.pid) : []; },
+      // 已选但子任务已被删除 → 不计入"已选 N"，保存时一并剔除
+      linkedSubsValid() {
+        return this.linkedSubs.filter(p => this.subLabel(p));
+      },
+    },
     created() {
       if (this.ideaId) {
         const o = this.$store.state.project_ideas.find(x => x.idea_id === this.ideaId);
-        if (o) { this.title = o.title || ''; this.content = o.content || ''; this.link = o.link || ''; }
+        if (o) { this.title = o.title || ''; this.content = o.content || ''; this.link = o.link || ''; this.linkedSubs = Array.isArray(o.linked_subs) ? o.linked_subs.slice() : []; }
       }
       // 浮层栈：作为弹窗登记 dismiss，系统返回优先关闭本弹窗（返回来源页，不改写路由）
       this._overlayDismiss = () => this.$emit('close');
@@ -18550,9 +18751,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const title = this.title.trim();
         if (!title) { alert('请填写素材标题'); return; }
         const link = (this.link || '').trim();
-        if (this.ideaId) this.$store.updateIdea(this.ideaId, { title, content: this.content, link });
-        else this.$store.addIdea(this.pid, { title, content: this.content, link });
+        const subs = this.linkedSubsValid;   // 剔除已删除子任务的失效关联
+        if (this.ideaId) this.$store.updateIdea(this.ideaId, { title, content: this.content, link, linked_subs: subs });
+        else this.$store.addIdea(this.pid, { title, content: this.content, link, linked_subs: subs });
         this.$emit('close');
+      },
+      // —— 关联子任务（多选标签）——
+      subLabel(sid) { return this.$store.linkedSubName ? this.$store.linkedSubName(sid) : ''; },
+      isSubOn(sid) { return this.linkedSubs.indexOf(sid) >= 0; },
+      toggleSub(sid) {
+        const i = this.linkedSubs.indexOf(sid);
+        if (i >= 0) this.linkedSubs.splice(i, 1);
+        else this.linkedSubs.push(sid);
       },
       // 全屏输入：确认回填，取消丢弃改动（小输入框内容不受影响）
       openFull() { this.fullDraft = this.content; this.showFull = true; },
@@ -18597,13 +18807,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <span>🔗 打开素材链接</span>
           </button>
 
+          <!-- 关联子任务：多选「本项目下已创建的子任务」，保存后以长方圆角标签展示在条目右上角，灵感库页可据此筛选 -->
+          <div class="fld">
+            <div class="fld-note-head">
+              <span>关联子任务（可多选）</span>
+              <span class="lib-sel-count" v-if="linkedSubsValid.length">已选 {{ linkedSubsValid.length }}</span>
+            </div>
+            <div class="lib-pick">
+              <button type="button" class="lib-chip" :class="{on: isSubOn(o.sid)}" v-for="o in subOptions" :key="'lo'+o.sid" @click="toggleSub(o.sid)">{{ o.name }}</button>
+              <p class="lib-pick-empty" v-if="!subOptions.length">暂无子任务可关联</p>
+            </div>
+          </div>
+
+          <!-- 删除素材与取消/保存同行（仅编辑已有素材时出现），省掉独立高危操作区的一整行 -->
           <div class="modal-actions">
+            <button class="btn danger-soft" v-if="ideaId" @click="del">删除素材</button>
             <button class="btn ghost" @click="$emit('close')">取消</button>
             <button class="btn primary" @click="save">保存</button>
-          </div>
-          <!-- 删除素材（仅编辑已有素材时出现；与常规编辑分隔，区隔高危操作） -->
-          <div class="del-zone" v-if="ideaId">
-            <button class="btn danger-soft" style="width:100%" @click="del">删除素材</button>
           </div>
         </div>
         <!-- 删除素材二次确认（复用 APP 通用弹窗：圆角/阴影/配色一致；取消 + 确定删除 并排） -->
@@ -19729,6 +19949,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         highlightSubId: '',
         // 子任务标签筛选（默认折叠，多选标签数组）
         tagbarOpen: false, filterTags: [],
+        // 灵感库「关联子任务」筛选（默认折叠，多选子任务 sid 数组）
+        ideaSubbarOpen: false, ideaFilterSubs: [],
         showProjEdit: false,
         showSubEdit: false, editSid: '', seedTitle: '', pickIdeaId: '', subSeedTags: [],
         showRecord: false, recordSid: '',
@@ -19742,6 +19964,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 二次确认状态（子任务删除 / 灵感删除 / 项目归档）
         confirmDelSub: null, confirmDelIdea: null, confirmArchiveProj: false,
         archChoiceSid: '',   // 子任务滑动归档：二选一弹窗（已全部完成 / 已放弃）待选的 sid
+        // 右滑「移动归属项目」：待移动目标（子任务 sid / 素材 idea_id）与结果提示
+        moveSubSid: '', moveIdeaId: '',
+        moveToast: '', moveToastTimer: null,
       };
     },
     computed: {
@@ -19758,9 +19983,27 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       maxSpent() {
         return this.allSubs.reduce((m, s) => Math.max(m, this.$store.subSpentMin(s)), 0);
       },
-      ideas() { return this.$store.getIdeas(this.pid); },
+      // 全部灵感素材（不受关联库筛选影响）：用于 tab 计数 / 转子任务·转项目时取标题
+      allIdeas() { return this.$store.getIdeas(this.pid); },
+      // 当前展示的灵感素材：叠加「关联子任务」多选筛选（命中任一所选子任务即保留，与子任务标签筛选口径一致）
+      ideas() {
+        if (!this.ideaFilterSubs.length) return this.allIdeas;
+        return this.allIdeas.filter(i => (i.linked_subs || []).some(p => this.ideaFilterSubs.indexOf(p) >= 0));
+      },
+      // 筛选器候选项：本项目素材实际关联过的子任务（子任务已删除则不再出现）
+      ideaSubTags() {
+        const seen = [];
+        this.allIdeas.forEach(i => (i.linked_subs || []).forEach(p => {
+          if (seen.indexOf(p) < 0 && this.subLabel(p)) seen.push(p);
+        }));
+        return seen.map(p => ({ sid: p, name: this.subLabel(p) }));
+      },
+      // 右滑「移动归属项目」：可移动到的目标项目（排除当前项目）
+      moveTargets() { return this.$store.movableProjects ? this.$store.movableProjects(this.pid) : []; },
+      moveSubTitle() { const s = this.$store.state.project_subs.find(x => x.sid === this.moveSubSid); return s ? (s.title || '') : ''; },
+      moveIdeaTitle() { const i = this.allIdeas.find(x => x.idea_id === this.moveIdeaId); return i ? (i.title || '') : ''; },
       archChoiceTitle() { const s = this.$store.state.project_subs.find(x => x.sid === this.archChoiceSid); return s ? (s.title || '') : ''; },
-      ideaChoiceTitle() { const i = this.ideas.find(x => x.idea_id === this.ideaChoiceId); return i ? i.title : ''; },
+      ideaChoiceTitle() { const i = this.allIdeas.find(x => x.idea_id === this.ideaChoiceId); return i ? i.title : ''; },
       progress() { return this.$store.projectProgress(this.pid); },
       countdown() { return this.project ? this.$store.projectCountdown(this.project.deadline) : null; },
       today() { return this.$store.util.todayStr(); },
@@ -19778,7 +20021,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
     },
     created() { this.restoreUiState(); if (this.ideaId) this.flashIdea(this.ideaId); if (this.subId) this.flashSub(this.subId); },
-    beforeUnmount() { this.saveUiState(); if (this.flashTimer) { clearTimeout(this.flashTimer); this.flashTimer = null; } },
+    beforeUnmount() { this.saveUiState(); if (this.flashTimer) { clearTimeout(this.flashTimer); this.flashTimer = null; } if (this.moveToastTimer) { clearTimeout(this.moveToastTimer); this.moveToastTimer = null; } },
     watch: {
       // 路由切换（已在同一项目详情页内跳转不同灵感，或父路由带灵感参数进入）时重新高亮
       ideaId(v) { if (v) this.flashIdea(v); },
@@ -19805,7 +20048,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const raw = localStorage.getItem('mindpocket:projUi:' + this.pid);
           if (!raw) {
             // 无历史 UI 状态：默认进入「有记录的页面」（灵感库），无灵感记录则进入子任务页
-            this.tab = this.ideas.length ? 'idea' : 'sub';
+            this.tab = this.allIdeas.length ? 'idea' : 'sub';
             return;
           }
           const s = JSON.parse(raw);
@@ -19888,9 +20131,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (s) {
             if (dx <= -TH) {
               if (!s.is_archived) this.archChoiceSid = s.sid;   // 左滑 → 归档选择弹窗（已全部完成 / 已放弃）
-            } else {
-              if (s.is_archived) this.$store.undoArchiveProjectSub(s.sid); // 右滑 → 撤销归档（含已放弃）
-              else this.setSubDone(s, false);                   // 未归档：保留原「右滑=撤销完成」设定
+            } else {  // 右滑
+              if (s.is_archived) this.undoSubArchive(s.sid);              // 已归档 → 右滑撤销归档（保留原语义）
+              else if (this.isSubComplete(s)) this.undoSubRemind(s.sid);  // 已完成（未归档）→ 撤销完成 + 副本移出归档库
+              else { this.moveSubSid = s.sid; this.moveIdeaId = ''; }     // 非归档、未完成 → 打开「选择归属项目」移动弹层
             }
           }
         }
@@ -19903,6 +20147,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.archChoiceSid = '';
       },
       cancelArchSub() { this.archChoiceSid = ''; },
+      // —— 右滑「移动归属项目」：仅变更 pid，原数据全部保留迁移 ——
+      cancelMove() { this.moveSubSid = ''; this.moveIdeaId = ''; },
+      doMoveSub(targetPid) {
+        const sid = this.moveSubSid; this.moveSubSid = '';
+        if (!sid || !targetPid) return;
+        const s = this.$store.state.project_subs.find(x => x.sid === sid);
+        const tp = this.$store.state.projects.find(x => x.pid === targetPid);
+        this.$store.moveSubToProject(sid, targetPid);
+        this.flashMove('子任务「' + ((s && s.title) || '') + '」', tp && tp.name);
+      },
+      doMoveIdea(targetPid) {
+        const id = this.moveIdeaId; this.moveIdeaId = '';
+        if (!id || !targetPid) return;
+        const i = this.$store.state.project_ideas.find(x => x.idea_id === id);
+        const tp = this.$store.state.projects.find(x => x.pid === targetPid);
+        this.$store.moveIdeaToProject(id, targetPid);
+        this.flashMove('素材「' + ((i && i.title) || '') + '」', tp && tp.name);
+      },
+      flashMove(name, targetName) {
+        this.moveToast = '已将' + name + '移动到「' + (targetName || '目标项目') + '」（原数据已保留）';
+        if (this.moveToastTimer) clearTimeout(this.moveToastTimer);
+        this.moveToastTimer = setTimeout(() => { this.moveToast = ''; }, 2200);
+      },
+      // 子任务手势：归档态右滑=撤销归档；已完成态（未归档）右滑=撤销完成并联动副本移出归档库；其余右滑=移动归属项目
+      undoSubArchive(sid) { this.$store.undoArchiveProjectSub(sid); },
+      // 项目 tab「已完成」子任务右滑 → 撤销完成（并联动把提醒副本移出全局已归档库）
+      undoSubRemind(sid) { this.$store.uncompleteSubRemind(sid); },
       onSubMainClick(s) {
         if (this.subMoved) return;
         if (!this.subSuppress) this.openRecord(s);
@@ -19926,14 +20197,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const dx = ev.clientX - this.ideaStartX;
         if (Math.abs(dx) > 8) {
           if (this.ideaLongTimer) { clearTimeout(this.ideaLongTimer); this.ideaLongTimer = null; }
-          this.ideaMoved = true; this.ideaX = Math.max(-150, Math.min(0, dx));
+          this.ideaMoved = true; this.ideaX = Math.max(-150, Math.min(150, dx));
         }
       },
       onIdeaUp() {
         if (this.ideaLongTimer) { clearTimeout(this.ideaLongTimer); this.ideaLongTimer = null; }
         if (this.ideaDragId == null) return;
         const dx = this.ideaX, TH = 40;
-        if (dx <= -TH) this.ideaChoiceId = this.ideaDragId; // 左滑 → 二选一
+        if (dx <= -TH) this.ideaChoiceId = this.ideaDragId;             // 左滑 → 二选一
+        else if (dx >= TH) { this.moveIdeaId = this.ideaDragId; this.moveSubSid = ''; } // 右滑 → 打开「选择归属项目」移动弹层
         this.ideaX = 0; this.ideaDragId = null;
         if (this.ideaSuppress) setTimeout(() => { this.ideaSuppress = false; }, 0);
       },
@@ -19942,14 +20214,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!this.ideaSuppress) this.openIdeaEdit(i);
       },
       chooseIdeaToSub() {
-        const i = this.ideas.find(x => x.idea_id === this.ideaChoiceId);
+        const i = this.allIdeas.find(x => x.idea_id === this.ideaChoiceId);
         this.ideaChoiceId = null;
         if (!i) return;
         this.editSid = ''; this.seedTitle = i.title; this.pickIdeaId = i.idea_id;
         this.subSeedTags = ['素材']; this.showSubEdit = true;
       },
       chooseIdeaToProject() {
-        const i = this.ideas.find(x => x.idea_id === this.ideaChoiceId);
+        const i = this.allIdeas.find(x => x.idea_id === this.ideaChoiceId);
         this.ideaChoiceId = null;
         if (!i) return;
         const raw = (i.content && i.content.trim()) || i.title || '灵感项目';
@@ -19959,6 +20231,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         location.hash = '#/project/' + p.pid;
       },
       cancelIdeaChoice() { this.ideaChoiceId = null; },
+      // —— 灵感库：关联子任务筛选（与子任务标签筛选同款下拉多选）——
+      subLabel(sid) { return this.$store.linkedSubName ? this.$store.linkedSubName(sid) : ''; },
+      // 素材上有效的关联子任务（子任务已删除则不再展示标签）
+      ideaSubs(i) {
+        return (i.linked_subs || []).map(p => ({ sid: p, name: this.subLabel(p) })).filter(x => x.name);
+      },
+      toggleIdeaSubbar() { this.ideaSubbarOpen = !this.ideaSubbarOpen; },
+      pickIdeaSub(sid) {
+        const i = this.ideaFilterSubs.indexOf(sid);
+        if (i >= 0) this.ideaFilterSubs.splice(i, 1);
+        else this.ideaFilterSubs.push(sid);
+      },
+      clearIdeaSub() { this.ideaFilterSubs = []; this.ideaSubbarOpen = false; },
       // 选题灵感库：领取生成「进行中的项目」，灵感内容填充到项目（仅 name 文本字段可用），其余字段置空
       pickAsProject(i) {
         const raw = (i.content && i.content.trim()) || i.title || '灵感项目';
@@ -20057,7 +20342,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
       <div class="tabs">
         <button :class="{on:tab==='sub'}" @click="tab='sub'">子任务（{{ allSubs.length }}）</button>
-        <button :class="{on:tab==='idea'}" @click="tab='idea'">灵感库（{{ ideas.length }}）</button>
+        <button :class="{on:tab==='idea'}" @click="tab='idea'">灵感库（{{ allIdeas.length }}）</button>
       </div>
 
       <!-- 子任务顶部操作行：新增子任务 + 标签筛选（多选）+ 可视化（独立页面），与项目页按钮同理 -->
@@ -20124,7 +20409,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       </div>
 
       <div v-if="tab==='idea'" class="idea-list2">
-        <button class="btn primary block-new" @click="openIdeaNew">＋ 新增灵感素材</button>
+        <!-- 灵感库顶部操作行：新增素材 + 关联子任务筛选（多选），与子任务页 🏷️ 标签筛选同款 -->
+        <div class="proj-top-actions ideatop-actions" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;position:relative;">
+          <button class="btn primary" style="flex:1;" @click="openIdeaNew">＋ 新增灵感素材</button>
+          <button class="icon-btn" :class="{on: ideaFilterSubs.length > 0}" @click="toggleIdeaSubbar" title="关联子任务筛选（多选）" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">🏷️</button>
+          <!-- 关联子任务筛选下拉：多选（点击切换选中，不关菜单） -->
+          <div class="sort-menu" v-if="ideaSubbarOpen && ideaSubTags.length" style="position:absolute;right:0;top:100%;z-index: var(--z-pop);background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:180px;max-height:280px;overflow-y:auto;">
+            <div class="sort-item" :class="{on: ideaFilterSubs.indexOf(t.sid) >= 0}" v-for="t in ideaSubTags" :key="'is'+t.sid" @click="pickIdeaSub(t.sid)" style="padding:9px 12px;font-size:13px;border-radius:var(--radius-sm);cursor:pointer;color:var(--text);">{{ ideaFilterSubs.indexOf(t.sid) >= 0 ? '✅ ' : '▫️ ' }}{{ t.name }}</div>
+            <div class="sort-item" v-if="ideaFilterSubs.length" @click="clearIdeaSub" style="padding:9px 12px;font-size:13px;border-radius:var(--radius-sm);cursor:pointer;color:var(--no);border-top:1px solid var(--line);margin-top:2px;">✕ 清除筛选（已选 {{ ideaFilterSubs.length }}）</div>
+            <p v-if="!ideaSubTags.length" style="padding:10px 12px;font-size:12px;color:var(--sub);">暂无关联子任务</p>
+          </div>
+        </div>
         <div class="pidea swipe-card" v-for="i in ideas" :key="i.idea_id" :data-idea="i.idea_id"
              :style="{ transform: 'translateX(' + (ideaDragId===i.idea_id ? ideaX : 0) + 'px)' }"
              :class="{ dragging: ideaDragId===i.idea_id && ideaMoved, 'idea-flash': highlightIdeaId===i.idea_id }"
@@ -20135,11 +20430,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="pidea-top">
             <div class="pidea-title">{{ i.title }}</div>
             <span class="idea-badge picked" v-if="i.is_picked">已领取</span>
+            <!-- 关联子任务：长方圆角标签靠右，展示在条目右上角 -->
+            <span class="pidea-libs" v-if="ideaSubs(i).length">
+              <span class="lib-tag" v-for="lt in ideaSubs(i)" :key="'lt'+lt.sid" :title="'关联子任务：' + lt.name">{{ lt.name }}</span>
+            </span>
             <button class="link-ico" v-if="isValidMaterialLink(i.link)" @pointerdown.stop @click.stop="openMaterialLink(i.link)" title="打开素材链接" aria-label="打开素材链接">🔗</button>
           </div>
           <div class="pidea-preview" v-if="i.content">{{ ideaPreview(i) }}</div>
         </div>
-        <p v-if="!ideas.length" class="empty-tip">灵感库为空，记录选题 / 学习笔记 / 想法吧</p>
+        <p v-if="!ideas.length && ideaFilterSubs.length" class="empty-tip clickable" @click="clearIdeaSub">所选 {{ ideaFilterSubs.length }} 个关联子任务下暂无素材，点此清除筛选</p>
+        <p v-else-if="!ideas.length" class="empty-tip">灵感库为空，记录选题 / 学习笔记 / 想法吧</p>
       </div>
 
       <ProjectSubEditModal v-if="showSubEdit" :pid="pid" :sid="editSid" :seed-title="seedTitle" :idea-id="pickIdeaId" :seed-tags="subSeedTags" @close="showSubEdit=false" />
@@ -20165,6 +20465,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <button class="choice-cancel" @click="cancelArchSub">取消</button>
         </div>
       </div>
+      <!-- 右滑「移动归属项目」：选择目标项目即迁移（仅变更归属，原数据全部保留） -->
+      <div class="chart-confirm" v-if="moveSubSid || moveIdeaId" @click.self="cancelMove">
+        <div class="idea-choice-box" @click.stop>
+          <div class="idea-choice-title">移动「{{ moveSubSid ? moveSubTitle : moveIdeaTitle }}」到哪个项目？</div>
+          <div class="move-proj-list">
+            <button class="choice-btn" v-for="t in moveTargets" :key="t.pid" @click="moveSubSid ? doMoveSub(t.pid) : doMoveIdea(t.pid)">
+              📂 {{ t.name }}<span v-if="t.status==='archive'" class="move-proj-arch">已归档</span>
+            </button>
+            <p v-if="!moveTargets.length" style="padding:10px;font-size:12px;color:var(--sub);text-align:center">暂无其他项目可移动</p>
+          </div>
+          <button class="choice-cancel" @click="cancelMove">取消</button>
+        </div>
+      </div>
+      <div class="toast" v-if="moveToast">{{ moveToast }}</div>
       <!-- 删除子任务二次确认（居中圆角样式） -->
       <div class="chart-confirm" v-if="confirmDelSub" @click.self="confirmDelSub=null">
         <div class="idea-choice-box" @click.stop>
