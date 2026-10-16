@@ -879,6 +879,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .arch-cell.today { border-color: var(--primary); border-style: dashed; }
 .arch-cell .arch-cell-day { font-size: 12px; line-height: 1; }
 .arch-cell .arch-cell-count { font-size: 9px; color: var(--primary); font-weight: 700; margin-top: 1px; }
+/* 未到达日期：灰色底，弱化区分「计划（未归档）」与「已归档（蓝底）」；其下方数字为当日计划数量，灰色显示 */
+.arch-cell.future { background: #f1f2f6; color: #9aa0ad; }
+.arch-cell .arch-cell-plan { font-size: 9px; color: #9aa0ad; font-weight: 700; margin-top: 1px; }
 /* 时间线日期：淡黄圆点显著标识（该日有可展开的时间线）；节假日优先用红色，故非节假日才用淡黄点 */
 .arch-cell.has-tl::after { content: ''; position: absolute; top: 4px; right: 4px; width: 7px; height: 7px; border-radius: 50%; background: #ffe08a; box-shadow: 0 0 0 1px rgba(214,160,0,.45); }
 /* 节假日日期：不改动热力图底色，仅右上角红点显著标识（既有时间线又逢节假日则红点覆盖黄点） */
@@ -5654,6 +5657,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return n;
   }
 
+  // 归档仓库日历点阵：某日「计划数量」（尚未归档、按排程本应出现在当日的活跃待办）
+  // 口径：今日 tab 可见项（单点精确 / 区间含该日 / 周期命中当日）+ 周看板（指定周命中）+ 月看板（指定月命中）
+  // 已归档 / 收藏夹 / 本条完成副本 均排除；带 execute_date 的单点项已由「今日 tab」精确计数，周/月看板循环里跳过避免重复
+  function plannedCountOnDate(date) {
+    const w = isoWeek(parseDate(date));
+    const d = parseDate(date);
+    const y = d.getFullYear(), mo = d.getMonth() + 1;
+    let n = 0;
+    // ① 今日 tab 可见项（单点 / 区间 / 周期命中；收藏夹、已归档、本条完成副本排除）
+    n += getTodayTasks(date).length;
+    // ② 周看板 / 月看板：纯「指定周 / 指定月」类型（无具体执行日、非周期、非区间），命中目标周/月即计入
+    const consider = t => {
+      if (!t || t.is_archived) return;
+      if (isCollectionTask(t)) return;
+      if (copyDoneForWindow(t, date, date)) return;        // 本条完成 → 该副本消失
+      if (t.cycle) return;                                  // 周期已计入今日 tab
+      if (t.date_mode === 'range' && t.date_start) return;  // 区间已计入今日 tab
+      if (t.execute_date) return;                            // 单点精确命中已计入今日 tab（避免重复）
+      if (t.time_mode === 'week' && classifyMode(t) === 'week') {
+        if (t.plan_year != null && t.plan_week != null) { if (t.plan_year === w.year && t.plan_week === w.week) n++; }
+        else if (t.week_offset === 0) n++;
+      } else if (t.time_mode === 'month' && classifyMode(t) === 'month') {
+        if (t.plan_year === y && t.plan_month === mo) n++;
+      }
+    };
+    state.tasks.forEach(consider);
+    getBoardSubTasks().forEach(s => { if (s && s._isSub) consider(s); });
+    return n;
+  }
+
   /* ============================ 分类相关方法（第 3 层模块 2：支持一级+二级层级） ============================ */
   function findCategory(id) { return state.categories.find(c => c._id === id); }
   // 第 3 层模块 2：新增分类，parent 为一级分类 _id（为空=一级分类）；仅允许两级嵌套
@@ -8360,7 +8393,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, scheduleCollectionWeek, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, plannedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, scheduleCollectionWeek, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
     // 模版归档永久流水（每次「完成归档一次」追加一条，重置不清）
     ledgerAdd, ledgerRemove, ledgerList,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
@@ -16576,7 +16609,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           cells.push({
             date: ds, day: d,
             count: this.$store.archivedCountOnDate(ds),
+            planCount: this.$store.plannedCountOnDate(ds),
             isToday: ds === today,
+            isFuture: ds > today,
             isSel: ds === this.archSelDate,
           });
         }
@@ -17511,12 +17546,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <span class="wkday" v-for="w in ['日','一','二','三','四','五','六']" :key="w">{{ w }}</span>
               <template v-for="(cell, ci) in archMonthGrid" :key="ci">
                 <div v-if="!cell" class="arch-cell empty"></div>
-                <div v-else class="arch-cell" :class="{ 'has-data': cell.count > 0, sel: cell.isSel, today: cell.isToday, 'is-holiday': cell.isHoliday, 'has-tl': cell.hasTimeline && !cell.isHoliday }"
-                     :style="cell.bg ? { background: cell.bg } : null"
+                <div v-else class="arch-cell" :class="{ 'has-data': cell.count > 0, sel: cell.isSel, today: cell.isToday, future: cell.isFuture, 'is-holiday': cell.isHoliday, 'has-tl': cell.hasTimeline && !cell.isHoliday }"
+                     :style="(!cell.isFuture && cell.bg) ? { background: cell.bg } : null"
                      @pointerdown="onArchCellDown(cell.date, $event)" @pointermove="onArchCellMove" @pointerup="onArchCellUp" @pointercancel="onArchCellUp"
-                     @click="onArchCellClick(cell.date)" :title="cell.date + (cell.count ? ' · '+cell.count+'条归档' : '') + (cell.isHoliday ? ' · 节假日' : '') + (cell.hasTimeline ? ' · 有时间线' : '')">
+                     @click="onArchCellClick(cell.date)" :title="cell.date + (cell.count ? ' · '+cell.count+'条归档' : '') + (cell.isFuture && cell.planCount ? ' · '+cell.planCount+'条计划' : '') + (cell.isHoliday ? ' · 节假日' : '') + (cell.hasTimeline ? ' · 有时间线' : '')">
                   <span class="arch-cell-day">{{ cell.day }}</span>
                   <span class="arch-cell-count" v-if="cell.count">{{ cell.count }}</span>
+                  <span class="arch-cell-plan" v-else-if="cell.isFuture && cell.planCount">{{ cell.planCount }}</span>
                 </div>
               </template>
             </div>
