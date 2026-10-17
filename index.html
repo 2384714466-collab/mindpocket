@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261017.2" />
+  <meta name="mp-version" content="20261017.3" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -2379,7 +2379,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 周期规则统一解析（月 / 周共用）：支持「空格 / 逗号分隔的多个数字」「x-y 连续区间」
   // 月：数字 0~31（0 = 当月最后一天）；周：数字 1~7（1=周一 … 7=周日）
   // 返回 { ok, nums:[去重升序数字], error }；非法字符 / 超范围 / 反向区间 一律 ok:false
+  // 周期规则解析（纯函数）：同一 (kind, raw) 结果不变，归档日历/看板按天批量查询时
+  // cycleHits 会被调用上百万次，rule 字符串反复解析是统计页切换卡顿的主因之一，按输入缓存。
+  var _ruleParseCache = {};
   function parseCycleRule(raw, kind) {
+    const ck = (kind || '') + '|' + (raw == null ? '' : String(raw));
+    const hit = _ruleParseCache[ck];
+    if (hit) return hit;
+    const res = _parseCycleRuleCore(raw, kind);
+    _ruleParseCache[ck] = res;
+    return res;
+  }
+  function _parseCycleRuleCore(raw, kind) {
     const text = String(raw == null ? '' : raw).trim();
     if (!text) return { ok: false, nums: [], error: '请填写周期规则' };
     const isMonth = kind === 'month';
@@ -3480,7 +3491,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // extend 恒返回 ''（漏卡不滞留今日看板）；recount 取滚动链首个未完成日；独立固定/legacy 从「实际排期」取最早过去未完成发生日。
   // 注意：独立固定必须复用 computeCycleSchedule 的排期口径（而非单独扫 cycleHits），
   // 否则周/月周期的「周几对齐」口径不一致会定位到错误日期（如落在起始日之前）。
+  // 按任务记忆化：结果仅依赖任务数据(revision) + today，与查询日无关。归档日历对当月每天、
+  // getTodayTasks 排序比较器（每次比较 2 次）都会调用它，independent/legacy 分支的
+  // computeCycleSchedule(hist:4000) 全量排期是统计页切换数秒的主因；缓存后塌缩为每任务每版本一次。
+  var _cdtCache = {};
   function cycleDeferTarget(t) {
+    if (!t || !t.cycle) return '';
+    if (!t._id) return _cycleDeferTargetCore(t);   // 无稳定 id 不缓存
+    const td = todayStr(), rev = state.revision || 0;
+    const c = _cdtCache[t._id];
+    if (c && c.td === td && c.rev === rev) return c.val;
+    const val = _cycleDeferTargetCore(t);
+    _cdtCache[t._id] = { td: td, rev: rev, val: val };
+    return val;
+  }
+  function _cycleDeferTargetCore(t) {
     if (!t || !t.cycle) return '';
     const mode = cycleMode(t);
     const today = todayStr();
@@ -5107,8 +5132,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return key || '9999-12-31';
   }
 
+  // 今日可见主任务：按 (查询日, today, revision) 记忆化。
+  // 归档日历对当月每天各查一次（plannedCountOnDate），统计 tab 切走再切回时 revision 不变，
+  // 直接命中缓存；命中返回 slice() 隔离调用方对数组结构的修改（元素仍为响应式共享引用）。
+  var _gttCache = {};
   function getTodayTasks(date) {
     const d = date || todayStr();
+    const td = todayStr(), rev = state.revision || 0;
+    const c = _gttCache[d];
+    if (c && c.td === td && c.rev === rev) return c.val.slice();
+    const val = _getTodayTasksCore(d);
+    _gttCache[d] = { td: td, rev: rev, val: val };
+    return val.slice();
+  }
+  function _getTodayTasksCore(d) {
     const list = state.tasks.filter(t => {
       if (isCollectionTask(t)) return false; // 收藏夹任务不参与今日副本同步
       if (copyDoneForWindow(t, d, d)) return false; // 副本「本条完成」后当前副本消失，母本与其它副本不受影响
@@ -5158,8 +5195,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
   // 今日待办中的子任务副本：与 getTodayTasks 同口径（单点命中 / 区间含该日 / 周期命中且当日未归档 / 逾期滞留）
   // date 为空时等同今日；传入具体日期即「按日查看」该日子任务副本
+  // 今日可见子任务副本：与 getTodayTasks 同口径按 (查询日, today, revision) 记忆化
+  var _gttsCache = {};
   function getTodaySubTasks(date) {
     const d = date || todayStr();
+    const td = todayStr(), rev = state.revision || 0;
+    const c = _gttsCache[d];
+    if (c && c.td === td && c.rev === rev) return c.val.slice();
+    const val = _getTodaySubTasksCore(d);
+    _gttsCache[d] = { td: td, rev: rev, val: val };
+    return val.slice();
+  }
+  function _getTodaySubTasksCore(d) {
     const out = [];
     state.tasks.forEach(t => {
       if (t.is_archived) return;
@@ -5705,7 +5752,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
 
   // 归档仓库日历点阵：某日归档条目总数（任务 + 习惯 + 项目），统一展示所有类型
+  // 按 (日期, today, revision) 记忆化：月视图 31 天各查一次，切 tab 重渲染时 revision 不变直接命中。
+  var _acdCache = {};
   function archivedCountOnDate(date) {
+    const td = todayStr(), rev = state.revision || 0;
+    const c = _acdCache[date];
+    if (c && c.td === td && c.rev === rev) return c.val;
+    const val = _archivedCountOnDateCore(date);
+    _acdCache[date] = { td: td, rev: rev, val: val };
+    return val;
+  }
+  function _archivedCountOnDateCore(date) {
     let n = 0;
     state.tasks.forEach(t => {
       // 周期 / 区间任务：每个「已打卡日」都计入日历点阵，而非仅末日（含未整体归档但已打卡的副本）
@@ -5734,6 +5791,143 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     getTodayTasks(date).forEach(t => { if (!isQuick(t)) n++; });
     getTodaySubTasks(date).forEach(s => { if (!isQuick(s)) n++; });
     return n;
+  }
+
+  // 归档仓库基础列表（统计页 buildArchBase 下沉至此）：按 (关键词, 分类, revision, today) 跨组件实例缓存。
+  // 统计 tab 无 keep-alive，每次切回都重建组件；此计算遍历全部任务/子任务/习惯/项目并构造展示对象，
+  // 是大数据量下切换卡顿的主因之一，缓存后切 tab 直接命中。
+  var _archBaseCache = { key: '', val: null };
+  function buildArchBase(keyword, archCat) {
+    const rev = state.revision || 0, td = todayStr();
+    const key = (keyword || '') + '|' + (archCat || '') + '|' + rev + '|' + td;
+    if (_archBaseCache.key === key) return _archBaseCache.val;
+    const val = _buildArchBaseCore(keyword, archCat);
+    _archBaseCache.key = key; _archBaseCache.val = val;
+    return val;
+  }
+  function _buildArchBaseCore(keyword, archCat) {
+    const out = [];
+    const rawK = (keyword || '').trim();
+    // 「#」多条件（与财务页同原理）：以 # 分隔的多个关键词需全部命中（AND）
+    const segs = rawK.split('#').map(s => s.trim()).filter(Boolean);
+    // 类型识别：任一段含「项目 / 习惯 / 子任务 / 任务」即按该类型筛选（可多类型并集，如「任务#习惯」同时显示两类）
+    // 段内优先级：项目 > 习惯 > 子任务 > 任务（「子任务」含「任务」，先判子任务）
+    const typeSet = new Set();
+    const textKws = [];   // 剥离类型词后的文本关键词，全部需命中（AND）
+    segs.forEach(sg => {
+      if (sg.indexOf('项目') >= 0) typeSet.add('project');
+      else if (sg.indexOf('习惯') >= 0) typeSet.add('habit');
+      else if (sg.indexOf('子任务') >= 0) typeSet.add('subtask');
+      else if (sg.indexOf('任务') >= 0) typeSet.add('task');
+      // 段内剥离类型/状态词，剩余文本仍参与匹配（如「任务紧急」→ 类型 task + 文本「紧急」）；
+      // 「已归档」为状态词：仓库内本就全部为已归档条目，识别后剥离、不当文本匹配（保证「已归档#旅行」等组合可用）
+      let rest = sg;
+      ['项目', '习惯', '子任务', '任务', '已归档'].forEach(w => { rest = rest.split(w).join(' '); });
+      rest = rest.trim().toLowerCase();
+      if (rest) textKws.push(rest);
+    });
+    const showTask = !typeSet.size || typeSet.has('task');    // 父任务（不含子任务）
+    const showSub = !typeSet.size || typeSet.has('subtask');  // 子任务（不含父任务）
+    const showHabit = !typeSet.size || typeSet.has('habit');
+    const showProj = !typeSet.size || typeSet.has('project');
+    // 归档时刻（毫秒）：新数据取 archived_ms（各归档写入点实时打标，可区分「同一天内」的先后）；
+    // 旧库无该字段时逐级回落：archived_at 当天零点 → 创建时间 → last_modified_at，
+    // 保证历史归档条目在升序里仍「早归档的排前面」，而不是全部堆到队首。
+    const archMsOf = (obj) => {
+      if (Number(obj.archived_ms)) return Number(obj.archived_ms);
+      if (obj.archived_at) {
+        const p = Date.parse(String(obj.archived_at).slice(0, 10) + 'T00:00:00');
+        if (p) return p;
+      }
+      const c = Number(obj.createAt || obj.create_at);
+      if (c) return c;
+      return Number(obj.last_modified_at) || 0;
+    };
+    const norm = (obj, type, date, realId) => {
+      // 注意：不能把 _parentId/_abandoned 以 undefined 显式写入 Object.assign——
+      // Object.assign 会用 undefined 覆盖 obj 自带的同名字段（如任务子任务条目的 _parentId），
+      // 导致仓库撤销时 setArchived(undefined,...) 静默失效。project_sub 专属字段走条件赋值。
+      const o = Object.assign({}, obj, {
+        _type: type,
+        _id: type === 'project' ? (obj.pid || obj._id) : (realId != null ? realId : (obj._id || obj.sid || obj.pid)),
+        _realId: type === 'project' ? (obj.pid || obj._id) : (obj._id || obj.sid || obj.pid),
+        _title: type === 'project' ? (obj.name || '') : (obj.title || ''),
+        _typeLabel: type === 'task' ? '任务' : (type === 'habit' ? '习惯' : (type === 'project' ? '项目' : '子任务')),
+        _date: (type === 'project' || type === 'project_sub') ? (obj.archived_at || '') : date,
+        _archMs: archMsOf(obj),          // 归档时刻（升序排序依据）
+      });
+      if (type === 'project_sub' || type === 'subtask') {
+        o._parentId = obj.pid || obj._parentId || null;     // 归属父级（项目 / 普通任务），单击溯源跳转
+      }
+      // 已放弃格外标记：主任务 / 普通子任务 / 项目子任务统一（快速窗口「放弃」后仓库显示 🚫 已放弃）
+      o._abandoned = (obj.arch_kind === 'abandon');
+      o._expired = !!obj.overdueUnfinished;                 // 过期未完成标记（指定月「软性计划」月末自动归档的条目）
+      return o;
+    };
+    // 周期 / 自定义区间任务：按「每个已打卡日」展开为独立归档条目（当日打卡 → 当日同步到归档仓库）
+    // 仅当存在多个打卡日才展开；单日 / 单点任务保持原单条，避免无谓重复
+    const expandCycle = (obj, type) => {
+      const dates = archiveDatesOf(obj);
+      if (dates.length > 1) {
+        dates.forEach(d => out.push(norm(obj, type, d, obj._id + '◇' + d)));
+        return true;
+      }
+      return false;
+    };
+    // 父任务（搜索「任务」或空关键词时显示；搜索「子任务」时不混入）
+    if (showTask) {
+      getArchivedTasks(archCat, textKws).forEach(t => {
+        if (!expandCycle(t, 'task')) out.push(norm(t, 'task', archiveDateOf(t)));
+      });
+      // 模版归档流水：模版任务副本完成后立即被重置回收，其归档留痕只存在于 archive_ledger。
+      // 按「每个归档流水日」展开为独立条目（每次完成归档一次 = 仓库记录一次）。
+      // 去重：母本当前若仍处于归档态（手动归档未撤销），其实体已被上方 getArchivedTasks 收录，
+      // 该日期已被该实体条目覆盖，此处不再重复展开，避免同一天出现两条。
+      const coveredDates = new Set(
+        out.filter(o => o._type === 'task' && o._realId).map(o => o._realId + '@' + o._date)
+      );
+      ledgerList().forEach(e => {
+        if (!e || !e.task_id) return;
+        if (coveredDates.has(e.task_id + '@' + e.date)) return;
+        if (textKws.length && !textKws.every(k => (e.title || '').toLowerCase().includes(k))) return;
+        out.push({
+          _type: 'task', _id: e.id, _realId: e.task_id,
+          _title: e.title || '（模版任务）',
+          _typeLabel: '任务', _date: e.date,
+          _isLedger: true,
+          _archMs: Number(e.ts) || 0,    // 流水自带毫秒时间戳
+        });
+      });
+    }
+    // 已归档子任务：扁平化并入（沿用父任务分类/标题参与筛选）；仅「子任务」或空关键词时显示
+    if (showSub) {
+      getArchivedSubTasks(archCat, textKws).forEach(s => {
+        if (!expandCycle(s, 'subtask')) out.push(norm(s, 'subtask', archiveDateOf(s)));
+      });
+      // 项目子任务（项目 Tab 内子任务）：滑动归档（已全部完成 / 已放弃）当日进入仓库；
+      // 归属日 = archived_at（选择归档当天）；已放弃条目格外标记「已放弃」，支持左滑撤销恢复
+      (state.project_subs || []).forEach(s => {
+        if (!s.is_archived || s.deleted_at) return;
+        if (textKws.length && !textKws.every(k => (s.title || '').toLowerCase().includes(k))) return;
+        out.push(norm(s, 'project_sub', s.archived_at));
+      });
+    }
+    // 习惯：独立筛选，仅在「全部分类」下并入（习惯无分类归属）
+    if (showHabit && (!archCat || archCat === '__all__')) {
+      getArchivedHabits(textKws)
+        .forEach(h => out.push(norm(h, 'habit')));
+    }
+    if (showProj) {
+      // 项目文本命中：单关键词与旧口径一致（名称/截止日/描述/素材/标签）；多关键词逐词 AND
+      const projHitKw = (p, k) => (p.name || '').toLowerCase().includes(k) || (p.deadline || '').toLowerCase().includes(k)
+        || (p.desc || '').toLowerCase().includes(k) || (p.material_notes || '').toLowerCase().includes(k) || (p.material_link || '').toLowerCase().includes(k)
+        || (Array.isArray(p.tags) && p.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k)));
+      state.projects
+        .filter(p => p.status === 'archive' && !p.deleted_at &&
+          (!textKws.length || textKws.every(k => projHitKw(p, k))))
+        .forEach(p => out.push(norm(p, 'project')));
+    }
+    return out;
   }
 
   /* ============================ 分类相关方法（第 3 层模块 2：支持一级+二级层级） ============================ */
@@ -7044,7 +7238,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   /* ============================ 统计辅助 ============================ */
   // 某日全部「可判定完成」习惯的整体完成百分比（含 SOP + QUIT，排除请假）
+  // 单日完成率：按 (日期, today, revision) 记忆化。统计页月格子(31 天)/年格子(365 天)每天各查一次，
+  // 内部对每个习惯跑 isHoliday + getHabitRecord，是大数据量下统计 tab 切换卡顿的主因之一。
+  var _dcCache = {};
   function dayCompletion(date) {
+    const td = todayStr(), rev = state.revision || 0;
+    const c = _dcCache[date];
+    if (c && c.td === td && c.rev === rev) return c.val;
+    const val = _dayCompletionCore(date);
+    _dcCache[date] = { td: td, rev: rev, val: val };
+    return val;
+  }
+  function _dayCompletionCore(date) {
     const applicable = state.habits.filter(h => h.type !== 'RECORD_HABIT' && !isHoliday(h._id, date));
     if (!applicable.length) return null;
     let done = 0;
@@ -8450,7 +8655,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, plannedCountOnDate, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, scheduleCollectionWeek, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, plannedCountOnDate, buildArchBase, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, scheduleCollectionWeek, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
     // 模版归档永久流水（每次「完成归档一次」追加一条，重置不清）
     ledgerAdd, ledgerRemove, ledgerList,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
@@ -16882,129 +17087,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 受「全部类型」折叠筛选与分类筛选约束；关键词模糊匹配（命中即保留，大小写不敏感）
       // 拆出为方法：archList 以搜索关键词构建、archMonthPieData 以空关键词构建（饼图不受搜索框影响）
       buildArchBase(keyword) {
-        const out = [];
-        const rawK = (keyword || '').trim();
-        // 「#」多条件（与财务页同原理）：以 # 分隔的多个关键词需全部命中（AND）
-        const segs = rawK.split('#').map(s => s.trim()).filter(Boolean);
-        // 类型识别：任一段含「项目 / 习惯 / 子任务 / 任务」即按该类型筛选（可多类型并集，如「任务#习惯」同时显示两类）
-        // 段内优先级：项目 > 习惯 > 子任务 > 任务（「子任务」含「任务」，先判子任务）
-        const typeSet = new Set();
-        const textKws = [];   // 剥离类型词后的文本关键词，全部需命中（AND）
-        segs.forEach(sg => {
-          if (sg.indexOf('项目') >= 0) typeSet.add('project');
-          else if (sg.indexOf('习惯') >= 0) typeSet.add('habit');
-          else if (sg.indexOf('子任务') >= 0) typeSet.add('subtask');
-          else if (sg.indexOf('任务') >= 0) typeSet.add('task');
-          // 段内剥离类型/状态词，剩余文本仍参与匹配（如「任务紧急」→ 类型 task + 文本「紧急」）；
-          // 「已归档」为状态词：仓库内本就全部为已归档条目，识别后剥离、不当文本匹配（保证「已归档#旅行」等组合可用）
-          let rest = sg;
-          ['项目', '习惯', '子任务', '任务', '已归档'].forEach(w => { rest = rest.split(w).join(' '); });
-          rest = rest.trim().toLowerCase();
-          if (rest) textKws.push(rest);
-        });
-        const showTask = !typeSet.size || typeSet.has('task');    // 父任务（不含子任务）
-        const showSub = !typeSet.size || typeSet.has('subtask');  // 子任务（不含父任务）
-        const showHabit = !typeSet.size || typeSet.has('habit');
-        const showProj = !typeSet.size || typeSet.has('project');
-        const self = this;
-        // 归档时刻（毫秒）：新数据取 archived_ms（各归档写入点实时打标，可区分「同一天内」的先后）；
-        // 旧库无该字段时逐级回落：archived_at 当天零点 → 创建时间 → last_modified_at，
-        // 保证历史归档条目在升序里仍「早归档的排前面」，而不是全部堆到队首。
-        const archMsOf = (obj) => {
-          if (Number(obj.archived_ms)) return Number(obj.archived_ms);
-          if (obj.archived_at) {
-            const p = Date.parse(String(obj.archived_at).slice(0, 10) + 'T00:00:00');
-            if (p) return p;
-          }
-          const c = Number(obj.createAt || obj.create_at);
-          if (c) return c;
-          return Number(obj.last_modified_at) || 0;
-        };
-        const norm = (obj, type, date, realId) => {
-          // 注意：不能把 _parentId/_abandoned 以 undefined 显式写入 Object.assign——
-          // Object.assign 会用 undefined 覆盖 obj 自带的同名字段（如任务子任务条目的 _parentId），
-          // 导致仓库撤销时 setArchived(undefined,...) 静默失效。project_sub 专属字段走条件赋值。
-          const o = Object.assign({}, obj, {
-            _type: type,
-            _id: type === 'project' ? (obj.pid || obj._id) : (realId != null ? realId : (obj._id || obj.sid || obj.pid)),
-            _realId: type === 'project' ? (obj.pid || obj._id) : (obj._id || obj.sid || obj.pid),
-            _title: type === 'project' ? (obj.name || '') : (obj.title || ''),
-            _typeLabel: type === 'task' ? '任务' : (type === 'habit' ? '习惯' : (type === 'project' ? '项目' : '子任务')),
-            _date: (type === 'project' || type === 'project_sub') ? (obj.archived_at || '') : date,
-            _archMs: archMsOf(obj),          // 归档时刻（升序排序依据）
-          });
-          if (type === 'project_sub' || type === 'subtask') {
-            o._parentId = obj.pid || obj._parentId || null;     // 归属父级（项目 / 普通任务），单击溯源跳转
-          }
-          // 已放弃格外标记：主任务 / 普通子任务 / 项目子任务统一（快速窗口「放弃」后仓库显示 🚫 已放弃）
-          o._abandoned = (obj.arch_kind === 'abandon');
-          o._expired = !!obj.overdueUnfinished;                 // 过期未完成标记（指定月「软性计划」月末自动归档的条目）
-          return o;
-        };
-        // 周期 / 自定义区间任务：按「每个已打卡日」展开为独立归档条目（当日打卡 → 当日同步到归档仓库）
-        // 仅当存在多个打卡日才展开；单日 / 单点任务保持原单条，避免无谓重复
-        const expandCycle = (obj, type) => {
-          const dates = self.$store.archiveDatesOf(obj);
-          if (dates.length > 1) {
-            dates.forEach(d => out.push(norm(obj, type, d, obj._id + '◇' + d)));
-            return true;
-          }
-          return false;
-        };
-        // 父任务（搜索「任务」或空关键词时显示；搜索「子任务」时不混入）
-        if (showTask) {
-          this.$store.getArchivedTasks(this.archCat, textKws).forEach(t => {
-            if (!expandCycle(t, 'task')) out.push(norm(t, 'task', this.$store.archiveDateOf(t)));
-          });
-          // 模版归档流水：模版任务副本完成后立即被重置回收，其归档留痕只存在于 archive_ledger。
-          // 按「每个归档流水日」展开为独立条目（每次完成归档一次 = 仓库记录一次）。
-          // 去重：母本当前若仍处于归档态（手动归档未撤销），其实体已被上方 getArchivedTasks 收录，
-          // 该日期已被该实体条目覆盖，此处不再重复展开，避免同一天出现两条。
-          const coveredDates = new Set(
-            out.filter(o => o._type === 'task' && o._realId).map(o => o._realId + '@' + o._date)
-          );
-          this.$store.ledgerList().forEach(e => {
-            if (!e || !e.task_id) return;
-            if (coveredDates.has(e.task_id + '@' + e.date)) return;
-            if (textKws.length && !textKws.every(k => (e.title || '').toLowerCase().includes(k))) return;
-            out.push({
-              _type: 'task', _id: e.id, _realId: e.task_id,
-              _title: e.title || '（模版任务）',
-              _typeLabel: '任务', _date: e.date,
-              _isLedger: true,
-              _archMs: Number(e.ts) || 0,    // 流水自带毫秒时间戳
-            });
-          });
-        }
-        // 已归档子任务：扁平化并入（沿用父任务分类/标题参与筛选）；仅「子任务」或空关键词时显示
-        if (showSub) {
-          this.$store.getArchivedSubTasks(this.archCat, textKws).forEach(s => {
-            if (!expandCycle(s, 'subtask')) out.push(norm(s, 'subtask', this.$store.archiveDateOf(s)));
-          });
-          // 项目子任务（项目 Tab 内子任务）：滑动归档（已全部完成 / 已放弃）当日进入仓库；
-          // 归属日 = archived_at（选择归档当天）；已放弃条目格外标记「已放弃」，支持左滑撤销恢复
-          (this.$store.state.project_subs || []).forEach(s => {
-            if (!s.is_archived || s.deleted_at) return;
-            if (textKws.length && !textKws.every(k => (s.title || '').toLowerCase().includes(k))) return;
-            out.push(norm(s, 'project_sub', s.archived_at));
-          });
-        }
-        // 习惯：独立筛选，仅在「全部分类」下并入（习惯无分类归属）
-        if (showHabit && (!this.archCat || this.archCat === '__all__')) {
-          this.$store.getArchivedHabits(textKws)
-            .forEach(h => out.push(norm(h, 'habit')));
-        }
-        if (showProj) {
-          // 项目文本命中：单关键词与旧口径一致（名称/截止日/描述/素材/标签）；多关键词逐词 AND
-          const projHitKw = (p, k) => (p.name || '').toLowerCase().includes(k) || (p.deadline || '').toLowerCase().includes(k)
-            || (p.desc || '').toLowerCase().includes(k) || (p.material_notes || '').toLowerCase().includes(k) || (p.material_link || '').toLowerCase().includes(k)
-            || (Array.isArray(p.tags) && p.tags.some(tg => String(tg || '').toLowerCase().includes(k) || String(tg || '').replace(/^#+/, '').toLowerCase().includes(k)));
-          this.$store.state.projects
-            .filter(p => p.status === 'archive' && !p.deleted_at &&
-              (!textKws.length || textKws.every(k => projHitKw(p, k))))
-            .forEach(p => out.push(norm(p, 'project')));
-        }
-        return out;
+        // 已下沉 store 层并按 (关键词, 分类, revision, today) 跨实例缓存，切 tab 重建组件后直接命中
+        return this.$store.buildArchBase(keyword, this.archCat);
       },
       dayHabitCount(h, dateStr) {
         if (!h) return 0; // 习惯不存在（如导入备份后 chartHabitId 失效）时安全返回 0
