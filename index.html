@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
+  <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
+  <meta name="mp-version" content="20261017.2" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -3405,7 +3407,22 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return lower && a < lower ? lower : a;
   }
   // 当前应打卡日期 = 滚动链中第一个未完成的发生日（independent/legacy 退化为固定规则命中当日）
+  // cycleCurrentDue 每任务记忆化：recount/extend 分支结果与查询日 d 无关，仅随任务数据(revision) + today 变化。
+  // 归档日历 / 看板等「按天批量查询」场景下，同一任务会被每天各重建一次发生链（O(天 × 任务 × 发生次数)），
+  // 是统计页 / 全局归档库在数据量大时切换卡数秒的主因；以 (任务id, d, today, revision) 为键缓存，
+  // 命中即复用，把重复重建塌缩为「每任务每版本一次」。independent/legacy 分支本就 O(1)，一并缓存无副作用。
+  var _ccdCache = {};
   function cycleCurrentDue(t, d) {
+    if (!t || !t.cycle) return '';
+    if (!t._id) return _cycleCurrentDueCore(t, d);   // 无稳定 id 的实体不缓存，直接计算，避免缓存键串值
+    const dd = d || '', td = todayStr(), rev = state.revision || 0;
+    const c = _ccdCache[t._id];
+    if (c && c.d === dd && c.td === td && c.rev === rev) return c.val;
+    const val = _cycleCurrentDueCore(t, d);
+    _ccdCache[t._id] = { d: dd, td: td, rev: rev, val: val };
+    return val;
+  }
+  function _cycleCurrentDueCore(t, d) {
     if (!t || !t.cycle) return '';
     const mode = cycleMode(t);
     if (mode === '' || mode === 'independent') {
@@ -18594,7 +18611,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* -------- ProjectRecordModal —— 填报（累加 finished + 生成留痕） -------- */
   C.ProjectRecordModal = {
     name: 'ProjectRecordModal',
-    props: { sid: { type: String, required: true } },
+    props: { sid: { type: String, required: true }, defaultDate: { type: String, default: '' } },
     data() { return { actualNum: 0, recordDate: '', spentH: 0, spentM: 0, note: '', undoTarget: null, showChart: false, chartTab: 0, dragStartX: 0, draggingChart: false }; },
     computed: {
       sub() { return this.$store.state.project_subs.find(x => x.sid === this.sid) || null; },
@@ -18671,7 +18688,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       spanMax() { return this.spanDays.reduce((m, d) => Math.max(m, d.val), 0); },
     },
     created() {
-      this.recordDate = this.$store.util.todayStr();
+      // 默认填报日期：任务表看板打开时传入其当前选中日期（补卡往日历默认落该日，不再错记成今天）；
+      // 编排表等无上下文入口沿用今天
+      this.recordDate = this.defaultDate || this.$store.util.todayStr();
       if (this.sub) {
         this.actualNum = this.sub.planDaily;
         // 单次填报时间记忆：打开填报弹窗即预填母本保存的「单次填报时间」，
@@ -18708,8 +18727,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           alert('请至少填写「完成量」或「本次花费时间」其中一项');
           return;
         }
-        this.$store.addRecord(this.sid, this.recordDate || this.$store.util.todayStr(), this.actualNum, this.spentMinInput, this.note);
-        this.$emit('close'); // 填报后自动保存并关闭
+      const dt = this.recordDate || this.$store.util.todayStr();
+      this.$store.addRecord(this.sid, dt, this.actualNum, this.spentMinInput, this.note);
+      // 关闭时携带本次填报的归属日期：任务表据此把耗时增量同步到「该日期」的实例，补卡不串日
+      this.$emit('close', dt); // 填报后自动保存并关闭
       },
       // 请求撤销单条填报：先校验扣减后不为负，否则提示并阻止；否则弹出二次确认
       askUndo(r) {
@@ -22801,7 +22822,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const s = (this.$store.state.project_subs || []).find(x => x.sid === it.sid);
         this._spentBase = s ? (Number(s.spentMin) || 0) : 0;
       },
-      onRecordClose() {
+      onRecordClose(recDate) {
         const iid = this.recordIid, sid = this.recordSid;
         this.recordSid = ''; this.recordIid = '';
         if (!iid || !sid) return;
@@ -22809,10 +22830,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const nowSpent = s ? (Number(s.spentMin) || 0) : 0;
         const diff = nowSpent - (this._spentBase || 0);
         if (diff !== 0) {
-          const it = this.items.find(x => x.iid === iid);
-          if (it) {
+          // 本次填报实际归属日期（弹窗内可改日期）：耗时增量只同步到「该日期」的实例。
+          // 修复：此前无论记录落在哪天，增量都加到看板当前日期的实例上——
+          // 在 17 号补卡 16 号的填报，17 号看板也会冒出「今日 · 1h」。
+          const dt = recDate || this.selectedDate;
+          let it = this.items.find(x => x.iid === iid);
+          if (it && it.date === dt) {
             it.durationSec = Math.max(0, (it.durationSec || 0) + diff * 60);
             this.$store.updateTaskBoardInstance(iid, { durationSec: it.durationSec });
+          } else {
+            // 归属日期不是当前看板日期：定位（必要时生成）该日实例并同步，当前看板不受影响
+            this.$store.ensureTaskBoardInstances(dt);
+            const target = this.$store.getTaskBoardInstances(dt).find(x => x.sid === sid);
+            if (target) {
+              const ds = Math.max(0, (target.durationSec || 0) + diff * 60);
+              this.$store.updateTaskBoardInstance(target.iid, { durationSec: ds });
+            }
+            if (dt === this.selectedDate) this.refresh(); // 理论兜底：归属日正好是看板当日时刷新镜像
           }
         }
       },
@@ -22934,8 +22968,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
       </div>
 
-      <!-- 填报弹窗：复用编排表原弹窗（完成量/耗时/备注直接写母本，关闭时差值同步实例耗时） -->
-      <ProjectRecordModal v-if="recordSid" :sid="recordSid" @close="onRecordClose" />
+      <!-- 填报弹窗：复用编排表原弹窗（完成量/耗时/备注直接写母本，关闭时差值同步实例耗时）；
+           日期默认跟随看板选中日期——补卡往日历时默认落该日，不再错记成今天 -->
+      <ProjectRecordModal v-if="recordSid" :sid="recordSid" :default-date="selectedDate" @close="onRecordClose" />
 
       <ProjectSubEditModal v-if="editSid" :sid="editSid" @close="editSid=''" />
 
@@ -23662,6 +23697,32 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   app.component('FinancePage', C.FinancePage);
   app.component('CareerPage', C.CareerPage);
   app.mount('#app');
+
+  /* ===================== 版本自检 · 自动强刷 =====================
+   * 问题：PWA / 浏览器缓存旧 index.html，手机端“改了不生效”，用户无感知。
+   * 方案：启动时以 no-store 拉取线上 index.html，比对 <meta name="mp-version">；
+   *   版本不同即自动刷新一次（sessionStorage 防循环），强制拿到最新版。
+   * 兼容：file:// / 离线时 fetch 失败静默跳过；SW 若仍返回旧副本则退化为不刷新（无害）。
+   * 发布流程：每次更新 index.html 上线，同步把 head 里 mp-version +1。 */
+  (function versionGuard() {
+    try {
+      var meta = document.querySelector('meta[name="mp-version"]');
+      var cur = meta && meta.getAttribute('content') || '';
+      if (!cur) return;
+      if (sessionStorage.getItem('mp_ver_guard') === cur) return; // 本会话已为当前版本强刷过，防循环
+      fetch('./index.html?mpv=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.text(); })
+        .then(function (txt) {
+          var m = /<meta name="mp-version" content="([^"]*)"/i.exec(txt);
+          var srv = m && m[1] || '';
+          if (srv && srv !== cur) {
+            sessionStorage.setItem('mp_ver_guard', cur);
+            location.reload();
+          }
+        })
+        .catch(function () { /* file:// 或网络不可用：静默跳过 */ });
+    } catch (e) {}
+  })();
 
   /* ===================== 软键盘避让（iOS / PWA） =====================
    * 问题：iOS Safari 与「添加到主屏幕」的 PWA 中，软键盘以浮层方式弹出，
