@@ -286,7 +286,6 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .hcl-badge { font-size: 11px; padding: 2px 7px; border-radius: var(--radius-sm); background: rgba(0,0,0,.06); color: var(--sub); white-space: nowrap; flex: 0 0 auto; }
 .hcl-badge.ok { background: rgba(46,204,113,.16); color: #1e8e4e; }
 .hcl-badge.no { background: rgba(231,76,60,.16); color: #c0392b; }
-.hcl-badge.holiday { background: rgba(149,165,166,.2); color: #5b6667; }
 .hcl-name { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hcl-meta { font-size: 11px; color: var(--sub); white-space: nowrap; flex: 0 0 auto; }
 .hcl-ops { display: flex; gap: 6px; flex: 0 0 auto; }
@@ -524,6 +523,23 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .modal-mask.idea-full-mask { align-items: stretch; justify-content: stretch; padding: 0; }
 .modal-mask.idea-full-mask > .modal { max-width: none; max-height: none; width: 100%; height: 100%; border-radius: 0; animation: none; display: flex; flex-direction: column; overflow: hidden; }
 .modal-mask.idea-full-mask > .modal > .modal-body { flex: 1; overflow-y: auto; }
+
+/* 软键盘避让（iOS / PWA）：键盘以浮层弹出、不收缩 layout viewport 时，
+   底部锚定的弹窗会被键盘遮住、且 fixed 弹层无法随页面滚动上抬。
+   用 Visual Viewport 算出的键盘高写入 --kb-h，把底部 / 全屏浮层整体抬到
+   键盘之上，并收缩高度防止顶部溢出；焦点输入框再 scrollIntoView 兜底。 */
+.modal-mask, .fullnote-mask, .floating-mask {
+  padding-bottom: var(--kb-h, 0px);
+  transition: padding-bottom .12s ease;
+}
+body.kb-open .modal { max-height: calc(100vh - var(--kb-h, 0px) - 8px); }
+body.kb-open .modal-lg {
+  height: calc(100vh - var(--kb-h, 0px) - 8px);
+  max-height: calc(100vh - var(--kb-h, 0px) - 8px);
+}
+body.kb-open .floating-modal { max-height: calc(100vh - var(--kb-h, 0px) - 32px); }
+/* 灵感库全屏：键盘弹起时底部留白，避免 textarea 被键盘盖住（覆盖上面的 padding:0） */
+body.kb-open .modal-mask.idea-full-mask { padding-bottom: var(--kb-h, 0px); }
 /* 灵感库全屏：标题右侧分组（切换子任务页 + 关闭），保证两端对齐且按钮平铺 */
 .idea-full-modal .head-acts { display: flex; align-items: center; gap: 8px; }
 .idea-full-modal .head-btn { font-size: 13px; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: #fff; color: var(--text); white-space: nowrap; }
@@ -738,12 +754,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .habit-day select { width: 100%; border: none; background: transparent; font-size: 10px; }
 .habit-day.st-success { background: #e8f6ee; }
 .habit-day.st-fail { background: #ffeaea; }
-.habit-day.st-holiday { background: #eef0f5; }
-.holiday-set { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.holiday-set input { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px; }
-.holiday-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-.holiday-chip { background: #eef0f5; border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px; }
-.holiday-chip b { color: var(--no); cursor: pointer; margin-left: 4px; }
 .cycle-hist { display: flex; flex-wrap: wrap; gap: 6px; }
 .cycle-chip { position: relative; background: #eef0f5; border-radius: var(--radius-sm); padding: 4px 8px; font-size: 12px; cursor: default; }
 .cycle-chip.done, .cycle-chip.undone { cursor: pointer; }
@@ -824,14 +834,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .arch-filter { display: flex; gap: 8px; margin-bottom: 10px; }
 
 /* ============ 时间导航（习惯图表等） ============ */
-.mc-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.mc-nav { display: flex; align-items: center; gap: 8px; }
+.mc-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+/* 日期筛选器（‹ 左右键 + 中间日期）：拉伸撑满整行，‹ 居左、日期居中、› 居右 */
+.mc-nav { flex: 1; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .mc-nav button { width: 28px; height: 28px; border: 1px solid var(--line); background: #f0f1f6; border-radius: var(--radius-sm); font-size: 16px; line-height: 1; color: var(--sub); }
 .mc-title { font-weight: 700; font-size: 13px; }
+/* 月/年标题与「回到本月 / 回到本年」按钮上下堆叠（模仿今日 tab 的日期+回到今天布局），居中置于 ‹ › 之间 */
+.mc-date { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+/* 月/年导航的「回到本月 / 回到本年」按钮：复用 .btn-mini 视觉（淡紫底胶囊 + 主题色字 + 字重600 + 圆角），与今日 tab「回到今日」完全一致；中和 .mc-nav button 的方形白底边框；当前处于本月/本年时由 v-if 隐藏 */
+.mc-nav button.mc-now { width: auto; height: auto; margin: 0; padding: 3px 10px; background: #eef0ff; color: var(--primary); font-size: 12px; font-weight: 600; border: none; border-radius: var(--radius-sm); cursor: pointer; line-height: 1.2; }
 .mc-title.clickable { cursor: pointer; padding: 2px 6px; border-radius: var(--radius-sm); }
 .mc-title.clickable:hover { background: #f0f1f6; }
+/* 月/年切换：比 ‹ › 左右键稍宽（宽40高28），置于日期筛选器右侧 */
 .mc-tabs { display: flex; gap: 4px; }
-.mc-tabs button { padding: 4px 10px; font-size: 12px; border-radius: var(--radius-sm); background: #f0f1f6; color: var(--sub); }
+.mc-tabs button { width: 40px; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 13px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #f0f1f6; color: var(--sub); }
 .mc-tabs button.on { background: var(--primary); color: #fff; }
 
 /* ============ 本周概览 ============ */
@@ -1983,9 +1999,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   .tb-datebar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .tb-nav { flex: 0 0 auto; width: 38px; height: 34px; border: 1px solid var(--line); background: #fff; border-radius: var(--radius-sm); font-size: 15px; color: var(--text); cursor: pointer; }
   .tb-nav:disabled { opacity: .4; cursor: not-allowed; }
-  .tb-date { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .tb-date { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
   .tb-date-val { font-size: 15px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
-  .tb-today { flex: 0 0 auto; border: none; background: transparent; color: var(--primary); font-size: 13px; cursor: pointer; }
+  .tb-today { flex: 0 0 auto; padding: 3px 10px; font-size: 12px; }
   .tb-stats { display: flex; gap: 14px; font-size: 13px; color: var(--sub); margin-bottom: 12px; }
   .tb-stats span { background: #f7f8fc; border-radius: var(--radius-sm); padding: 5px 10px; }
   .tb-list { display: flex; flex-direction: column; gap: 10px; }
@@ -3824,6 +3840,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 积分联动：撤销周期打卡（出现日级 refId，精准回滚该次）
     reversePoints(id + '_' + date, 'cycle_task');
   }
+  // —— 归档仓库：撤销「周期 / 自定义区间」任务某一条逐日打卡条目 ——
+  // 仓库中周期/区间任务按「每个已打卡日」展开为独立条目，条目 _id 为「任务ID◇日期」复合键
+  // （仅一条打卡日时则直接用任务 ID + _date）。此前整条交给 undoArchive / setArchived：
+  //   ① 复合键无法被 findTask 解析 → 直接 return，撤销静默失效；
+  //   ② 区间任务没有 t.cycle → undoArchive 的 else if (t.cycle) 分支也不进 → 同样什么都没做。
+  // 表现为：撤销归档后该日副本不回到今日 tab、母本执行历史仍显示已完成（未恢复灰色未完成）。
+  // 本函数拆出真实任务 ID 与日期，按日精确撤销（走 toggleOccurrence，与执行历史页同口径）：
+  // 仅删该日记录，其它日期记录不受影响；母本若因「全部完成」自动归档则随之撤回。
+  // 返回值：是否按「逐日条目」处理（false = 普通整条任务，调用方回退到 setArchived）。
+  function undoArchTaskItem(id, dateHint) {
+    const raw = String(id || '');
+    const sep = raw.indexOf('◇');
+    const realId = sep > 0 ? raw.slice(0, sep) : raw;
+    const t = findTask(realId);
+    // 仅周期 / 自定义区间走按日撤销；其余（普通单点、收藏、临时等）返回 false 由调用方整条撤销
+    if (!t || !(t.cycle || (t.date_mode === 'range' && t.date_start))) return false;
+    // 目标日期优先级：复合键自带日期（最准） > 传入的条目日期 > 最后一条已打卡记录（兜底）
+    let date = sep > 0 ? raw.slice(sep + 1) : (dateHint || '');
+    const hist = t.cycle_history || [];
+    if (!date || !hist.some(h => h.execute_date === date)) {
+      const arch = hist.filter(h => h.is_archived).map(h => h.execute_date).sort();
+      if (arch.length) date = arch[arch.length - 1];
+    }
+    if (!date) return false;
+    toggleOccurrence(realId, date, false);
+    return true;
+  }
 
   /* ============ 周期副本：失效标记 / 渲染三重校验（母本—副本联动） ============
    * 副本为虚拟投射（依据母本 cycle / cycle_end_date 逐日生成），这里补充「副本级失效标记」
@@ -5617,7 +5660,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   // 任务 / 习惯归档时写入 archived_at（实际归档当日）；无归档日时回落计划执行日，最后回落创建日
   function archiveDateOf(t) {
-    if (t.cycle && t.cycle_history && t.cycle_history.length) {
+    // 周期 与「自定义区间」同款逐日打卡（区间按日记录与周期共用 cycle_history）：取最后一次「已归档打卡日」。
+    // 区间任务此前缺此分支 → 落到下面的 create_at（创建日），导致归档仓库条目归属日期错误，
+    // 撤销归档时按错误的日期去删打卡记录（删不掉 → 该日副本不回今日 tab、母本执行历史也不恢复灰色未完成）。
+    if ((t.cycle || (t.date_mode === 'range' && t.date_start)) && t.cycle_history && t.cycle_history.length) {
       // 周期任务：取最后一次「已归档出现日」—— 延期条目归属到真实打卡当日（real_done），而非计划发生日 / 创建当时
       const arch = t.cycle_history.filter(h => h.is_archived).map(h => (h.real_done || h.execute_date)).sort();
       if (arch.length) return arch[arch.length - 1];
@@ -5660,30 +5706,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 归档仓库日历点阵：某日「计划数量」（尚未归档、按排程本应出现在当日的活跃待办）
   // 口径：今日 tab 可见项（单点精确 / 区间含该日 / 周期命中当日）+ 周看板（指定周命中）+ 月看板（指定月命中）
   // 已归档 / 收藏夹 / 本条完成副本 均排除；带 execute_date 的单点项已由「今日 tab」精确计数，周/月看板循环里跳过避免重复
+  // 计划数口径（全局归档库日期点图·未来日期下方灰色数字）：
+  // 只统计「带具体日期」的任务（单点精确 / 自定义区间）与「带日期的周期副本」（当天应打卡且未归档）；
+  // 不统计临时任务，也不统计「指定周 / 指定月」看板任务（无具体执行日，仅是周/月计划归属）。
+  // 说明：getTodayTasks / getTodaySubTasks 的可见性规则天然只含单点/区间/当天周期命中，
+  // 不含纯 week/month 看板任务，故无需再单独遍历周月任务；此处仅追加「剔除临时任务」。
   function plannedCountOnDate(date) {
-    const w = isoWeek(parseDate(date));
-    const d = parseDate(date);
-    const y = d.getFullYear(), mo = d.getMonth() + 1;
+    const isQuick = t => !!(t && classifyMode(t) === 'quick');
     let n = 0;
-    // ① 今日 tab 可见项（单点 / 区间 / 周期命中；收藏夹、已归档、本条完成副本排除）
-    n += getTodayTasks(date).length;
-    // ② 周看板 / 月看板：纯「指定周 / 指定月」类型（无具体执行日、非周期、非区间），命中目标周/月即计入
-    const consider = t => {
-      if (!t || t.is_archived) return;
-      if (isCollectionTask(t)) return;
-      if (copyDoneForWindow(t, date, date)) return;        // 本条完成 → 该副本消失
-      if (t.cycle) return;                                  // 周期已计入今日 tab
-      if (t.date_mode === 'range' && t.date_start) return;  // 区间已计入今日 tab
-      if (t.execute_date) return;                            // 单点精确命中已计入今日 tab（避免重复）
-      if (t.time_mode === 'week' && classifyMode(t) === 'week') {
-        if (t.plan_year != null && t.plan_week != null) { if (t.plan_year === w.year && t.plan_week === w.week) n++; }
-        else if (t.week_offset === 0) n++;
-      } else if (t.time_mode === 'month' && classifyMode(t) === 'month') {
-        if (t.plan_year === y && t.plan_month === mo) n++;
-      }
-    };
-    state.tasks.forEach(consider);
-    getBoardSubTasks().forEach(s => { if (s && s._isSub) consider(s); });
+    getTodayTasks(date).forEach(t => { if (!isQuick(t)) n++; });
+    getTodaySubTasks(date).forEach(s => { if (!isQuick(s)) n++; });
     return n;
   }
 
@@ -7495,6 +7527,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 旧数据可能缺失 holiday_ranges / records，统一补齐为空数组，避免渲染或补卡时访问 undefined
       if (h && h.holiday_ranges === undefined) { h.holiday_ranges = []; changed = true; }
       if (h && h.records === undefined) { h.records = []; changed = true; }
+      // 取消「请假」功能：旧数据中残留的请假区间 / 请假记录一次性清除。
+      // 积分已在中止请假时回滚（reverseHabitDayPoints 写过反向流水），此处仅删数据、
+      // 不再触发 settleHabitPoints，故历史积分不变；同时避免留下无 UI 可管理的孤儿请假区间。
+      if (h && h.holiday_ranges && h.holiday_ranges.length) { h.holiday_ranges = []; changed = true; }
+      if (h && h.records && h.records.some(r => r.status === 'holiday')) {
+        h.records = h.records.filter(r => r.status !== 'holiday');
+        changed = true;
+      }
       // 旧数据可能缺失 unit 字段，统一补齐为「次」，避免统计页标签后缀显示异常
       if (h && h.unit === undefined) { h.unit = '次'; changed = true; }
       // 旧数据可能缺失归档标记，统一补齐（默认未归档），支撑「归档习惯」功能
@@ -8383,7 +8423,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     setHolidayRange, removeHolidayRange, isHoliday,
     addHabit, convertTaskToHabit, updateHabit, deleteHabit, archiveHabit, getArchivedHabits, unarchiveHabit,
     // 任务
-    findTask, addTask, addBackfillTask, updateTask, toggleEmergency, toggleSubEmergency, archiveTask, undoArchive, undoCycleCheckIn, deleteTask,
+    findTask, addTask, addBackfillTask, updateTask, toggleEmergency, toggleSubEmergency, archiveTask, undoArchive, undoCycleCheckIn, undoArchTaskItem, deleteTask,
     addSubTask, toggleSubTask, updateSubTask, removeSubTask, archiveSubTask, undoArchiveSubTask, setArchived, setTemplateArchived, setSubTasksOrder, setTasksOrder, setProgress, appendMaterial, resetTemplateSubTasks, resetTemplate,     resetTemplateTime, abandonSubTask, abandonTask, quickSetTime,
     isReadingHabit, getBookTasks, requestReadingSync, applyReadingSync, skipReadingSync, syncBookProgress,
     // 条目「是否已设置日期」（周期 / 指定周 / 指定月 / 单点 / 区间任一成立；用于右滑提示文案等）
@@ -9725,14 +9765,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       onRowEdit(h) { if (h) this.$emit('edit', h._id); },
       onRowManage(h) { if (h) this.$emit('manage', h); },
       hclBadgeText(h) {
-        if (this.isHoliday(h)) return '请假中';
         const st = this.statusOf(h);
         if (st === 'success') return '今日 ✅';
         if (st === 'fail') return '今日 ❌';
         return '未打卡';
       },
       hclBadgeClass(h) {
-        if (this.isHoliday(h)) return 'holiday';
         const st = this.statusOf(h);
         if (st === 'success') return 'ok';
         if (st === 'fail') return 'no';
@@ -9784,8 +9822,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div v-for="(h,i) in habits" :key="h._id" class="handcard" :class="cardClass(i)" :style="cardStyle(i)">
             <div class="handcard-top">
               <span class="handcard-type">养成手牌</span>
-              <span v-if="isHoliday(h)" class="handcard-badge holiday">请假中</span>
-              <span v-else-if="statusOf(h)==='success'" class="handcard-badge ok">今日 ✅</span>
+              <span v-if="statusOf(h)==='success'" class="handcard-badge ok">今日 ✅</span>
               <span v-else-if="statusOf(h)==='fail'" class="handcard-badge no">今日 ❌</span>
               <span v-else class="handcard-badge wait">未打卡</span>
             </div>
@@ -9904,36 +9941,34 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   };
 
   /* =====================================================================
-   * HabitManageModal —— 习惯补卡 / 请假（修改任意历史日期）
+   * HabitManageModal —— 习惯补卡（修改任意历史日期；「请假」功能已取消）
    * ===================================================================== */
   C.HabitManageModal = {
     name: 'HabitManageModal',
     props: { habitId: { type: String, required: true } },
     data() {
       return {
-        days: [],
-        holStart: '', holEnd: '',
-        confirmDel: false, confirmArchive: false,
+      days: [],
+      confirmDel: false, confirmArchive: false,
       };
     },
     computed: {
       habit() { return this.$store.findHabit(this.habitId); },
       today() { return this.$store.util.todayStr(); },
-      // 状态选择：戒掉型仅 —、破戒、请假（无「完成」项，破戒即记 fail）；其余三类为 —、完成、未完成、请假
+      // 状态选择：戒掉型仅 —、破戒（无「完成」项，破戒即记 fail）；其余三类为 —、完成、未完成
+      // 「请假」功能已取消，不再提供该状态
       statusOptions() {
         const t = this.habit ? this.habit.type : 'SOP_HABIT';
         if (t === 'QUIT_HABIT') {
           return [
             { value: 'none', label: '—' },
             { value: 'fail', label: '❌ 破戒' },
-            { value: 'holiday', label: '🏖 请假' },
           ];
         }
         return [
           { value: 'none', label: '—' },
           { value: t === 'RECORD_HABIT' ? 'record' : 'success', label: '✅ 完成' },
           { value: 'fail', label: '❌ 未完成' },
-          { value: 'holiday', label: '🏖 请假' },
         ];
       },
     },
@@ -9953,18 +9988,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         else this.$store.markHabitRecord(this.habitId, date, status);
         this.buildDays();
       },
-      addHoliday() {
-        if (!this.holStart || !this.holEnd) return;
-        this.$store.setHolidayRange(this.habitId, this.holStart, this.holEnd);
-        this.holStart = ''; this.holEnd = '';
-        this.buildDays();
-      },
-      removeHoliday(idx) { this.$store.removeHolidayRange(this.habitId, idx); },
     },
     template: `
     <div class="modal-mask" @click.self="$emit('close')">
       <div class="modal">
-        <div class="modal-head"><h3>补卡 / 请假 — {{ habit && habit.name }}</h3><button class="btn-mini" @click="$emit('edit', habitId)">编辑</button><button class="x" @click="$emit('close')">✕</button></div>
+        <div class="modal-head"><h3>补卡 — {{ habit && habit.name }}</h3><button class="btn-mini" @click="$emit('edit', habitId)">编辑</button><button class="x" @click="$emit('close')">✕</button></div>
         <div class="modal-body">
           <h4>近 25 天记录（可改任意日期）</h4>
           <div class="habit-days">
@@ -9974,16 +10002,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <option v-for="o in statusOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
               </select>
             </div>
-          </div>
-          <h4>请假时间段（不计成功/失败）</h4>
-          <div class="holiday-set">
-            <input type="text" v-model="holStart" placeholder="YYYY-MM-DD" @blur="holStart=$store.util.autoFormatDate(holStart)" :class="{invalid: holStart && !$store.util.validateDateInput(holStart).ok}" />
-            <span>至</span>
-            <input type="text" v-model="holEnd" placeholder="YYYY-MM-DD" @blur="holEnd=$store.util.autoFormatDate(holEnd)" :class="{invalid: holEnd && !$store.util.validateDateInput(holEnd).ok}" />
-            <button @click="addHoliday">添加</button>
-          </div>
-          <div class="holiday-list" v-if="habit && habit.holiday_ranges && habit.holiday_ranges.length">
-            <span v-for="(r,i) in habit.holiday_ranges" :key="i" class="holiday-chip">{{ r.start }} ~ {{ r.end }} <b @click="removeHoliday(i)">✕</b></span>
           </div>
         </div>
       </div>
@@ -10134,7 +10152,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button v-if="isEdit" class="btn danger" @click="del">删除习惯</button>
             <button class="btn ghost" @click="$emit('close')">取消</button>
             <button class="btn primary" @click="save">保存</button>
-            <button v-if="isEdit" class="btn" @click="$emit('manage', habitId)">补卡 / 请假</button>
+            <button v-if="isEdit" class="btn" @click="$emit('manage', habitId)">补卡</button>
             <button v-if="isEdit" class="btn" @click="archive">归档习惯</button>
           </div>
         </div>
@@ -16475,6 +16493,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     computed: {
       today() { return this.$store.util.todayStr(); },
+      // 「回到本月 / 回到本年」按钮仅在「当前不在本月/本年」时显示（位于 › 右侧）
+      showArchNow() {
+        const now = new Date();
+        if (this.archView === 'year') return this.archYear !== now.getFullYear();
+        return this.archYear !== now.getFullYear() || this.archMonth !== now.getMonth() + 1;
+      },
+      showHabitNow() {
+        const now = new Date();
+        if (this.tab === 'year') return this.year !== now.getFullYear();
+        return this.year !== now.getFullYear() || this.month !== now.getMonth() + 1;
+      },
       habits() { return this.$store.state.habits.filter(h => !h.is_archived); }, // 统计下拉仅展示未归档活跃习惯
       monthGrid() {
         const first = new Date(this.year, this.month - 1, 1);
@@ -16980,6 +17009,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
         this.year = y; this.month = m;
       },
+      // 习惯图表「回到本月 / 回到本年」：与 ‹ › 方向导航互补，一键跳回当前月 / 当前年
+      navHabitToday() {
+        const now = new Date();
+        if (this.tab === 'year') {
+          if (this.year === now.getFullYear()) return;
+          this.year = now.getFullYear();
+          return;
+        }
+        if (this.year === now.getFullYear() && this.month === now.getMonth() + 1) return;
+        this.year = now.getFullYear();
+        this.month = now.getMonth() + 1;
+      },
       openChart(h) { this.chartHabitId = h._id; },
       selectHabit(h) { this.chartHabitId = h._id; this.showHabitPicker = false; },
       // 习惯标题（图表区）：单击展开下拉（原行为不变），长按唤起编辑习惯弹窗
@@ -17061,7 +17102,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 因此左滑撤销对其无意义（避免误触发把母本整体撤销）。仅提示，不改动数据。
         if (item._isLedger) { this.showToast('该条为模版归档记录，无撤销'); return; }
         const rid = (item._realId != null) ? item._realId : item._id;
-        if (item._type === 'task') this.$store.setArchived(rid, null, false);
+        // 任务条目：先尝试按「逐日打卡条目」撤销（周期 / 自定义区间），失败才回退整条撤销。
+        // 区间任务此前走 setArchived → undoArchive：区间无 t.cycle、复合键又查不到，
+        // 撤销静默失效（副本不回今日 tab、母本执行历史不恢复灰色未完成）。
+        if (item._type === 'task' && !this.$store.undoArchTaskItem(rid, item._date || '')) this.$store.setArchived(rid, null, false);
         else if (item._type === 'habit') this.$store.unarchiveHabit(rid);
         else if (item._type === 'project_sub') this.$store.undoArchiveProjectSub(rid); // 项目子任务：撤销归档（含已放弃），完整还原归档前状态
         // 子任务条目携带条目日期（周期/区间子任务在仓库中按「每个已打卡日」展开为多条目）：
@@ -17179,14 +17223,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.archCellTimer) clearTimeout(this.archCellTimer);
         this.archCellSuppressClick = false;
         this.archCellSX = ev.clientX; this.archCellSY = ev.clientY;
-        try { if (ev && ev.currentTarget) ev.currentTarget.setPointerCapture(ev.pointerId); } catch (_) {}
         this.archCellTimer = setTimeout(() => {
-          this.archCellSuppressClick = true;
           this.archCellTimer = null;
+          this.archCellSuppressClick = true;
           this.backfillDate = date;
           this.showBackfillAdd = true;
           try { if (navigator.vibrate) navigator.vibrate(15); } catch (_) {}
         }, 500);
+        // 触摸环境：不在 pointerdown 调用 setPointerCapture（iOS Safari / PWA standalone 下会吞掉 click，
+        // 导致点击日期格子无反应、无法快速跳转）。改为在 document 级一次性监听，
+        // 手指移出格子后仍能清除长按计时器，避免误触发补卡弹窗。
+        const clear = () => { if (this.archCellTimer) { clearTimeout(this.archCellTimer); this.archCellTimer = null; } };
+        document.addEventListener('pointerup', clear, { once: true });
+        document.addEventListener('pointercancel', clear, { once: true });
       },
       onArchCellMove(ev) {
         if (!this.archCellTimer) return;
@@ -17253,6 +17302,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
         this.archYear = y; this.archMonth = m;
         this.archSelDate = null;
+      },
+      // MiniCal「回到本月 / 回到本年」：与 ‹ › 方向导航互补，一键跳回当前月 / 当前年。
+      // 筛选态口径与 switchArchView 保持一致（月视图→选中今日；年视图→选中当月），
+      // 而 ‹ › 导航会清空选中，故此处单独维护而不是复用方向导航。
+      // 已处于本月/本年内时不做多余动作，避免误清当前筛选（如月视图已选中某个具体日期）。
+      navArchToday() {
+        const now = new Date();
+        const curY = now.getFullYear(), curM = now.getMonth() + 1;
+        if (this.archView === 'year') {
+          if (this.archYear === curY) return;
+          this.archYear = curY;
+          this.archSelDate = null;
+          this.archSelMonth = null;
+          this.archRange = { start: '', end: '' };
+          const ms = this._defaultYearMonthSel();
+          if (ms) { this.archSelMonth = ms; this.archSelDate = ms; }
+          return;
+        }
+        if (this.archYear === curY && this.archMonth === curM) return;
+        this.archYear = curY; this.archMonth = curM;
+        this.archSelDate = this.today;
+        this.archRange = { start: '', end: '' };
       },
       // 年视图点击月份：既驱动「当月饼图」，也驱动下方归档列表按【整月】筛选。
       // 此前只写 archSelMonth（仅供饼图），而 archList 只认 archSelDate → 列表完全不联动。
@@ -17532,7 +17603,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="mc-head">
             <div class="mc-nav">
               <button type="button" @click="navArchCalendar(-1)">‹</button>
-              <span class="mc-title">{{ archView==='year' ? (archYear+'年') : (archYear+'年'+archMonth+'月') }}</span>
+              <div class="mc-date">
+                <span class="mc-title">{{ archView==='year' ? (archYear+'年') : (archYear+'年'+archMonth+'月') }}</span>
+                <button type="button" class="mc-now btn-mini" v-if="showArchNow" @click="navArchToday">{{ archView==='year' ? '回到本年' : '回到本月' }}</button>
+              </div>
               <button type="button" @click="navArchCalendar(1)">›</button>
             </div>
             <div class="mc-tabs">
@@ -17662,7 +17736,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="mc-head" v-if="chartHabitId">
           <div class="mc-nav">
             <button type="button" @click="navHabit(-1)">‹</button>
-            <span class="mc-title">{{ tab==='year' ? (year+'年') : (year+'年'+month+'月') }}</span>
+            <div class="mc-date">
+              <span class="mc-title">{{ tab==='year' ? (year+'年') : (year+'年'+month+'月') }}</span>
+              <button type="button" class="mc-now btn-mini" v-if="showHabitNow" @click="navHabitToday">{{ tab==='year' ? '回到本年' : '回到本月' }}</button>
+            </div>
             <button type="button" @click="navHabit(1)">›</button>
           </div>
           <div class="mc-tabs">
@@ -22806,7 +22883,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <button class="tb-nav" @click="goDate(-1)" aria-label="前一天">◀</button>
         <div class="tb-date">
           <span class="tb-date-val">{{ selectedDate }}</span>
-          <button v-if="!isToday" class="tb-today" @click="goToday">回到今天</button>
+          <button v-if="!isToday" class="tb-today btn-mini" @click="goToday">回到今天</button>
         </div>
         <button class="tb-nav" @click="goDate(1)" :disabled="isToday" aria-label="后一天">▶</button>
       </div>
@@ -23585,6 +23662,52 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   app.component('FinancePage', C.FinancePage);
   app.component('CareerPage', C.CareerPage);
   app.mount('#app');
+
+  /* ===================== 软键盘避让（iOS / PWA） =====================
+   * 问题：iOS Safari 与「添加到主屏幕」的 PWA 中，软键盘以浮层方式弹出，
+   *   不收缩 layout viewport（window.innerHeight 不变），导致底部锚定的
+   *   弹窗（编辑页等）被键盘遮挡，而 fixed 弹层无法随页面滚动上抬。
+   * 方案：用 Visual Viewport API 算出键盘高度，写入 --kb-h 并给 body 打
+   *   kb-open 标记；CSS 据此把 .modal-mask 等底部 / 全屏浮层整体上抬、
+   *   并收缩高度防顶溢出；焦点输入框再 scrollIntoView 兜底可见。
+   * 兼容：Android 键盘会收缩 innerHeight，此时 visualViewport 高度≈innerHeight，
+   *   键盘高≈0，不触发抬升，沿用系统原生滚动行为。
+   * =================================================================== */
+  (function keyboardAvoid() {
+    var root = document.documentElement;
+    var lastKb = -1;
+    function calcKb() {
+      var vb = window.visualViewport;
+      if (!vb) return 0;
+      // 键盘高 = 布局视口高 - 可视视口高 - 可视视口相对布局视口顶部偏移
+      var kb = Math.max(0, window.innerHeight - vb.height - vb.offsetTop);
+      return kb > 40 ? kb : 0; // 滤掉极小抖动 / 地址栏伸缩
+    }
+    function apply() {
+      var kb = calcKb();
+      if (kb === lastKb) return;
+      lastKb = kb;
+      root.style.setProperty('--kb-h', kb + 'px');
+      document.body.classList.toggle('kb-open', kb > 0);
+      if (kb > 0) {
+        var el = document.activeElement;
+        if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
+          // 等键盘动画结束再滚到可视区中部，避免被键盘盖住
+          setTimeout(function () {
+            try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+          }, 280);
+        }
+      }
+    }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', apply);
+      window.visualViewport.addEventListener('scroll', apply);
+    }
+    window.addEventListener('resize', apply);
+    window.addEventListener('focusin', function () { setTimeout(apply, 60); });
+    window.addEventListener('focusout', function () { setTimeout(apply, 120); });
+    apply();
+  })();
 
   /* ===================== 表单输入体验增强 =====================
    * 统一管理，便于一处维护：
