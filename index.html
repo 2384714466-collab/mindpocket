@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261017.3" />
+  <meta name="mp-version" content="20261018.2" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -385,6 +385,10 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 /* 复选框：与主任务完成态视觉一致 */
 .st-row input[type=checkbox] { flex: none; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
 .st-row .st-title { flex: 1; font-weight: 600; font-size: 15px; color: var(--text); }
+/* 标题+徽标组合：整体占据行宽把右侧时间胶囊/删除键推到底；标题自身可收缩省略，徽标紧跟标题文字 */
+.st-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.st-main .st-title { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-row .st-main .rt-badges { flex: none; }
 .st-row .st-title.done { text-decoration: line-through; color: var(--sub); }
 /* 铅笔编辑 / × 删除：尺寸、圆角、配色、间距、阴影、hover/按压态 1:1 复用 .icon-btn */
 .st-row .st-del { flex: none; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 4px 9px; font-size: 14px; cursor: pointer; box-shadow: 0 1px 2px rgba(20,24,40,.06); transition: background .15s ease, transform .1s ease, box-shadow .15s ease; }
@@ -4272,7 +4276,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (t.cycle) { archiveTaskFull(target.id, 'abandon'); }
     else { archiveTask(target.id, 'abandon'); }
   }
-  // 快速时间设置：按任务当前类型把排期改到目标时间（day=明天/后天/大后天；week=本/下/下下周；month=本/下/下下月）
+  // 快速时间设置：按任务当前类型把排期改到目标时间（day=今日/明天/后天/大后天；week=本/下/下下周；month=本/下/下下月）
   // 智能映射：day 作用于单点/区间/无时间任务（区间整体平移保持长度）；week/month 作用于指定周/指定月任务。
   function quickSetTime(target, unit, offset, relative) {
     if (!target) return;
@@ -6555,6 +6559,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // estMin   预计耗时（分钟，0=未设置，仅作时间进度条参照，不参与完成判定）
   // spentMin 累计已花费时间（分钟，由填报留痕累加；撤销填报同步扣减）
   // done_at  标记完成的时间戳（供「完成自动置后」稳定排序使用）
+  // material_link / material_notes  素材链接 / 备注（与主任务同字段名，行上经 MaterialBadges 展示 🔗/📎）
   function addSub(pid, s) {
     const sub = Object.assign({
       sid: uid('psub'), pid: pid, title: '', unit: '页',
@@ -6562,6 +6567,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       sub_start: null, sub_end: null, sub_done: false, status: '进行中',
       tags: [], estMin: 0, planFillMin: 0, spentMin: 0, done_at: null,
       isEmergency: false,       cycle_start_date: '',
+      material_link: '', material_notes: '',
       inTaskBoard: false, // 是否进入任务表：勾选后每日生成独立打卡实例
       enable_remind: false, // 是否提醒：勾选后以 sub_start 为锚点生成主任务副本进入今日与周看板
     }, newSync(), s || {});
@@ -11689,7 +11695,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.InboxSubPage = {
     name: 'InboxSubPage',
     props: { tid: { type: String, required: true } },
-    components: { SubTaskEditModal: C.SubTaskEditModal, QuickTimeSheet: C.QuickTimeSheet },
+    components: { SubTaskEditModal: C.SubTaskEditModal, QuickTimeSheet: C.QuickTimeSheet, MaterialBadges: C.MaterialBadges },
     data() {
       return {
         quickSheet: null, // 右滑弹出的「快速时间设置 / 放弃」窗口目标：{kind:'sub', id, parentId}
@@ -11907,7 +11913,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
              @pointerup="onSubUp(s)" @pointercancel="onSubUp(s)">
           <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onHandleDown(s,$event)" @pointermove.stop="onHandleMove($event)" @pointerup.stop="onHandleUp($event)" @pointercancel.stop="onHandleUp($event)">⠿</span>
           <input v-if="s.hasCheckbox !== false" type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
-          <span class="st-title" :class="{done:s.is_done}" @click="onSubMainClick(s)">{{ s.title }}</span><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
+          <span class="st-main"><span class="st-title" :class="{done:s.is_done}" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
           <button class="st-del" @click.stop="askDel(s)">✕</button>
         </div>
         <p v-if="!activeSubs.length" class="empty-tip">还没有子任务，用上方输入框快速新增（左滑可归档）</p>
@@ -11924,7 +11930,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                @pointerup="onSubUp(s)" @pointercancel="onSubUp(s)">
             <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onHandleDown(s,$event)" @pointermove.stop="onHandleMove($event)" @pointerup.stop="onHandleUp($event)" @pointercancel.stop="onHandleUp($event)">⠿</span>
             <input v-if="s.hasCheckbox !== false" type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
-            <span class="st-title done" @click="onSubMainClick(s)">{{ s.title }}</span><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
+            <span class="st-main"><span class="st-title done" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
             <button class="st-del" @click.stop="askDel(s)">✕</button>
           </div>
         </div>
@@ -16496,7 +16502,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 周期 / 指定周 / 指定月 / 无日期 一律只提供放弃。
       hasDate() { return this.$store.hasYMD(this.task); },
       sheetTitle() { return this.hasDate ? '⏰ 调整时间 / 放弃' : '放弃任务'; },
-      dayBtns() { return [{ label: '明天', offset: 1 }, { label: '后天', offset: 2 }, { label: '大后天', offset: 3 }]; },
+      dayBtns() { return [{ label: '今日', offset: 0 }, { label: '明天', offset: 1 }, { label: '后天', offset: 2 }, { label: '大后天', offset: 3 }]; },
       // 日档平移档：在现有日期基础上前推/后移 1~2 天（负数=提前；区间任务整体平移保持长度）
       dayShiftBtns() { return [{ label: '提前1天', offset: -1 }, { label: '提前2天', offset: -2 }, { label: '推后1天', offset: 1 }, { label: '推后2天', offset: 2 }]; },
       weekBtns() { return [{ label: '本周', offset: 0 }, { label: '下周', offset: 1 }, { label: '下下周', offset: 2 }]; },
@@ -16517,7 +16523,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="qts-btns four">
             <button class="qts-btn" v-for="b in dayShiftBtns" :key="'ds'+b.offset" @click="pick('day', b.offset, true)">{{ b.label }}</button>
           </div>
-          <div class="qts-btns">
+          <div class="qts-btns four">
             <button class="qts-btn" v-for="b in dayBtns" :key="'d'+b.offset" @click="pick('day', b.offset)">{{ b.label }}</button>
           </div>
           <div class="qts-grp">周</div>
@@ -18305,8 +18311,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   /* -------- ProjectSubEditModal —— 新增/编辑子任务（可承接灵感领取） -------- */
   C.ProjectSubEditModal = {
     name: 'ProjectSubEditModal',
+    mixins: [C.MaterialLinkMixin], // 素材链接格式校验：与主任务表单同实现
     props: { pid: { type: String, required: true }, sid: { type: String, default: '' }, ideaId: { type: String, default: '' }, seedTitle: { type: String, default: '' }, seedTags: { type: Array, default: () => [] } },
-    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, enableRemind: false, linkPomodoro: false, showDelConfirm: false }; },
+    data() { return { title: '', unit: '', planDaily: 0, enableTotal: false, total: '', sub_start: '', sub_end: '', status: '进行中', tags: [], tagInput: '', estH: 0, planFillHours: 0, isEmergency: false, inTaskBoard: false, enableRemind: false, linkPomodoro: false, showDelConfirm: false, link: '', notes: '' }; },
     computed: {
       // 本项目已有的子任务标签，作为快捷选择项（排除已选），减少重复手输
       tagSuggestions() {
@@ -18349,6 +18356,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           this.enableTotal = !!s.enableTotal;
           this.total = (s.total == null ? '' : s.total);
           this.isEmergency = !!s.isEmergency;
+          // 素材链接 / 备注：回填供继续编辑（存量数据无该字段时留空）
+          this.link = s.material_link || '';
+          this.notes = s.material_notes || '';
           // 工作流状态：已完成 ↔ sub_done；其余 ↔ 进行中 / 自定义状态
           this.status = s.status || (s.sub_done ? '已完成' : '进行中');
           // 旧数据兼容：仅有单个截止 sub_deadline 时，映射为 结束=原截止、开始=空
@@ -18415,6 +18425,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           enable_remind: !!this.enableRemind,
           // 关联番茄正计时：勾选后任务表条目右侧展示 ⏱ 全屏专注计时（复用任务表计时按钮）
           linkPomodoro: !!this.linkPomodoro,
+          // 素材链接 / 备注：与主任务同字段名，保存后行上经 MaterialBadges 展示 🔗 / 📎
+          material_link: (this.link || '').trim(),
+          material_notes: (this.notes || '').trim(),
         };
         // 完成态切换时同步完成时间戳与紧急标记（与 toggleSubDone 口径一致）
         if (nowDone && !wasDone) { patch.done_at = Date.now(); patch.isEmergency = false; }
@@ -18520,6 +18533,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="tag-edit" v-if="tagSuggestions.length">
             <span class="ptag" style="background:#f0f1f6;color:var(--sub);cursor:pointer" v-for="t in tagSuggestions" :key="'sg'+t" @click="pickSuggest(t)">＋ {{ t }}</span>
           </div>
+
+          <!-- 素材链接 / 素材备注：与主任务表单同字段名（material_link / material_notes），
+               保存后子任务行经 MaterialBadges 展示 🔗 / 📎 图标（🔗 点击跳转、📎 点击查看） -->
+          <label class="fld">素材链接
+            <input v-model.trim="link" placeholder="https://example.com" :class="{invalid: link && !isValidMaterialLink(link)}" />
+          </label>
+          <p class="tip" v-if="link && !isValidMaterialLink(link)">链接格式有误，请以 http(s):// 开头</p>
+          <label class="fld">素材备注
+            <textarea v-model="notes" rows="3" placeholder="补充说明 / 参考资料（可选）"></textarea>
+          </label>
 
           <div class="modal-actions">
             <button class="btn danger" v-if="sid" @click="showDelConfirm=true">删除</button>
@@ -20156,7 +20179,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   C.ProjectDetailPage = {
     name: 'ProjectDetailPage',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：与待归档任务共用同一实现
-    components: { ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie, ProjectSubTotals: C.ProjectSubTotals, ProjectStatusManageModal: C.ProjectStatusManageModal },
+    components: { MaterialBadges: C.MaterialBadges, ProjectEditModal: C.ProjectEditModal, ProjectSubEditModal: C.ProjectSubEditModal, ProjectRecordModal: C.ProjectRecordModal, ProjectIdeaEditModal: C.ProjectIdeaEditModal, ProjectGantt: C.ProjectGantt, ProjectTagPie: C.ProjectTagPie, ProjectSubTotals: C.ProjectSubTotals, ProjectStatusManageModal: C.ProjectStatusManageModal },
     props: { pid: { type: String, required: true }, ideaId: { type: String, default: '' }, subId: { type: String, default: '' } },
     data() {
       return {
@@ -20257,6 +20280,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       subId(v) { if (v) this.flashSub(v); },
     },
     methods: {
+      // —— 子任务素材徽标显示判定（与 MaterialBadges 的 hasLink/hasNotes 口径严格一致）——
+      // 合法 http(s) 链接 → 🔗；非空备注 → 📎。两者皆无则不渲染徽标容器，避免空行
+      subHasMat(s) {
+        if (!s) return false;
+        const lk = String(s.material_link || '').trim();
+        if (lk && /^https?:\/\/.+/i.test(lk)) return true;
+        return !!String(s.material_notes || '').trim();
+      },
       // —— 页面 UI 状态缓存（进行中 / 灵感库 标签），随路由栈返回时自动还原 ——
       saveUiState() {
         try { localStorage.setItem('mindpocket:projUi:' + this.pid, JSON.stringify({ tab: this.tab, view: this.view, tagbarOpen: this.tagbarOpen, filterTags: this.filterTags })); } catch (e) {}
@@ -20611,7 +20642,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <span v-else-if="subRemain(s) === 0" class="cd-warn">⏰ 今天到期（{{ s.sub_end }}）</span>
             <span v-else class="cd-over">⚠️ 已过期 {{ -subRemain(s) }} 天（{{ s.sub_end }}）</span>
           </div>
-          <div class="proj-tags" v-if="s.tags && s.tags.length">
+          <!-- 素材徽标（🔗 链接 / 📎 备注）：与主任务行同一组件；项目子任务无通用写入口，备注浮层为只读查看 -->
+          <div class="proj-tags" v-if="subHasMat(s) || (s.tags && s.tags.length)">
+            <MaterialBadges :item="s" />
             <span class="ptag" v-for="t in s.tags" :key="t">{{ t }}</span>
           </div>
         </div>
