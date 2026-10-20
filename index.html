@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261018.2" />
+  <meta name="mp-version" content="20261020.4" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -385,10 +385,12 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 /* 复选框：与主任务完成态视觉一致 */
 .st-row input[type=checkbox] { flex: none; width: 18px; height: 18px; accent-color: var(--primary); cursor: pointer; }
 .st-row .st-title { flex: 1; font-weight: 600; font-size: 15px; color: var(--text); }
-/* 标题+徽标组合：整体占据行宽把右侧时间胶囊/删除键推到底；标题自身可收缩省略，徽标紧跟标题文字 */
-.st-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
-.st-main .st-title { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.st-row .st-main .rt-badges { flex: none; }
+/* 标题+徽标组合：第一行标题与徽标（标题可收缩省略），第二行可选「任务描述」直显 */
+.st-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.st-line1 { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.st-line1 .st-title { flex: 0 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.st-row .st-line1 .rt-badges { flex: none; }
+.st-desc { font-size: 12px; color: var(--sub); line-height: 1.4; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .st-row .st-title.done { text-decoration: line-through; color: var(--sub); }
 /* 铅笔编辑 / × 删除：尺寸、圆角、配色、间距、阴影、hover/按压态 1:1 复用 .icon-btn */
 .st-row .st-del { flex: none; background: #f0f1f6; color: var(--sub); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 4px 9px; font-size: 14px; cursor: pointer; box-shadow: 0 1px 2px rgba(20,24,40,.06); transition: background .15s ease, transform .1s ease, box-shadow .15s ease; }
@@ -1259,6 +1261,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
 /* —— 标签体系（项目 / 子任务 #标签） —— */
 .proj-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+/* 子任务「任务描述」行上直显：小字次级色，最多 2 行截断（全文经 📎 查看/编辑） */
+.psub-desc { font-size: 13px; color: var(--sub); margin-top: 5px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ptag { font-size: 11px; background: #eef2ff; color: var(--primary); padding: 2px 8px; border-radius: var(--radius-sm); }
 /* 历史标签胶囊（任务详情 / 新增的「标签输入」下方）：当前夹下最近编辑的 5 个一级标签 */
 .tag-hist { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0 2px; }
@@ -1572,6 +1576,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .viz-period-nav .icon-btn { width: 34px; height: 34px; padding: 0; border-radius: var(--radius-sm); background: #f0f1f6; color: var(--text); font-size: 20px; line-height: 1; }
 .viz-period-nav .icon-btn:disabled { opacity: .4; }
 .viz-period-label { font-size: 14px; font-weight: 600; color: var(--text); min-width: 170px; text-align: center; }
+/* 专注时长可视化：时段标签与「回到本周/本月/本年」上下堆叠（与习惯图 mc-head/mc-date 同款布局）；
+   作用域限定 .projviz-page，避免影响共用 .viz-period-label 的愿望池可视化 */
+.projviz-page .viz-period-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.projviz-page .viz-period-col .btn-mini { padding: 3px 10px; font-size: 12px; line-height: 1.2; }
 /* 重要等级图标：移到条目标题同一行时，去掉底部外边距、与标题对齐 */
 .proj-name .imp-tag { display: inline-block; margin: 0 0 0 8px; vertical-align: 1px; font-weight: 600; }
 /* 填报详情页底部操作条：保存填报 + 关闭 固定在弹窗底部同一行 */
@@ -2507,6 +2515,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     window.addEventListener('pagehide', _onPageHide);
     window.addEventListener('beforeunload', _onPageHide);
     document.addEventListener('visibilitychange', function () { if (document.hidden) _onPageHide(); });
+    // 惰性日切：PWA 常驻后台跨天/跨周后，切回前台 / 获得焦点 / 分钟轮询时重跑逾期顺延
+    // （指定周任务滞留过期窗口的根治：启动只跑一次的顺延在跨天后不再生效，见 store.ensureDayRoll）
+    function _dayRollTick() { try { if (window.MPStore && window.MPStore.ensureDayRoll) window.MPStore.ensureDayRoll(); } catch (e) {} }
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) _dayRollTick(); });
+    window.addEventListener('focus', _dayRollTick);
+    setInterval(_dayRollTick, 60000);
     // 本地自动备份：固定每 30 分钟生成一份快照（独立于主数据落盘节奏，保证「每 30 分钟必有一份」）；
     // 切后台 / 关闭页面由 _onPageHide 立即补一份。最多保留最近 5 份（见 AUTO_BACKUP_MAX）。
     setInterval(function () {
@@ -2638,6 +2652,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     ensureCareerPresets();
     ensureDebtPenalties(); // 欠条逾期罚息落账（每满 1 周未还清补记 原价×0.5，幂等；读取欠款口径时亦有惰性补记兜底）
     autoRollOverdueSpecified(); // 逾期「指定周/月」与单点/区间任务自动顺延到本周可见窗口并标记「逾期未完成」（先于 autoExtendOverdue，避免开关把已顺延日期覆盖到今天导致漏标/重复顺延）
+    _rollLastDay = todayStr();  // 启动已跑过一轮顺延，记录基线日期（此后由 ensureDayRoll 惰性日切补触发）
     autoExtendOverdue(); // 过期任务自动延期（仅在开关开启时生效）
     autoArchiveExpiredCycles(); // 周期任务到期自动归档（母本归档，停止副本同步）
     autoArchiveCompletedCycles(); // 周期母本副本全完成批量校验（打开页面兜底，跨天场景补触发）
@@ -5418,6 +5433,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (changed) persist();
   }
 
+  // 惰性日切：PWA 常驻后台，跨天/跨周后「启动时跑过一次」的顺延不会再执行，
+  // 指定周任务会滞留过期窗口（标签还显示「本周」却不在本周看板、也无逾期标记）。
+  // 页面重新可见 / 获得焦点 / 分钟轮询时检查日期变化，变化即重跑（幂等，无变更不落盘）。
+  var _rollLastDay = '';
+  function ensureDayRoll(force) {
+    const today = todayStr();
+    if (!force && _rollLastDay === today) return false;
+    _rollLastDay = today;
+    autoRollOverdueSpecified();      // 逾期「指定周/月」与单点/区间任务顺延 + 打「逾期未完成」标记
+    autoExtendOverdue();             // 过期任务自动延期（开关开启时生效）
+    autoArchiveCompletedCycles();    // 周期母本副本全完成批量校验（本就声明跨天补触发）
+    return true;
+  }
+
   // 「指定周 / 指定月」任务的目标窗口（冻结的绝对周/月）：用于逾期判定与延期操作
   // 返回 { y, w?/m?, ws, we }；非指定周/月任务（无冻结目标周/月）返回 null
   function specifiedWindowOf(t) {
@@ -7450,23 +7479,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     persist();
     return true;
   }
-  function getWishEditCountThisMonth() {
-    const now = new Date();
-    const ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
-    return state.wish_records.filter(r => r.recordType === 'edit' && r.time && r.time.slice(0, 7) === ym).length;
-  }
   // 愿望修改开放日：仅每月 1–3 号可修改愿望（不限次数），其余日期禁止修改。
   // 替代原先「每月 N 次」的计数限制（需求：每月 1-3 号方可修改，限这三天）。
   function wishEditWindowOpen() {
     const d = new Date().getDate();
     return d >= 1 && d <= 3;
-  }
-  function incrementEditCount() {
-    state.wish_records.push({
-      _id: uid('wrec'), wish_id: '', wish_name: '', cost: 0,
-      time: new Date().toISOString(), status: 'normal', recordType: 'edit',
-    });
-    persist();
   }
   function getPointsEarned() {
     return state.wish_records.filter(r => r.status === 'normal' && r.recordType === 'earn')
@@ -8661,7 +8678,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 紧急任务
     isEmergency, isSubEmergency,
     remindMinutes, weekDateKey, emergencyKey, copyDateKey,
-    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, plannedCountOnDate, buildArchBase, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, scheduleCollectionWeek, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle,
+    getTodayTasks, getInboxTasks, getArchivedTasks, getArchivedSubTasks, getTodaySubTasks, getBoardSubTasks, archiveDateOf, archiveDatesOf, archivedCountOnDate, plannedCountOnDate, buildArchBase, taskCopyVisibleOnDate, cycleArchivedToday, isOverdueTask, autoExtendOverdue, autoArchiveExpiredCycles, autoArchiveCompletedCycles, extendDeadline, setAutoExtend, specifiedWindowOf, extendSpecified, scheduleSpecifiedToDate, postponeSpecifiedWeek, scheduleTaskToDate, scheduleCollectionToDay, scheduleCollectionWeek, assignWeekByOffset, archiveTask, archiveTaskFull, undoArchive, hasOverdueCycle, ensureDayRoll,
     // 模版归档永久流水（每次「完成归档一次」追加一条，重置不清）
     ledgerAdd, ledgerRemove, ledgerList,
     markCopyDone, markCopyUndone, subCopyDone, subCopyUndone, copyDoneForWindow, cycleOccurrenceDates, cycleCountDates, cycleCountEndDate, cycleScheduleDates, syncCycleAnchor, copyShouldRender, undoCycleCheckIn, toggleOccurrence, allOccurrencesDone,
@@ -8697,7 +8714,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     dayCompletion, habitCount,
     // 许愿池
     addWishItem, updateWishItem, removeWishItem, redeemWish, redeemWishOnCredit, undoRedeem, verifyRedeem, redeemState,
-    getWishEditCountThisMonth, incrementEditCount, wishEditWindowOpen,
+    wishEditWindowOpen,
     getPointsEarned, getPointsPenalty, getPointsSpent, availablePoints, getWishSorted, setWishOrder,
     WISH_DEBT_RATE, calcDebtCost, netPoints, getPointsDebtOwed, getWishDebtCountThisMonth,
     WISH_DEBT_PENALTY_RATE, calcDebtPenalty, debtPenaltyWeeks, ensureDebtPenalties,
@@ -11913,7 +11930,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
              @pointerup="onSubUp(s)" @pointercancel="onSubUp(s)">
           <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onHandleDown(s,$event)" @pointermove.stop="onHandleMove($event)" @pointerup.stop="onHandleUp($event)" @pointercancel.stop="onHandleUp($event)">⠿</span>
           <input v-if="s.hasCheckbox !== false" type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
-          <span class="st-main"><span class="st-title" :class="{done:s.is_done}" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
+          <span class="st-main"><span class="st-line1"><span class="st-title" :class="{done:s.is_done}" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span class="st-desc" v-if="s.material_notes" @click="onSubMainClick(s)">{{ s.material_notes }}</span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
           <button class="st-del" @click.stop="askDel(s)">✕</button>
         </div>
         <p v-if="!activeSubs.length" class="empty-tip">还没有子任务，用上方输入框快速新增（左滑可归档）</p>
@@ -11930,7 +11947,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                @pointerup="onSubUp(s)" @pointercancel="onSubUp(s)">
             <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onHandleDown(s,$event)" @pointermove.stop="onHandleMove($event)" @pointerup.stop="onHandleUp($event)" @pointercancel.stop="onHandleUp($event)">⠿</span>
             <input v-if="s.hasCheckbox !== false" type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
-            <span class="st-main"><span class="st-title done" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
+            <span class="st-main"><span class="st-line1"><span class="st-title done" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span class="st-desc" v-if="s.material_notes" @click="onSubMainClick(s)">{{ s.material_notes }}</span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
             <button class="st-del" @click.stop="askDel(s)">✕</button>
           </div>
         </div>
@@ -13232,7 +13249,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       debtOwed() { return this.$store.getPointsDebtOwed(); },
       debtCountThisMonth() { return this.$store.getWishDebtCountThisMonth(); },
       editWindowOpen() { return this.$store.wishEditWindowOpen(); },
-      editCountThisMonth() { return this.$store.getWishEditCountThisMonth(); },
       editExhausted() { return !this.editWindowOpen; },
       detailGroups() {
         const all = (this.$store.state.wish_records || []).slice().sort((a, b) => new Date(b.time) - new Date(a.time));
@@ -13465,7 +13481,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       confirmAdd() { const name = (this.addName || '').trim(); const cost = parseInt(this.addCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.addWishItem({ name, cost, count_type: this.addCountType }); this.closeAdd(); },
       openEdit(wishId) { const item = this.$store.state.wish_items.find(w => w._id === wishId); if (!item) return; this.editWishId = wishId; this.editName = item.name; this.editCost = String(item.cost); this.editCountType = item.count_type || 'one_time'; this.delWishConfirm = false; this.showEditModal = true; },
       closeEdit() { this.showEditModal = false; this.editWishId = null; this.delWishConfirm = false; },
-      confirmEdit() { const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType }); this.$store.incrementEditCount(); this.closeEdit(); },
+      confirmEdit() { const name = (this.editName || '').trim(); const cost = parseInt(this.editCost, 10); if (!name || isNaN(cost) || cost <= 0) return; this.$store.updateWishItem(this.editWishId, { name, cost, count_type: this.editCountType }); this.closeEdit(); },
       // —— 删除愿望（仅在每月 1–3 号编辑窗口内可用；窗口外按钮 :disabled 不可点）；二次确认防误触 ——
       askDelWish() { if (this.editExhausted) return; this.delWishConfirm = true; },
       doDelWish() { if (!this.delWishConfirm || !this.editWishId) return; this.$store.removeWishItem(this.editWishId); this.delWishConfirm = false; this.closeEdit(); },
@@ -13505,7 +13521,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     </div>
   </div>
   <div class="wp-body" v-show="cardOpen">
-    <p class="wp-quota" :class="{ closed: !editWindowOpen }">愿望修改开放日：名称/积分/删除仅每月 <strong>1–3 号</strong> 可操作（不限次数）；<strong>愿望类型</strong> 不受此限制、随时可改。本月已修改 {{ editCountThisMonth }} 次</p>
+    <p class="wp-quota" :class="{ closed: !editWindowOpen }">愿望修改开放日：名称/积分/删除仅每月 <strong>1–3 号</strong> 可操作（不限次数）；<strong>愿望类型</strong> 不受此限制、随时可改。</p>
     <button class="wp-add-btn" @click="openAdd">＋添加愿望</button>
     <div class="wp-list" v-if="items.length">
       <div class="wp-row-wrap" v-for="item in items" :key="item._id">
@@ -18242,6 +18258,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       onTagInput() {
         if (/^#\S+[\s，,]$/.test(this.tagInput)) this.commitTag();
       },
+      // 标签回车生成：中文输入法组合期间（isComposing/229）回车=确认拼音，不当作生成
+      onTagEnter(ev) {
+        if (ev.isComposing || ev.keyCode === 229) return;
+        ev.preventDefault();
+        this.commitTag();
+      },
       removeTag(i) { this.tags.splice(i, 1); },
       save() {
         const name = this.name.trim();
@@ -18273,7 +18295,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <input type="text" v-model="deadline" placeholder="YYYY-MM-DD" @blur="deadline=$store.util.autoFormatDate(deadline)" :class="{invalid: deadline && !$store.util.validateDateInput(deadline).ok}" />
           </label>
           <label class="fld">项目标签
-            <input v-model="tagInput" @input="onTagInput" @keyup.enter="commitTag" placeholder="输入 #标签名 空格/回车生成，如 #论文" />
+            <input v-model="tagInput" @input="onTagInput" @keydown.enter="onTagEnter" placeholder="输入 #标签名 空格/回车生成，如 #论文" />
           </label>
           <div class="tag-edit" v-if="tags.length">
             <span class="ptag" v-for="(t,i) in tags" :key="t">{{ t }}<span class="ptag-x" @click="removeTag(i)">✕</span></span>
@@ -18298,7 +18320,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="chart-confirm" v-if="showDelConfirm" @click.self="showDelConfirm=false">
         <div class="idea-choice-box" @click.stop>
           <div class="idea-choice-title">确定要删除该项目？</div>
-          <p style="font-size:13px;color:var(--sub);line-height:1.5;margin:0 0 14px">删除后该项目下所有数据、任务无法恢复，确认要删除此项目吗？</p>
+          <p style="font-size:13px;color:var(--sub);line-height:1.5;margin:0 0 14px">删除后该项目及其全部子任务的<strong>历史填报数据（打卡记录）</strong>将一并永久移除、不可恢复。确认要删除此项目吗？</p>
           <div class="modal-actions">
             <button class="btn ghost" @click="showDelConfirm=false">取消</button>
             <button class="btn danger" @click="confirmDelete">确定删除</button>
@@ -18389,6 +18411,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       save() {
         const title = this.title.trim();
         if (!title) { alert('请填写子任务名称'); return; }
+        // 兜底收集：输入框里未按回车的标签一并收入（手机输入法下回车易被拼音确认吞掉）
+        this.addTag();
         // 结束日期必须 >= 开始日期（两者均填写时校验）
         if (this.sub_start && this.sub_end && this.sub_end < this.sub_start) {
           alert('结束日期不能早于开始日期');
@@ -18454,6 +18478,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (t && this.tags.indexOf(t) < 0) this.tags.push(t);
         });
         this.tagInput = '';
+      },
+      // 标签回车添加：中文输入法组合期间（isComposing/229）回车=确认拼音，不当作添加；
+      // 待候选上屏后再按一次回车才收入。失焦与保存时兜底收集未回车内容（防丢）。
+      onTagEnter(ev) {
+        if (ev.isComposing || ev.keyCode === 229) return;
+        ev.preventDefault();
+        this.addTag();
       },
       pickSuggest(t) { if (this.tags.indexOf(t) < 0) this.tags.push(t); },
       // 状态类型判断：内置状态之外即为自定义（非完成）状态
@@ -18525,7 +18556,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
           <!-- 子任务标签：手动输入 + 已有标签快捷选择，支撑标签筛选与耗时分布统计 -->
           <label class="fld">标签（如 英语 / 数学，可多个）
-            <input v-model="tagInput" placeholder="输入后回车添加，支持逗号分隔" @keyup.enter.stop="addTag" />
+            <input v-model="tagInput" placeholder="输入后回车添加，支持逗号分隔" enterkeyhint="done" @keydown.enter.stop="onTagEnter" @blur="addTag" />
           </label>
           <div class="tag-edit" v-if="tags.length">
             <span class="ptag" v-for="(t,i) in tags" :key="t">{{ t }}<span class="ptag-x" @click="removeTag(i)">✕</span></span>
@@ -18540,8 +18571,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <input v-model.trim="link" placeholder="https://example.com" :class="{invalid: link && !isValidMaterialLink(link)}" />
           </label>
           <p class="tip" v-if="link && !isValidMaterialLink(link)">链接格式有误，请以 http(s):// 开头</p>
-          <label class="fld">素材备注
-            <textarea v-model="notes" rows="3" placeholder="补充说明 / 参考资料（可选）"></textarea>
+          <label class="fld">任务描述
+            <textarea v-model="notes" rows="3" placeholder="补充说明，将直接显示在子任务列表（可选）"></textarea>
           </label>
 
           <div class="modal-actions">
@@ -18552,7 +18583,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
         <div class="undo-confirm" v-if="showDelConfirm">
           <div class="undo-box">
-            <p class="undo-text">确定要删除该子任务吗？将软删除并保留数据。</p>
+            <p class="undo-text">确定要删除该子任务吗？其<strong>历史填报数据（打卡记录）</strong>将一并移除、不可恢复。</p>
             <div class="undo-actions">
               <button class="btn ghost" @click="showDelConfirm=false">取消</button>
               <button class="btn danger" @click="confirmDelete">确定删除</button>
@@ -20493,6 +20524,44 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         else this.ideaFilterSubs.push(sid);
       },
       clearIdeaSub() { this.ideaFilterSubs = []; this.ideaSubbarOpen = false; },
+      // —— 灵感库导出 Markdown：标题=项目名；节点=子任务下关联的素材（## 子任务名 分组）；
+      // 没有子任务关联的素材逐条列表项列出；素材的链接与描述（content）以引用块（>）备注形式附在条目下 ——
+      exportIdeasMd() {
+        const subs = this.$store.getSubs(this.pid);
+        const ideas = this.allIdeas.slice();
+        const used = {};
+        const lines = ['# ' + ((this.project && this.project.name) || '未命名项目'), ''];
+        // 节点一：按子任务顺序分组「关联了素材」的子任务（无素材的子任务不出现）
+        subs.forEach(s => {
+          const group = ideas.filter(i => (i.linked_subs || []).indexOf(s.sid) >= 0);
+          if (!group.length) return;
+          group.forEach(i => { used[i.idea_id] = true; });
+          lines.push('## ' + (s.title || '未命名子任务'), '');
+          group.forEach(i => this._pushIdeaMd(lines, i));
+        });
+        // 节点二：没有子任务关联的素材，每个素材自身成为 ## 节点（与子任务并列的顶层节点）
+        const rest = ideas.filter(i => !used[i.idea_id]);
+        rest.forEach(i => this._pushIdeaHeadingMd(lines, i));
+        const md = lines.join('\n');
+        const safeName = ((this.project && this.project.name) || '项目').replace(/[\\/:*?"<>|]/g, '_');
+        const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'mindpocket-灵感库-' + safeName + '-' + this.$store.util.todayStr() + '.md';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(() => URL.revokeObjectURL(url), 1000);
+      },
+      // 单条素材（挂在子任务节点下）：- 标题 + 引用块备注（链接 / 描述，多行描述逐行引用）
+      _pushIdeaMd(lines, i) {
+        lines.push('- ' + (i.title || '（无标题素材）'));
+        if (i.link) lines.push('  > 链接：' + i.link);
+        if (i.content && i.content.trim()) lines.push(i.content.trim().split('\n').map(l => '  > ' + l).join('\n'));
+      },
+      // 单条素材（无子任务关联，自身成为 ## 节点）：## 标题 + 引用块备注（链接 / 描述）
+      _pushIdeaHeadingMd(lines, i) {
+        lines.push('## ' + (i.title || '（无标题素材）'));
+        if (i.link) lines.push('  > 链接：' + i.link);
+        if (i.content && i.content.trim()) lines.push(i.content.trim().split('\n').map(l => '  > ' + l).join('\n'));
+        lines.push('');
+      },
       // 选题灵感库：领取生成「进行中的项目」，灵感内容填充到项目（仅 name 文本字段可用），其余字段置空
       pickAsProject(i) {
         const raw = (i.content && i.content.trim()) || i.title || '灵感项目';
@@ -20620,6 +20689,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <div class="psub-title" :class="{ 'arch-abandon': s.is_archived && s.arch_kind==='abandon' }">{{ s.title }}<span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span></div>
             <span class="psub-status" :class="subStatusClass(s)" :style="subStatusStyle(s)" :data-status="subStatusLabel(s)">{{ subStatusLabel(s) }}</span>
           </div>
+          <!-- 任务描述（material_notes）：直接显示在行上，最多 2 行截断；🔗/📎 徽标仍保留（点开可查看/编辑全文） -->
+          <div class="psub-desc" v-if="s.material_notes">{{ s.material_notes }}</div>
           <!-- 完成量进度条（仅开启目标计划的子任务） -->
           <div class="psub-prog" v-if="subPct(s) !== null">
             <div class="pbar"><div class="pbar-fill" :style="{width: subPct(s) + '%'}"></div></div>
@@ -20664,6 +20735,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="proj-top-actions ideatop-actions" style="display:flex;align-items:center;gap:8px;margin-bottom:14px;position:relative;">
           <button class="btn primary" style="flex:1;" @click="openIdeaNew">＋ 新增灵感素材</button>
           <button class="icon-btn" :class="{on: ideaFilterSubs.length > 0}" @click="toggleIdeaSubbar" title="关联子任务筛选（多选）" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">🏷️</button>
+          <button class="icon-btn" @click="exportIdeasMd" title="导出灵感库 Markdown" style="flex:0 0 auto;padding:6px 10px;font-size:16px;">⬇</button>
           <!-- 关联子任务筛选下拉：多选（点击切换选中，不关菜单） -->
           <div class="sort-menu" v-if="ideaSubbarOpen && ideaSubTags.length" style="position:absolute;right:0;top:100%;z-index: var(--z-pop);background:#fff;border:1px solid var(--line);border-radius:var(--radius-sm);padding:4px;box-shadow:0 4px 16px rgba(0,0,0,.1);min-width:180px;max-height:280px;overflow-y:auto;">
             <div class="sort-item" :class="{on: ideaFilterSubs.indexOf(t.sid) >= 0}" v-for="t in ideaSubTags" :key="'is'+t.sid" @click="pickIdeaSub(t.sid)" style="padding:9px 12px;font-size:13px;border-radius:var(--radius-sm);cursor:pointer;color:var(--text);">{{ ideaFilterSubs.indexOf(t.sid) >= 0 ? '✅ ' : '▫️ ' }}{{ t.name }}</div>
@@ -20734,7 +20806,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <div class="chart-confirm" v-if="confirmDelSub" @click.self="confirmDelSub=null">
         <div class="idea-choice-box" @click.stop>
           <div class="idea-choice-title">确定要删除该子任务？</div>
-          <p style="font-size:13px;color:var(--sub);margin:0 0 12px">将软删除并保留数据</p>
+          <p style="font-size:13px;color:var(--sub);margin:0 0 12px">该子任务及其<strong>历史填报数据（打卡记录）</strong>将从项目移除、不可恢复</p>
           <div class="modal-actions">
             <button class="btn ghost" @click="confirmDelSub=null">取消</button>
             <button class="btn danger" @click="confirmDeleteSub">确定删除</button>
@@ -23297,6 +23369,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return map;
       },
       // 当前时段窗口：全部=有记录的所有月份（按月聚合）；周=本周（含偏移）；月=当月逐日（含偏移）；年=当年 12 个月
+      // 「回到本周/月/年」按钮文案：随维度切换（与习惯图 mc-now 口径一致）
+      backNowLabel() { return this.vizDim === 'week' ? '回到本周' : (this.vizDim === 'month' ? '回到本月' : '回到本年'); },
       vizWindow() {
         const dim = this.vizDim, off = this.vizOffset || 0;
         const pad = n => String(n).padStart(2, '0');
@@ -23307,12 +23381,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const set = {}; set[todayStr.slice(0, 7)] = true;
           this.records.forEach(r => { const d = r.recordDate || ''; if (/^\d{4}-\d{2}/.test(d)) set[d.slice(0, 7)] = true; });
           const keys = Object.keys(set).sort();
-          return { dim, label: '全部时段', title: '专注时长（全部）', keys };
+          return { dim, label: '全部时段', title: '专注时长', keys };
         }
         if (dim === 'year') {
           const y = new Date().getFullYear() - off;
           const keys = []; for (let m = 1; m <= 12; m++) keys.push(y + '-' + pad(m));
-          return { dim, label: y + '年', title: '专注时长（年）', keys };
+          return { dim, label: y + '年', title: '专注时长', keys };
         }
         if (dim === 'month') {
           const now = new Date();
@@ -23320,14 +23394,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const y = base.getFullYear(), m = base.getMonth();
           const days = new Date(y, m + 1, 0).getDate();
           const keys = []; for (let i = 1; i <= days; i++) keys.push(y + '-' + pad(m + 1) + '-' + pad(i));
-          return { dim, label: y + '年' + pad(m + 1) + '月' + (off ? ' · ' + off + '个月前' : ''), title: '专注时长（月）', keys };
+          return { dim, label: y + '年' + pad(m + 1) + '月' + (off ? ' · ' + off + '个月前' : ''), title: '专注时长', keys };
         }
         // 周：本周（含偏移），周一对周一
         const d = this.$store.util.parseDate(todayStr);
         const wd0 = (d.getDay() + 6) % 7;
         const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - wd0 - off * 7);
         const keys = []; for (let i = 0; i < 7; i++) { const dd = new Date(mon); dd.setDate(mon.getDate() + i); keys.push(fmt(dd)); }
-        return { dim, label: '本周' + (off ? ' · ' + off + '周前' : ''), title: '专注时长（周）', keys };
+        return { dim, label: '本周' + (off ? ' · ' + off + '周前' : ''), title: '专注时长', keys };
       },
       // 柱状图：各时段累计专注分钟
       barBuckets() {
@@ -23492,6 +23566,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       setVizDim(d) { this.vizDim = d; if (d === 'all') this.vizOffset = 0; try { localStorage.setItem('mindpocket:projVizDim', d); } catch (e) {} },
       prev() { if (this.vizDim === 'all') return; this.vizOffset = this.vizOffset + 1; },
       next() { if (this.vizDim === 'all') return; this.vizOffset = Math.max(0, this.vizOffset - 1); },
+      // 「回到本周 / 本月 / 本年」：与习惯图 / 归档库 mc-now 同款一键跳回当前时段（仅偏离当前时段时显示）
+      backNow() { this.vizOffset = 0; },
       // 柱状图 x 轴标签（主图与完成量图共用）：年=「N月」；月=仅日期号；周=MM/DD；
       // 全部=「N月」，但跨年时用「YY.MM」缩写避免不同年份同月份数字重复造成歧义
       _bucketLabel(win, k) {
@@ -23517,220 +23593,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const h = Math.floor(m / 60), r = m % 60;
         return r ? (h + 'h' + r + 'min') : (h + 'h');
       },
-      // —— 导出 PDF 图片 ——
-      // 历史：旧 JSON 版用超长 data: URI 触发下载，部分浏览器/WebView 会拦截超长 data URI，点击无响应（报「导出失败」）。
-      // 现改为：canvas 原生重绘当前可视化 → JPEG → 手工封装最小单页 PDF（DCTDecode 原样嵌入 JPEG，零外部依赖）
-      // → Blob 下载（与数据备份导出同一可靠路径）。
-      exportViz() {
-        try {
-          const canvas = this._vizCanvas();
-          const jpg = this._b64ToBytes(canvas.toDataURL('image/jpeg', 0.92).split(',')[1]);
-          const bytes = this._wrapPdf(jpg, canvas.width, canvas.height);
-          const blob = new Blob([bytes], { type: 'application/pdf' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'mindpocket-专注可视化-' + this.vizDim + '-' + this.$store.util.todayStr() + '.pdf';
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          setTimeout(() => URL.revokeObjectURL(url), 3000);
-          this.showToast('已导出 PDF');
-        } catch (e) {
-          console.error('[viz export]', e);
-          this.showToast('导出失败：' + (e && e.message ? e.message : e));
-        }
-      },
-      _b64ToBytes(b64) {
-        const bin = atob(b64); const out = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-        return out;
-      },
-      // 把 JPEG 字节封装成最小合法 PDF：5 个对象（Catalog/Pages/Page/Image XObject/Contents）+ xref + trailer。
-      // 文本段按 latin1 逐字节编码；偏移量必须按「字节」累计（而非字符串长度），xref 才能指向准确。
-      _wrapPdf(jpg, w, h) {
-        const enc = s => { const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i) & 0xff; return u; };
-        const head = enc('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n');
-        const parts = [head];
-        const offsets = [];
-        let pos = head.length;
-        const pushObj = (i, build) => {
-          offsets.push(pos);
-          const num = enc(i + ' 0 obj\n'), tail = enc('\nendobj\n');
-          const before = parts.length;
-          parts.push(num); build(parts); parts.push(tail);
-          for (let x = before; x < parts.length; x++) pos += parts[x].length;
-        };
-        const content = 'q ' + w + ' 0 0 ' + h + ' 0 0 cm /Im0 Do Q';
-        pushObj(1, ps => ps.push(enc('<< /Type /Catalog /Pages 2 0 R >>')));
-        pushObj(2, ps => ps.push(enc('<< /Type /Pages /Kids [3 0 R] /Count 1 >>')));
-        pushObj(3, ps => ps.push(enc('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + w + ' ' + h + '] /Resources << /XObject << /Im0 4 0 R >> /ProcSet [/PDF /ImageC] >> /Contents 5 0 R >>')));
-        pushObj(4, ps => {
-          ps.push(enc('<< /Type /XObject /Subtype /Image /Width ' + w + ' /Height ' + h + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpg.length + ' >>\nstream\n'));
-          ps.push(jpg);
-          ps.push(enc('\nendstream'));
-        });
-        pushObj(5, ps => ps.push(enc('<< /Length ' + content.length + ' >>\nstream\n' + content + '\nendstream')));
-        const xref = 'xref\n0 6\n0000000000 65535 f \n'
-          + offsets.map(o => ('0000000000' + o).slice(-10) + ' 00000 n \n').join('')
-          + 'trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n' + pos + '\n%%EOF';
-        parts.push(enc(xref));
-        let total = 0; parts.forEach(p => total += p.length);
-        const out = new Uint8Array(total); let off = 0;
-        parts.forEach(p => { out.set(p, off); off += p.length; });
-        return out;
-      },
-      // 用原生 canvas 重绘当前可视化（观感对齐页面 DOM 版）：头部信息 + 专注时长柱状图 + 项目占比饼图/图例 + 打卡完成量堆叠柱/图例。
-      // 高度按各区块预算精确累加（先判有无数据再定 canvas 高），2x 物理像素保证 PDF 内文字清晰。
-      _vizCanvas() {
-        const win = this.vizWindow;
-        const bars = this.barBuckets, pies = this.pieData, ca = this.checkinAmountBuckets;
-        const W = 760, PAD = 34, TAU = Math.PI * 2;
-        const hasBar = bars.some(b => b.min > 0);
-        const hasAmt = ca.buckets.some(b => b.total > 0);
-        // —— 布局预算（与下方绘制严格一致）——
-        const perRow = Math.min(6, Math.ceil(pies.length / (pies.length > 6 ? 2 : 1))) || 1;   // 饼图图例每列行数
-        const pieRegionH = Math.max(260, perRow * 38 + 40);
-        const H = 124                                            // 头部
-          + (hasBar ? 292 : 104)                                 // 主柱状图（区标题+值/柱/标签 或 空提示）
-          + (pies.length ? 46 + pieRegionH : 0)                  // 饼图区
-          + 76                                                   // 打卡区标题+汇总行
-          + (hasAmt ? 254 + Math.ceil(ca.palette.length / 3) * 30 : 50)  // 完成量堆叠柱(+图例) 或 空提示
-          + 70;                                                  // 页脚
-        const S = 2;
-        const canvas = document.createElement('canvas');
-        canvas.width = W * S; canvas.height = H * S;
-        const ctx = canvas.getContext('2d');
-        ctx.scale(S, S);
-        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, W, H);
-        const font = (sz, b) => (b ? 'bold ' : '') + sz + 'px -apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif';
-        let y = 0;
-        // —— 头部 ——
-        y += 64;
-        ctx.fillStyle = '#1a1a2e'; ctx.font = font(36, true);
-        ctx.fillText('专注时长可视化', PAD, y);
-        ctx.font = font(17); ctx.fillStyle = '#9aa0b0'; ctx.textAlign = 'right';
-        const nd = new Date();
-        ctx.fillText('导出于 ' + nd.getFullYear() + '-' + String(nd.getMonth() + 1).padStart(2, '0') + '-' + String(nd.getDate()).padStart(2, '0'), W - PAD, y - 6);
-        ctx.textAlign = 'left';
-        y += 38;
-        ctx.fillStyle = '#6a7bff'; ctx.font = font(21, true);
-        ctx.fillText(win.title + ' · ' + win.label + ' · 总专注 ' + this.fmtH(this.totalMin), PAD, y);
-        y += 22;
-        ctx.strokeStyle = '#e7e9f2'; ctx.beginPath(); ctx.moveTo(PAD, y); ctx.lineTo(W - PAD, y); ctx.stroke();
-        // —— 主柱状图 ——
-        y += 44;
-        ctx.fillStyle = '#1a1a2e'; ctx.font = font(24, true);
-        ctx.fillText('专注时长分布', PAD, y);
-        if (hasBar) {
-          y += 34;
-          const n = bars.length, areaW = W - PAD * 2, colW = areaW / n;
-          const gap = Math.min(10, Math.max(2, colW * 0.25));
-          const valFs = n > 20 ? 11 : (n > 12 ? 13 : 16), labFs = n > 20 ? 10 : (n > 12 ? 12 : 15);
-          const chartTop = y, chartH = 170, baseY = chartTop + chartH;
-          bars.forEach((b, i) => {
-            const x = PAD + i * colW, show = n <= 26 || i % 2 === 0;
-            ctx.textAlign = 'center';
-            if (show) { ctx.fillStyle = '#5a6072'; ctx.font = font(valFs); ctx.fillText(this.fmtH(b.min), x + colW / 2, chartTop - 4); }
-            const bh = Math.max(b.pct > 0 ? 3 : 1, Math.round(b.pct / 100 * chartH));
-            ctx.fillStyle = b.min > 0 ? '#6a7bff' : '#e7e9f2';
-            ctx.fillRect(x + gap / 2, baseY - bh, colW - gap, bh);
-            if (show) { ctx.fillStyle = '#5a6072'; ctx.font = font(labFs); ctx.fillText(b.label, x + colW / 2, baseY + 22); }
-            ctx.textAlign = 'left';
-          });
-          ctx.strokeStyle = '#e7e9f2'; ctx.beginPath(); ctx.moveTo(PAD, baseY); ctx.lineTo(W - PAD, baseY); ctx.stroke();
-          y = baseY + 44;
-        } else {
-          y += 34;
-          ctx.fillStyle = '#9aa0b0'; ctx.font = font(19);
-          ctx.fillText('当前时段暂无专注时长记录', PAD, y);
-          y += 26;
-        }
-        // —— 饼图 + 图例 ——
-        if (pies.length) {
-          y += 30;
-          ctx.fillStyle = '#1a1a2e'; ctx.font = font(24, true);
-          ctx.fillText('项目专注占比', PAD, y);
-          const pieTop = y + 16, r = 104;
-          const cx = PAD + r + 6, cy = pieTop + pieRegionH / 2;
-          let a0 = -Math.PI / 2;
-          pies.forEach((s, i) => {
-            const a1 = i === pies.length - 1 ? -Math.PI / 2 + TAU : a0 + (s.ratio || 0) * TAU;
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.arc(cx, cy, r, a0, a1); ctx.closePath();
-            ctx.fillStyle = s.color; ctx.fill();
-            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
-            a0 = a1;
-          });
-          const twoCol = pies.length > 6;
-          const cols = twoCol ? 2 : 1;
-          const lx0 = PAD + 2 * r + 40, colW = (W - PAD - lx0) / cols;
-          pies.forEach((s, i) => {
-            const col = twoCol ? Math.floor(i / perRow) : 0;
-            const row = twoCol ? i % perRow : i;
-            const x = lx0 + col * colW, ly = pieTop + 30 + row * 38;
-            ctx.fillStyle = s.color; ctx.fillRect(x, ly - 13, 16, 16);
-            ctx.fillStyle = '#1a1a2e'; ctx.font = font(18, true);
-            const nm = s.name.length > 10 ? s.name.slice(0, 9) + '…' : s.name;
-            ctx.fillText(nm, x + 24, ly);
-            ctx.fillStyle = '#7a8090'; ctx.font = font(15);
-            ctx.fillText(s.pct + '% · ' + this.fmtH(s.min), x + 24, ly + 20);
-          });
-          y = pieTop + pieRegionH;
-        }
-        // —— 打卡天数 / 完成量 ——
-        y += 40;
-        ctx.fillStyle = '#1a1a2e'; ctx.font = font(24, true);
-        ctx.fillText('打卡天数 / 完成量（' + win.label + '）', PAD, y);
-        y += 36;
-        ctx.fillStyle = '#5a6072'; ctx.font = font(18);
-        ctx.fillText('已打卡 ' + this.checkinTotal + ' 天 / 共 ' + this.checkinDenominator + ' 天 · 覆盖率 ' + this.checkinPct + '%', PAD, y);
-        if (hasAmt) {
-          y += 30;
-          const n = ca.buckets.length, areaW = W - PAD * 2, colW = areaW / n;
-          const gap = Math.min(10, Math.max(2, colW * 0.25));
-          const valFs = n > 20 ? 11 : (n > 12 ? 13 : 16), labFs = n > 20 ? 10 : (n > 12 ? 12 : 15);
-          const chartH = 180, baseY = y + chartH;
-          ca.buckets.forEach((b, i) => {
-            const x = PAD + i * colW, show = n <= 26 || i % 2 === 0;
-            ctx.textAlign = 'center';
-            if (show) { ctx.fillStyle = '#5a6072'; ctx.font = font(valFs); ctx.fillText(b.total > 0 ? String(b.total) : (b.days > 0 ? '✓' : '–'), x + colW / 2, y - 6); }
-            const stackPx = ca.maxTotal > 0 ? Math.round(b.total / ca.maxTotal * chartH) : 0;
-            let sy = baseY - stackPx;   // 与页面 DOM 版一致：segs 按完成量降序自上而下堆叠
-            b.segs.forEach(sg => {
-              const hpx = b.total > 0 ? Math.max(1, Math.round(sg.amount / b.total * stackPx)) : 0;
-              ctx.fillStyle = sg.color;
-              ctx.fillRect(x + gap / 2, sy, colW - gap, hpx);
-              sy += hpx;
-            });
-            if (show) { ctx.fillStyle = '#5a6072'; ctx.font = font(labFs); ctx.fillText(b.label, x + colW / 2, baseY + 22); }
-            ctx.textAlign = 'left';
-          });
-          ctx.strokeStyle = '#e7e9f2'; ctx.beginPath(); ctx.moveTo(PAD, baseY); ctx.lineTo(W - PAD, baseY); ctx.stroke();
-          y = baseY + 44;
-          if (ca.palette.length) {
-            const per = 3, rows2 = Math.ceil(ca.palette.length / per), colW2 = (W - PAD * 2) / per;
-            ca.palette.forEach((p, i) => {
-              const x = PAD + (i % per) * colW2, cy2 = y + Math.floor(i / per) * 30;
-              ctx.fillStyle = p.color; ctx.fillRect(x, cy2 - 12, 14, 14);
-              ctx.fillStyle = '#1a1a2e'; ctx.font = font(15, true);
-              const nm = p.name.length > 8 ? p.name.slice(0, 7) + '…' : p.name;
-              ctx.fillText(nm, x + 20, cy2);
-              ctx.fillStyle = '#7a8090'; ctx.font = font(14);
-              ctx.fillText(String(p.total), x + 20 + ctx.measureText(nm).width + 26, cy2);
-            });
-            y += rows2 * 30;
-          }
-        } else {
-          y += 30;
-          ctx.fillStyle = '#9aa0b0'; ctx.font = font(19);
-          ctx.fillText('当前时段暂无完成量记录', PAD, y);
-          y += 20;
-        }
-        // —— 页脚 ——
-        ctx.fillStyle = '#9aa0b0'; ctx.font = font(15);
-        ctx.textAlign = 'center';
-        ctx.fillText('MindPocket · 专注时长可视化', W / 2, H - 26);
-        ctx.textAlign = 'left';
-        return canvas;
-      },
       showToast(msg) { this.toast = msg; if (this.toastTimer) clearTimeout(this.toastTimer); this.toastTimer = setTimeout(() => { this.toast = ''; }, 1400); },
     },
     template: `
@@ -23749,7 +23611,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
         <div class="viz-period-nav">
           <button class="icon-btn" :disabled="vizDim==='all'" @click="prev" title="更早时段">‹</button>
-          <span class="viz-period-label">{{ vizWindow.title }} · {{ vizWindow.label }}</span>
+          <div class="viz-period-label viz-period-col">
+            <span>{{ vizWindow.label }}</span>
+            <button class="btn-mini" v-if="vizDim!=='all' && vizOffset>0" @click="backNow">{{ backNowLabel }}</button>
+          </div>
           <button class="icon-btn" :disabled="vizOffset===0 || vizDim==='all'" @click="next" title="更近时段">›</button>
         </div>
         <div class="chart-bars" v-if="hasData" style="height:170px;margin-top:10px;">
@@ -23792,7 +23657,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             </div>
           </div>
         </div>
-        <button class="btn ghost" style="margin-top:14px;width:100%;" @click="exportViz">⬇ 导出 PDF 图片</button>
       </div>
       <div class="wp-toast" v-if="toast">{{ toast }}</div>
     </div>`,
