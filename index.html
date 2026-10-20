@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261020.4" />
+  <meta name="mp-version" content="20261020.9" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -1211,7 +1211,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .lib-pick-empty { font-size: 12px; color: var(--sub); margin: 2px 0 0; }
 .pidea-content { white-space: pre-wrap; background: #f7f8fc; border-radius: var(--radius-sm); padding: 10px; font-size: 13px; color: var(--text); line-height: 1.6; margin: 8px 0; max-height: 160px; overflow-y: auto; }
 .pidea-preview { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: #f7f8fc; border-radius: var(--radius-sm); padding: 8px 10px; font-size: 13px; color: var(--text); line-height: 1.5; margin: 8px 0; }
-.link-ico { flex: 0 0 auto; width: 28px; height: 28px; border: none; background: transparent; color: var(--primary); font-size: 16px; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; border-radius: var(--radius-sm); }
+.link-ico { flex: 0 0 auto; width: 28px; height: 28px; border: none; background: transparent; color: var(--primary); font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; margin-left: 4px; cursor: pointer; padding: 0; border-radius: var(--radius-sm); }
+/* 子任务标题旁的 🔗：随标题字号缩小（点击热区仍保留 20px） */
+.psub-title .link-ico { width: 20px; height: 20px; font-size: 12px; margin-left: 2px; }
 .link-ico:active { background: rgba(91,108,255,.12); }
 .pidea-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -6515,6 +6517,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     reversePoints(pid, 'project_finish');
     updateProject(pid, { status: 'running' });
   }
+  // 级联清理子任务的历史填报数据（物理删除，不可恢复）：
+  // ① project_records 填报留痕（含已软删记录）；② taskBoard 打卡实例（任务表中该子任务的每日实例）；
+  // ③ 「是否提醒」生成的主任务副本。项目/子任务删除后历史填报数据一并移除，
+  // 统计页不再出现已删项目/子任务的数据（不再产生「未关联项目」孤儿数据）
+  function purgeSubsFillData(sids) {
+    if (!Array.isArray(sids) || !sids.length) return;
+    const set = {}; sids.forEach(id => { if (id) set[id] = true; });
+    state.project_records = state.project_records.filter(r => r && !set[r.sid]);
+    const tb = state.taskBoard;
+    if (tb && Array.isArray(tb.instances)) {
+      tb.instances = tb.instances.filter(it => it && !set[it.sid]);
+    }
+    for (let i = state.tasks.length - 1; i >= 0; i--) {
+      const tk = state.tasks[i];
+      if (tk && tk.is_sub_remind_copy && set[tk.source_sub_sid]) state.tasks.splice(i, 1);
+    }
+  }
   // 项目永久删除（含其下全部子任务；不可撤销）
   // 积分回滚：项目本体完结加成（project_finish，refId = pid）
   //         + 内部全部子任务（project_sub refId = sid；study_work refId = sid_study）
@@ -6530,6 +6549,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     );
     state.projects = state.projects.filter(p => p.pid !== pid);
     state.project_subs = state.project_subs.filter(s => s.pid !== pid);
+    // 级联删除历史填报数据：该项目全部子任务的填报留痕 / 任务表打卡实例 / 提醒主任务副本一并永久移除
+    purgeSubsFillData(subs.map(s => s.sid));
     // 级联清理项目灵感库（以 pid 维度隔离），兑现"所有数据、任务无法恢复"；该项目素材随项目一并删除，关联子任务引用自然失效
     state.project_ideas = state.project_ideas.filter(i => i.pid !== pid);
     persist();
@@ -6741,6 +6762,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (!s.deleted_at) rollbackEntityPoints([sid], 'project_sub', s.title); // 重复删除不重复清算
     s.deleted_at = Date.now();
     touch(s);
+    // 级联删除历史填报数据：该子任务的填报留痕 / 任务表打卡实例 / 提醒主任务副本一并永久移除
+    purgeSubsFillData([sid]);
     // 级联清理素材上的失效关联：子任务已删除，其他素材上的关联标签同步剔除，避免残留空标签
     state.project_ideas.forEach(i => {
       if (Array.isArray(i.linked_subs) && i.linked_subs.indexOf(sid) >= 0) {
@@ -7814,6 +7837,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (r && r.spentMin === undefined) { r.spentMin = 0; changed = true; }
       if (r && r.note === undefined) { r.note = ''; changed = true; } // 填报备注：旧记录默认空
     });
+    // 孤儿填报留痕清理：所属子任务已不存在的填报记录一次性清除（旧版本删除项目/子任务时
+    // 未级联删除历史填报数据所遗留）。删除现已级联清理，此处兜底清掉历史残留，
+    // 保证统计页不再出现已删项目/子任务的「未关联项目」数据
+    if (state.project_records.length) {
+      const haveSub = {}; state.project_subs.forEach(s => { if (s && s.sid) haveSub[s.sid] = true; });
+      const before = state.project_records.length;
+      state.project_records = state.project_records.filter(r => r && haveSub[r.sid]);
+      if (state.project_records.length !== before) changed = true;
+    }
     // 任务：截止日期 / 提醒新模型兼容迁移（不丢旧数据）
     state.tasks.forEach(t => {
       if (!t) return;
@@ -13521,7 +13553,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     </div>
   </div>
   <div class="wp-body" v-show="cardOpen">
-    <p class="wp-quota" :class="{ closed: !editWindowOpen }">愿望修改开放日：名称/积分/删除仅每月 <strong>1–3 号</strong> 可操作（不限次数）；<strong>愿望类型</strong> 不受此限制、随时可改。</p>
+    <p class="wp-quota" :class="{ closed: !editWindowOpen }">愿望修改开放日：名称/积分/删除仅每月 <strong>1–3 号</strong> 可操作。</p>
     <button class="wp-add-btn" @click="openAdd">＋添加愿望</button>
     <div class="wp-list" v-if="items.length">
       <div class="wp-row-wrap" v-for="item in items" :key="item._id">
@@ -13644,7 +13676,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 <div class="modal-mask" v-if="showEditModal" @click.self="closeEdit">
   <div class="modal"><div class="modal-head"><h3>编辑愿望</h3><button class="x" @click="closeEdit">✕</button></div>
     <div class="modal-body">
-      <div class="wp-edit-limit" v-if="editExhausted">愿望名称与所需积分仅在每月 <strong>1–3 号</strong> 可修改、删除愿望同理；<strong>愿望类型</strong> 不受此限制、可随时调整。添加新愿望均不受此限制。</div>
+      <div class="wp-edit-limit" v-if="editExhausted">愿望名称与所需积分仅在每月 <strong>1–3 号</strong> 可修改、删除愿望同理。添加新愿望均不受此限制。</div>
       <div class="fld"><label>愿望名称</label><input v-model="editName" placeholder="愿望名称" :disabled="editExhausted" /></div>
       <div class="fld"><label>所需积分（正整数）</label><input v-model="editCost" type="number" placeholder="积分数量" min="1" :disabled="editExhausted" /></div>
       <div class="fld"><label>愿望类型</label>
@@ -20311,14 +20343,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       subId(v) { if (v) this.flashSub(v); },
     },
     methods: {
-      // —— 子任务素材徽标显示判定（与 MaterialBadges 的 hasLink/hasNotes 口径严格一致）——
-      // 合法 http(s) 链接 → 🔗；非空备注 → 📎。两者皆无则不渲染徽标容器，避免空行
-      subHasMat(s) {
-        if (!s) return false;
-        const lk = String(s.material_link || '').trim();
-        if (lk && /^https?:\/\/.+/i.test(lk)) return true;
-        return !!String(s.material_notes || '').trim();
-      },
       // —— 页面 UI 状态缓存（进行中 / 灵感库 标签），随路由栈返回时自动还原 ——
       saveUiState() {
         try { localStorage.setItem('mindpocket:projUi:' + this.pid, JSON.stringify({ tab: this.tab, view: this.view, tagbarOpen: this.tagbarOpen, filterTags: this.filterTags })); } catch (e) {}
@@ -20686,10 +20710,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                Chromium 会把后续的兼容 click 事件重定向到捕获元素（.psub），
                挂在 .psub-top 上将永远收不到真实鼠标点击（JS 派发的 .click() 不受影响，易漏测）。 -->
           <div class="psub-top">
-            <div class="psub-title" :class="{ 'arch-abandon': s.is_archived && s.arch_kind==='abandon' }">{{ s.title }}<span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span></div>
+            <div class="psub-title" :class="{ 'arch-abandon': s.is_archived && s.arch_kind==='abandon' }">{{ s.title }}<span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span><button class="link-ico" v-if="isValidMaterialLink(s.material_link)" @pointerdown.stop @click.stop="openMaterialLink(s.material_link)" title="打开素材链接" aria-label="打开素材链接">🔗</button></div>
             <span class="psub-status" :class="subStatusClass(s)" :style="subStatusStyle(s)" :data-status="subStatusLabel(s)">{{ subStatusLabel(s) }}</span>
           </div>
-          <!-- 任务描述（material_notes）：直接显示在行上，最多 2 行截断；🔗/📎 徽标仍保留（点开可查看/编辑全文） -->
+          <!-- 任务描述（material_notes）：直接显示在行上，最多 2 行截断；不再显示 📎 徽标（全文经长按编辑弹窗查看/编辑） -->
           <div class="psub-desc" v-if="s.material_notes">{{ s.material_notes }}</div>
           <!-- 完成量进度条（仅开启目标计划的子任务） -->
           <div class="psub-prog" v-if="subPct(s) !== null">
@@ -20713,9 +20737,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <span v-else-if="subRemain(s) === 0" class="cd-warn">⏰ 今天到期（{{ s.sub_end }}）</span>
             <span v-else class="cd-over">⚠️ 已过期 {{ -subRemain(s) }} 天（{{ s.sub_end }}）</span>
           </div>
-          <!-- 素材徽标（🔗 链接 / 📎 备注）：与主任务行同一组件；项目子任务无通用写入口，备注浮层为只读查看 -->
-          <div class="proj-tags" v-if="subHasMat(s) || (s.tags && s.tags.length)">
-            <MaterialBadges :item="s" />
+          <!-- 素材 🔗 已上移到标题旁（link-ico）；本行仅展示二级##标签。📎 徽标已移除：描述行上直显，无需重复入口 -->
+          <div class="proj-tags" v-if="s.tags && s.tags.length">
             <span class="ptag" v-for="t in s.tags" :key="t">{{ t }}</span>
           </div>
         </div>
