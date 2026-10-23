@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261020.9" />
+  <meta name="mp-version" content="20261023.9" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -179,8 +179,6 @@ body {
 .read-sync-modal .fld select, .read-sync-modal .fld input { width: 100%; margin-top: 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px; font-family: inherit; font-size: 14px; }
 .read-sync-modal .fld-err { color: var(--no); font-size: 12px; margin: -8px 0 10px; }
 .read-sync-modal .fld-tip { color: var(--sub); font-size: 12px; margin: -8px 0 10px; line-height: 1.5; }
-/* 养成手牌「完成」按钮（蓝色主按钮） */
-.hc-btn.primary { background: var(--primary); color: #fff; border-color: transparent; }
 
 /* ---------- 标签 ---------- */
 .tag { font-size: 11px; padding: 1px 7px; border-radius: var(--radius-sm); background: #eef0ff; color: var(--primary); }
@@ -670,7 +668,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   background: #fff; cursor: pointer; color: var(--text); text-align: center;
   box-shadow: 0 4px 10px rgba(20,24,40,.05);
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
-  transition: transform .12s ease, box-shadow .12s ease, background .12s ease, border-color .12s ease;
+  /* 只保留按压缩放反馈：背景 / 描边 / 阴影不做过渡 → 单击打卡「直接转绿」，
+     不再出现「白 → 中间灰绿 → 绿」的渐变过程（原 .12s 过渡 + 按下 brightness 变灰） */
+  transition: transform .12s ease;
 }
 @media (max-width: 520px) {
   .habit-grid { gap: 8px; }
@@ -678,7 +678,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   .hg-name { font-size: 12px; }
   .hg-val { font-size: 10px; }
 }
-.habit-grid-btn:active { transform: scale(.95); filter: brightness(0.96); }
+/* 按下只做轻微缩放反馈：去掉 brightness 滤镜（原按下瞬间整体发灰，观感像「先变灰再变绿」） */
+.habit-grid-btn:active { transform: scale(.95); }
 /* 打卡成功：整颗按钮置灰，一眼区分未打卡 / 已打卡 */
 .habit-grid-btn.done { background: #eef0f5; border-color: #e3e6ee; box-shadow: none; }
 .habit-grid-btn.done .hg-name { color: var(--sub); }
@@ -1337,6 +1338,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .pst-nums { color: var(--sub); font-size: 12px; flex-shrink: 0; }
 .pst-nums b { color: var(--primary); }
 .pst-row.idle { opacity: .45; }
+/* —— 子任务可视化容器（原 .pst 无样式，补卡片外观对齐 .tagpie） —— */
+.pst { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow); padding: 14px; margin-top: 14px; }
+/* .viz-period-col 原被 .projviz-page 作用域限定，此处补一条让子任务可视化内的「回到本月」也能堆叠展示 */
+.pst .viz-period-col { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.pst .viz-period-col .btn-mini { padding: 3px 10px; font-size: 12px; line-height: 1.2; }
 
 .rec-hist { max-height: 200px; overflow-y: auto; margin: 8px 0; }
 .rec-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; padding: 7px 8px; border-bottom: 1px solid var(--line); font-size: 13px; }
@@ -1487,7 +1493,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .tagpie-meta b { color: #3b82f6; }
 .tagpie-pct { flex: 0 0 auto; font-size: 12px; font-weight: 700; color: var(--text); }
 .tagpie-arrow { flex: 0 0 auto; font-size: 12px; color: var(--sub); }
-.tagpie-done { display: inline-block; font-size: 10px; padding: 0 6px; border-radius: var(--radius-sm); background: #e8f6ee; color: #1f9d57; margin-left: 4px; }
 .tagpie-empty { text-align: center; color: var(--sub); font-size: 13px; padding: 22px 10px; line-height: 1.7; }
 
 /* ============ 闲趣随机卡（今日页底部，低饱和柔和配色，弱化紧迫感） ============ */
@@ -1600,8 +1605,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .viz-sec-title { font-size: 13px; color: var(--sub); margin: 14px 0 8px; font-weight: 600; }
 .viz-sec-title:first-of-type { margin-top: 4px; }
 .viz-pie-wrap { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-.viz-pie { width: 120px; height: 120px; border-radius: var(--radius-round); position: relative; flex: 0 0 auto; }
-.viz-pie::after { content: ''; position: absolute; inset: 34px; background: var(--card); border-radius: var(--radius-round); }
+/* 饼图改 SVG 环形（扇区可点击下钻）：保留中心挖空的圆环观感 */
+.viz-pie-svg { width: 120px; height: 120px; flex: 0 0 auto; display: block; }
+/* 中心读数与底环不吃指针事件：避免遮挡圆环扇区的点击（中心本就是挖空区） */
+.viz-pie-svg text { pointer-events: none; }
+.viz-pie-svg circle:not(.viz-pie-sec) { pointer-events: none; }
+.viz-pie-svg .viz-pie-sec { cursor: default; }
+.viz-pie-svg .viz-pie-sec.clickable { cursor: pointer; transition: opacity .15s ease; }
+.viz-pie-svg .viz-pie-sec.clickable:hover { opacity: .82; }
 .viz-legend { flex: 1; min-width: 160px; display: flex; flex-direction: column; gap: 6px; }
 .viz-leg-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .viz-dot { width: 10px; height: 10px; border-radius: var(--radius-sm); flex: 0 0 auto; }
@@ -1610,10 +1621,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .viz-leg-item.clickable { cursor: pointer; padding: 2px 4px; border-radius: var(--radius-sm); transition: background .15s; }
 .viz-leg-item.clickable:hover { background: #f5f6fc; }
 .viz-drill-icon { color: var(--primary); font-size: 14px; flex: 0 0 auto; }
-.viz-pie.clickable { cursor: pointer; }
-.viz-pie.clickable:hover { opacity: .9; }
 .viz-drill-back { margin-left: auto; background: #eef0ff; color: var(--primary); border: none; border-radius: var(--radius-sm); font-size: 11px; padding: 2px 8px; cursor: pointer; font-weight: 600; }
 .viz-drill-back:active { transform: translateY(1px); }
+/* —— 下钻面包屑（项目 → 子任务）与一级态提示 —— */
+.viz-crumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); margin: 0 0 8px; flex-wrap: wrap; }
+.viz-crumb-link { color: var(--primary); font-weight: 600; cursor: pointer; background: none; border: none; padding: 0; font-size: 12px; }
+.viz-crumb-sep { color: var(--sub); }
+.viz-crumb-cur { color: var(--text); font-weight: 700; }
+/* —— 打卡天数 / 完成量区块（原为裸类名，补定义；ProjVizPage 与子任务可视化共用） —— */
+.viz-checkin-wrap { margin-top: 16px; border-top: 1px dashed var(--line); padding-top: 14px; }
+.viz-checkin-summary { font-size: 12px; color: var(--sub); margin: 2px 0 0; }
+.viz-checkin-summary b { color: var(--primary); }
+.viz-sub-title { font-size: 12px; font-weight: 600; color: var(--text); margin: 12px 0 4px; }
 /* —— 子任务剩余天数（复用倒计时 .cd-* 配色） —— */
 .psub-cd { margin-top: 6px; font-size: 12px; }
 
@@ -3419,8 +3438,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   //   · 周/月 + 永久循环/按日期（'' / date）→ 独立固定（independent）：漏卡仅标记、排期固定互不影响
   //   · 其它（none/day 等无周期）→ 兜底 recount
   function defaultCycleDelayMode(type, endMode) {
+    // 结束方式优先：只要「按次数结束」就是补位扩展（漏卡忽视、整体后移、次数守恒），与周期类型无关
+    if (endMode === 'count') return 'extend';
+    // 间隔周期：默认卡住重算（漏卡滞留到补卡为止）
     if (type === 'interval') return 'recount';
-    if (type === 'week' || type === 'month') return (endMode === 'count') ? 'extend' : 'independent';
+    // 每周 / 每月 + 永久循环 / 按日期结束：独立固定（排期固定、漏卡仅标记）
+    if (type === 'week' || type === 'month') return 'independent';
     return 'recount';
   }
   // 取周期内「下一个命中日」（严格晚于 fromExclusive；受 cycle_start_date 硬下界约束）
@@ -4151,9 +4174,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (!s.cycle._base) s.cycle._base = todayStr(); // 周期锚定创建日（与主任务 addTask 一致），保证「每 N 天」投射正确
       // 开始时间早于创建锚点 → 用开始时间作为周期锚点，执行区间从开始日（含过去）起投射
       if (s.cycle_start_date && s.cycle_start_date < s.cycle._base) s.cycle._base = s.cycle_start_date;
-      // 子任务继承主任务周期「延期机制」；未显式指定时按子任务自身周期类型 + 结束方式推导默认
-      if (!s.cycle_delay_mode && t.cycle_delay_mode) s.cycle_delay_mode = t.cycle_delay_mode;
-      if (!s.cycle_delay_mode) s.cycle_delay_mode = defaultCycleDelayMode(s.cycle.type, s.cycle_end_mode || '');
+      // 周期「延期机制」：与 addTask 同款判据——以调用方是否显式传入为准
+      // （对象字面量默认占位 'recount' 会短路 `!s.cycle_delay_mode` 判断，不能只按空值判）。
+      // 未显式指定时按子任务自身「周期类型 + 结束方式」派生默认：
+      //   周/月 + 按次数 → 补位扩展；周/月 + 永久/按日期 → 独立固定；间隔 → 卡住重算。
+      // 不再盲目继承主任务的 recount（主任务若停留在错误默认，会让子任务也一直是「卡住重算」），
+      // 主任务与子任务因此遵循同一套派生规则，机制口径保持一致。
+      const explicitDelay = !!(extra && extra.cycle_delay_mode);
+      if (!explicitDelay) {
+        s.cycle_delay_mode = defaultCycleDelayMode(s.cycle.type, s.cycle_end_mode || '');
+      } else if (!s.cycle_delay_mode && t.cycle_delay_mode) {
+        s.cycle_delay_mode = t.cycle_delay_mode;
+      }
     }
     t.sub_tasks.push(s);
     persist();
@@ -4586,8 +4618,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }
     } else if (t.date_mode === 'range' && t.date_start) {
       // 自定义区间：按「具体日期」逐日打卡（与周期同款 cycle_history 逐日记录，今日/看板逐日隐藏）
+      // 逾期补卡时把区间结束日延长到实际完成日（20-21 在 22 号补 21 那条 → 区间变 20-22），
+      // 起始日与已有打卡历史一律保留；补卡「按时完成」时 real_done 记原日期，延期完成记今天，
+      // 与 toggleOccurrence（周期出现日）同口径，保证归档库归属日正确。
+      if (t.date_end && t.date_end < today) t.date_end = today;
       if (!cycleArchivedToday(t, ws)) {
-        t.cycle_history.push({ execute_date: ws, is_archived: true, overdue: ws < today });
+        const isPast = ws < today;
+        t.cycle_history.push({ execute_date: ws, is_archived: true, overdue: isPast, real_done: isPast ? today : ws });
         // 积分联动：自定义区间任务完成 → cycle_task（出现日级 refId）
         const delay = ws < today ? Math.max(0, dateDiffDays(ws, today)) : 0;
         const pts = Math.max(0, 12 - delay);
@@ -4760,8 +4797,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 父任务不受影响（父子时间独立，规范⑥）；无限循环周期（无结束日）恒为 false，仅手动归档
       if (allOccurrencesDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = today; s.autoArchivedByCopies = true; }
     } else if (s.date_mode === 'range' && s.date_start) {
+      // 与主任务区间同口径：逾期补卡时延长结束日（保留起始日），并按「按时=原日期 / 延期=今天」写 real_done
+      if (s.date_end && s.date_end < today) s.date_end = today;
       if (!cycleArchivedToday(s, ws)) {
-        s.cycle_history.push({ execute_date: ws, is_archived: true, overdue: ws < today });
+        const isPast = ws < today;
+        s.cycle_history.push({ execute_date: ws, is_archived: true, overdue: isPast, real_done: isPast ? today : ws });
         // 积分联动：自定义区间子任务完成 → cycle_task（出现日级 refId）
         const delay = ws < today ? Math.max(0, dateDiffDays(ws, today)) : 0;
         const pts = Math.max(0, 12 - delay);
@@ -5313,13 +5353,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     let changed = false;
     const roll = (obj) => {
       if (isOverdueTask(obj) && !obj.deadline_manual) {
+        // 区间任务：只把结束日延长到今天（保留起始日与已有打卡历史），不做等长平移
         if (obj.date_mode === 'range' && obj.date_start && obj.date_end) {
-          const span = dateDiffDays(obj.date_start, obj.date_end);
-          obj.date_start = today; obj.date_end = addDays(today, span); obj.execute_date = today;
+          if (obj.date_end < today) { obj.date_end = today; obj.execute_date = today; changed = true; }
         } else {
           obj.execute_date = today; obj.date_start = today; obj.date_end = today;
+          changed = true;
         }
-        changed = true;
       }
     };
     state.tasks.forEach(t => {
@@ -5334,9 +5374,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function extendDeadline(id, date) {
     const t = findTask(id);
     if (!t || !date) return;
+    // 手动延期到指定日期：区间任务同样只动结束日（起始日与历史打卡保留），单点/其余按原口径整体改写
     if (t.date_mode === 'range' && t.date_start && t.date_end) {
-      const span = dateDiffDays(t.date_start, t.date_end);
-      t.date_start = date; t.date_end = addDays(date, span);
+      t.date_end = (t.date_end < date) ? date : t.date_end;
+      t.execute_date = date;
+      t.deadline_manual = true; // 用户手动修改后，停止对该任务自动推延
+      persist();
+      return;
     }
     t.execute_date = date; t.date_start = date; t.date_end = date;
     t.deadline_manual = true; // 用户手动修改后，停止对该任务自动推延
@@ -5418,13 +5462,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         //  · 原实现把过期任务拽回过去的窗口起点——周一创建、安排到周二的指定周任务，周三打开会被拽回周一，
         //    恰逢创建日/原排期在周一（如 7-01）时看起来像「时间被重置成创建日」，用户安排/延期后的日期基准完全丢失；
         //  · 今天必然仍在本周看板可见窗口内（分组归属不变），且今日 tab 可直接完成，顺延后不会产生「时间倒退」。
+        // 区间任务：逾期只把「结束日」延长到今天，起始日保持不动（20-21 逾期到 22 → 20-22）。
+        // 此前的等长平移（date_start 也推到今天）会让区间整体跳成 22-23，
+        // 而执行历史按 date_start 枚举 → 21 号那条不再被枚举，表现为「历史打卡记录凭空消失」。
         if (obj.date_mode === 'range' && obj.date_start && obj.date_end) {
-          const span = dateDiffDays(obj.date_start, obj.date_end);
-          obj.date_start = today; obj.date_end = addDays(today, span); obj.execute_date = today;
+          if (obj.date_end < today) { obj.date_end = today; obj.execute_date = today; changed = true; }
         } else {
           obj.execute_date = today; obj.date_start = today; obj.date_end = today;
+          changed = true;
         }
-        changed = true;
       }
     };
     state.tasks.forEach(t => {
@@ -6433,6 +6479,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     state.tasks = state.tasks.filter(x => x._id !== taskId);
     persist();
     return s;
+  }
+  // 子任务更换父任务（编辑子任务时改写 ### 后的父任务名触发）：
+  // 把子任务整条（含周期历史 / 打卡日期 / 归档副本）从原父任务摘出，挂到目标父任务下。
+  // 目标父任务不存在时按 ### 语法糖自动创建（与主任务 addTaskUnderLevel3 同款）。
+  // 归属同步：任务表打卡实例的 pid、以及「是否提醒」主任务副本的 source_pid 一并跟随，
+  // 保证按父任务分组的展示与提醒不会漂移。历史记录随之迁移，统计不断档。
+  function moveSubTaskToParent(taskId, subId, chain, fields) {
+    const t = findTask(taskId);
+    if (!t) return null;
+    const s = (t.sub_tasks || []).find(x => x._id === subId);
+    if (!s) return null;
+    const l3name = chain && chain.l3name;
+    if (!l3name) return null;
+    const f = fields || {};
+    const parent = ensureParentTaskForCategory(l3name, chain.l1, chain.l2, {
+      is_template: !!(f.is_template || t.is_template), is_collection: !!(f.is_collection || t.is_collection),
+    });
+    if (!parent) return null;
+    const moved = Object.assign({}, s, f);
+    parent.sub_tasks.push(moved);
+    t.sub_tasks = (t.sub_tasks || []).filter(x => x._id !== subId);
+    // 任务表打卡实例：改挂到新父任务
+    const tb = state.taskBoard;
+    if (tb && Array.isArray(tb.instances)) {
+      tb.instances.forEach(it => { if (it && it.sid === subId && it.pid === taskId) it.pid = parent._id; });
+    }
+    // 「是否提醒」主任务副本：同步归属父任务
+    state.tasks.forEach(x => { if (x && x.is_sub_remind_copy && x.source_sub_sid === subId) x.source_pid = parent._id; });
+    persist();
+    return moved;
   }
   // 拖拽排序：按给定 id 顺序重排分类数组
   function setCategoriesOrder(orderedIds) {
@@ -7837,15 +7913,84 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (r && r.spentMin === undefined) { r.spentMin = 0; changed = true; }
       if (r && r.note === undefined) { r.note = ''; changed = true; } // 填报备注：旧记录默认空
     });
-    // 孤儿填报留痕清理：所属子任务已不存在的填报记录一次性清除（旧版本删除项目/子任务时
-    // 未级联删除历史填报数据所遗留）。删除现已级联清理，此处兜底清掉历史残留，
-    // 保证统计页不再出现已删项目/子任务的「未关联项目」数据
-    if (state.project_records.length) {
-      const haveSub = {}; state.project_subs.forEach(s => { if (s && s.sid) haveSub[s.sid] = true; });
-      const before = state.project_records.length;
-      state.project_records = state.project_records.filter(r => r && haveSub[r.sid]);
-      if (state.project_records.length !== before) changed = true;
+    // 孤儿填报留痕清理：旧版本删除项目/子任务时未级联删除历史填报数据所遗留。
+    // 删除现已级联清理，此处兜底清掉历史残留，保证统计页 / 项目详情页不再出现
+    // 「已删项目」或「项目中已不存在的子任务」的填报数据。
+    // 判定口径与 UI 可见性严格一致（getSubs: !deleted_at；项目列表: !deleted_at）：
+    //   ① 子任务记录已被移除（所属项目被删）
+    //   ② 子任务被软删除（deleted_at 非空）→ 列表已不可见，视同已删
+    //   ③ 子任务所属项目已不存在（pid 失效）→ 用户看不到该子任务
+    {
+      const livePid = {};
+      (state.projects || []).forEach(p => { if (p && p.pid && !p.deleted_at) livePid[p.pid] = true; });
+      const haveSub = {};
+      (state.project_subs || []).forEach(s => {
+        if (!s || !s.sid) return;
+        if (s.deleted_at) return;                 // ② 软删子任务
+        if (s.pid && !livePid[s.pid]) return;     // ③ 所属项目已不存在
+        haveSub[s.sid] = true;
+      });
+      if (state.project_records.length) {
+        const before = state.project_records.length;
+        state.project_records = state.project_records.filter(r => r && haveSub[r.sid]);
+        if (state.project_records.length !== before) changed = true;
+      }
+      // 任务表打卡实例同步清理：子任务已不可见 → 其每日打卡实例也不该继续留在任务表
+      const tb = state.taskBoard;
+      if (tb && Array.isArray(tb.instances) && tb.instances.length) {
+        const beforeI = tb.instances.length;
+        tb.instances = tb.instances.filter(it => it && haveSub[it.sid]);
+        if (tb.instances.length !== beforeI) changed = true;
+      }
     }
+    // 关联番茄正计时补齐（一次性）：「学习分类 → 默认关联计时」只在创建那一刻按当时分类决定，
+    // 任务/子任务后来才改成「学习」分类（或创建时未选分类）时 linkPomodoro 仍留在 false，
+    // 导致今日待办中学习分类的条目缺 ⏱ 计时图标。此处按当前分类补齐为 true。
+    // localStorage 标记防重复执行：此后用户在编辑里显式关闭不会被强行打开。
+    try {
+      if (!localStorage.getItem('mindpocket:pomoLearnSync')) {
+        const isLearn = id => id && isLearningCat(id);
+        state.tasks.forEach(t => {
+          if (!t || t.is_template || t.is_collection) return;
+          const learn = isLearn(t.category_id);
+          if (learn && t.linkPomodoro !== true) { t.linkPomodoro = true; changed = true; }
+          (t.sub_tasks || []).forEach(s => {
+            if (!s || s.is_archived) return;
+            // 子任务自身选了分类按自身判，否则跟随父任务分类
+            if ((s.category_id ? isLearn(s.category_id) : learn) && s.linkPomodoro !== true) { s.linkPomodoro = true; changed = true; }
+          });
+        });
+        localStorage.setItem('mindpocket:pomoLearnSync', '1');
+      }
+    } catch (e) {}
+    // 周期「延期机制」默认值修正（覆盖主任务与子任务，两者口径保持一致）：
+    //   按次数结束 → 补位扩展（extend，与周期类型无关）
+    //   间隔（非按次数）→ 卡住重算（recount）
+    //   每周 / 每月 + 永久循环 / 按日期结束 → 独立固定（independent）
+    // 历史原因：新建任务/子任务的表单与存储默认曾把 cycle_delay_mode 写死为 'recount'，
+    // 使上述派生永不生效（周期子任务「按次数」也显示成「卡住重算」）。
+    // 这里把仍停留在错误默认 'recount' 的条目按当前规则修正；派生值本就是 recount 的间隔任务不动。
+    // 标记存「规则版本」：规则再调整时版本号变化即重跑一次；同版本不重复执行，
+    // 用户显式选择的机制不会被覆盖。
+    try {
+      if (localStorage.getItem('mindpocket:cycleDelayModeSync') !== 'v3') {
+        // 覆盖全部周期型条目：只要当前机制与规则派生值不符就纠正（含空值 / legacy），
+        // 例如「按次数结束却停在独立固定」「周月永久却停在补位扩展」的历史数据一并更新。
+        // 仅处理有 cycle 的周期任务/子任务，区间任务（date_mode='range'）不受影响。
+        const fixOne = x => {
+          if (!x || !x.cycle) return false;
+          const want = defaultCycleDelayMode(x.cycle.type, x.cycle_end_mode || '');
+          if (want && x.cycle_delay_mode !== want) { x.cycle_delay_mode = want; return true; }
+          return false;
+        };
+        state.tasks.forEach(t => {
+          if (!t) return;
+          if (fixOne(t)) changed = true;
+          (t.sub_tasks || []).forEach(s => { if (fixOne(s)) changed = true; });
+        });
+        localStorage.setItem('mindpocket:cycleDelayModeSync', 'v3');
+      }
+    } catch (e) {}
     // 任务：截止日期 / 提醒新模型兼容迁移（不丢旧数据）
     state.tasks.forEach(t => {
       if (!t) return;
@@ -8722,7 +8867,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 闲趣随机卡
     getLeisurePool, categoryChainNames,
     // 分类
-    findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, isLearningCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, convertTaskToSubTask, descendantCategoryIds, matchCategory, parseTagString,
+    findCategory, addCategory, updateCategory, deleteCategory, migrateCategoryTasks, reParentCategory, batchDeleteCategoryTasks, setCategoriesOrder, getQuickViewCatId, ensureCategory, isCollCat, isLearningCat, folderOfCat, catInFolder, dupeNameInFolder, ensureParentTaskForCategory, addTaskUnderLevel3, convertTaskToSubTask, moveSubTaskToParent, descendantCategoryIds, matchCategory, parseTagString,
     // 进度记录单位（内置可删除/新增）
     getProgressUnits, addProgressUnit, removeProgressUnit, unitLabelOf, trimNum,
     // 奇想 / 临时任务
@@ -10118,7 +10263,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           </div>
           <div class="hn-actions">
             <button class="hc-btn" @click="expanded=true" title="展开全部手牌，便于选择 / 修改 / 新增 / 删除">列表</button>
-            <button class="hc-btn primary" @click="completeCurrent">完成</button>
             <button class="hc-btn" @click="openEdit">编辑</button>
           </div>
         </div>
@@ -11362,7 +11506,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
    * SubTaskEditModal —— 子任务编辑弹窗
    * 时间模块：复刻主任务详情「全部时间字段」（仅年月 / 年月日 / 自定义区间 + 周期），
    *   与主任务编辑页共用同一 TaskFormCore 时间面板、字段种类与数据存储逻辑；
-   *   唯二差异：(1) 隐藏「标签」分组（hideTag）；(2) 子任务本身无分类归属。
+   *   原差异「隐藏标签分组」已放开：子任务同样支持 #一级##二级 标签，
+   *   并支持 ### 后的父任务名改写 → 保存时经 moveSubTaskToParent 更换父任务（历史记录随迁）。
    *   删除旧「截止时间」单选项，时间数据跟随主任务时间体系联动渲染。
    * ===================================================================== */
   C.SubTaskEditModal = {
@@ -11421,14 +11566,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const td = U.todayStr();
         // 完成判定同时匹配 execute_date 与原发生日（与 annotateCycleDates / 主任务 execHistory 一致）
         // 显示口径：延期完成条目展示「真实完成日」（与主任务执行历史 / 归档仓库归属口径一致）
+        const isRange = !!(s.date_mode === 'range' && s.date_start);
         return dates.map(ds => {
-          const is_archived = hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds));
+          // 区间任务：漏卡日后延期补上 → 原日期（21）标「已过期」，完成记在真实完成日（22 标「延期完成」）。
+          // 周期任务维持原口径（完成判定同时匹配 execute_date 与 real_done）。
+          const is_archived = isRange
+            ? hist.some(h => h.is_archived && ((h.real_done === ds) || (h.execute_date === ds && !h.overdue)))
+            : hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds));
           const rec = hist.find(h => h.is_archived && h.overdue && h.execute_date === ds && h.real_done && h.real_done !== ds);
           return {
             execute_date: ds,
             is_archived,
-            overdue: hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
-            expired: !!(dmode === 'extend' && !is_archived && ds < td),
+            overdue: isRange
+              ? hist.some(h => h.is_archived && h.overdue && h.real_done === ds)
+              : hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
+            expired: isRange
+              ? hist.some(h => h.is_archived && h.overdue && h.execute_date === ds && h.real_done && h.real_done !== ds)
+              : !!(dmode === 'extend' && !is_archived && ds < td),
             rdone: rec ? rec.real_done : '',
           };
         });
@@ -11450,8 +11604,25 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     created() {
       const s = this.sub;
+      // 标签输入回填：把子任务自身归属分类（二级 → 「#一级##二级」，一级 → 「#一级」）还原为标签串，
+      // 否则长按进入编辑时输入框恒为空（看起来像「没有标签记录」）。子任务自身无分类时留空（继承父任务展示）。
+      // 三级标签（###）语义 = 父任务名，回填时需带上当前父任务标题
+      const parentTask = this.$store.findTask(this.taskId);
+      const parentTitle = (parentTask && parentTask.title ? String(parentTask.title) : '').trim();
+      const catText = (cid, pcid) => {
+        if (!cid) return '';
+        const c = this.$store.findCategory(cid);
+        if (!c) return '';
+        const p = c.parent ? this.$store.findCategory(c.parent) : (pcid ? this.$store.findCategory(pcid) : null);
+        return p ? ('#' + p.name + '##' + c.name) : ('#' + c.name);
+      };
       const base = { title: '', desc: '', material_notes: '', material_link: '', category_id: null, parent_category: '', date_mode: '', plan_year: null, plan_month: '', execute_date: '', date_start: '', date_end: '', enable_remind: false, remind_time: '', cycle: null, progress_info: { enable: false, media_type: '', progress_value: '' }, isEmergency: false, hasCheckbox: true, week_offset: null, time_mode: null, cycle_end_date: '', cycle_end_mode: '', cycle_end_count: 0,       // 新建子任务：自身无分类，按【父任务分类】是否为「学习」决定默认勾选关联番茄正计时
-      cycle_start_date: '', cycle_delay_mode: 'recount', linkPomodoro: this.$store.isLearningCat(this.parentCatId) };
+      cycle_start_date: '', cycle_delay_mode: '', linkPomodoro: this.$store.isLearningCat(this.parentCatId),
+        // TaskFormCore 标签组依赖的字段：标签输入串 / 文件夹 / 解析结果，缺失会导致输入框空白或解析异常
+        tagInput: '', parsedTags: [], level3Hint: '', folderType: 'task' };
+      // ↑ cycle_delay_mode 初值必须留空：延期机制默认值由 cycleDelayMode getter 按「周期类型+结束方式」
+      //   动态派生（周/月+按次数→补位扩展；周/月+其它→独立固定；间隔→卡住重算）。
+      //   若写死 'recount'，派生永不生效 → 周期子任务「按次数」也被错误固定为「卡住重算」。
       if (s) {
         this.form = Object.assign({}, base, {
           title: s.title || '',
@@ -11459,6 +11630,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           material_notes: s.material_notes || '',
           material_link: s.material_link || '',
           category_id: s.category_id || null,
+          // 标签串回填 = 一/二级分类 + ### 父任务名（三级即父任务），便于直接改任一级别；
+          // 父任务标题含空格 / # 时会破坏「空格分词」的标签语法，此时不回填三级，避免解析出错。
+          tagInput: catText(s.category_id, s.parent_category) +
+            (parentTitle && !/[\s#]/.test(parentTitle) ? ('###' + parentTitle) : ''),
           // 关联番茄正计时：与展示层同一套 opt-out 口径——仅显式 false 视为关闭
           linkPomodoro: s.linkPomodoro !== false,
           parent_category: s.parent_category || '',
@@ -11613,10 +11788,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       save() {
         if (!this.form.title.trim()) { alert('请填写子任务标题'); return; }
+        // 标签解析兜底：输入框只在「失焦 / 回车」时解析，用户改完标签直接点「确定」会漏掉解析，
+        // 导致改一/二级标签保存后归属不更新。这里在取表单值前强制解析一次。
+        if (this.$refs.tfc && this.$refs.tfc.parseTags) {
+          try { this.$refs.tfc.parseTags(); } catch (e) {}
+        }
         // 周期规则校验（与 TaskFormCore / 主任务详情保存口径一致）：非法或失焦未校验时阻断保存
         if (this.$refs.tfc && this.$refs.tfc.validateCycleRule && !this.$refs.tfc.validateCycleRule()) return;
         if (this.isNew) {
           this.$store.addSubTask(this.taskId, this.form.title.trim(), this.form.execute_date || null, this.extra());
+        } else if (this.moveToParentTask()) {
+          // 标签里改写了 ### 后的父任务名且指向另一个父任务 → 整条子任务迁移过去（历史记录随迁）
+          this.$store.moveSubTaskToParent(this.taskId, this.subId, this.form.level3Chain, this.extra());
         } else {
           this.$store.updateSubTask(this.taskId, this.subId, this.extra());
         }
@@ -11627,6 +11810,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         // 数据已落盘（persist → notifyChange 自增 revision），周/月看板副本池自动重算同步刷新
         this.$emit('close');
+      },
+      // 是否需要更换父任务：标签解析出 ###（hasLevel3）且其父任务名与当前父任务标题不同。
+      // 同名视为「未改父任务」，走普通更新，避免每次保存都重建父任务关系。
+      moveToParentTask() {
+        if (this.isNew) return false;
+        const chain = this.form && this.form.level3Chain;
+        if (!this.form || !this.form.hasLevel3 || !chain || !chain.l3name) return false;
+        const t = this.$store.findTask(this.taskId);
+        return (t && t.title || '') !== chain.l3name;
       },
       askDel() { this.showDel = true; },
       confirmDel() { this.$store.removeSubTask(this.taskId, this.subId); this.$emit('close'); },
@@ -11649,7 +11841,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div class="modal-head"><h3>{{ isNew ? '新增子任务' : '编辑子任务' }}</h3><button class="x" @click="$emit('close')">✕</button></div>
         <div class="modal-body" v-if="form">
           <!-- auto-expand-filled：与主任务详情一致——长按进入编辑时，凡已有记录的折叠组（含「指定周」时间组）自动展开，还原上一次的记忆 -->
-          <TaskFormCore ref="tfc" :draft="form" :hide-tag="true" :auto-expand-filled="true" />
+          <!-- 标签组已对子任务放开（与主任务同款）：#一级##二级 改归属分类；###父任务名 改写父任务 -->
+          <TaskFormCore ref="tfc" :draft="form" :auto-expand-filled="true" />
           <div class="edit-toggle">
             <label class="switch">
               <input type="checkbox" v-model="form.hasCheckbox" />
@@ -11661,7 +11854,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <!-- 仅周期 / 区间子任务渲染；默认折叠，手动展开仅本次临时生效 -->
           <div class="hist-head" v-if="hasExecHist">
             <h4>执行历史（{{ finishHist.length }}）</h4>
-            <span class="delay-badge" v-if="sub && sub.cycle_delay_mode">{{ {recount:'卡住重算',extend:'补位扩展',independent:'独立固定'}[sub.cycle_delay_mode] }}</span>
+            <!-- 延期机制徽标属周期概念：区间任务不做机制区分，故仅在有周期规则时展示 -->
+            <span class="delay-badge" v-if="sub && sub.cycle && sub.cycle_delay_mode">{{ {recount:'卡住重算',extend:'补位扩展',independent:'独立固定'}[sub.cycle_delay_mode] }}</span>
             <button class="rec-chart" :title="execHistOpen ? '收起执行历史' : '展开执行历史'" @click="execHistOpen = !execHistOpen">
               <span class="caret">{{ execHistOpen ? '▼' : '▶' }}</span>
             </button>
@@ -12331,6 +12525,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       return {
         dragId: null, startX: 0, dx: 0, dragging: false, moved: false,
         longFired: false, longTimer: null, suppressClick: false,
+        swipeDir: 0,   // 当前滑动方向（-1 左滑 / 0 未越阈值 / 1 右滑）：仅在越阈值时变化，避免每帧重渲染
       };
     },
     computed: {
@@ -12358,7 +12553,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // —— 标签链：继承母本分类，并把母本标题并入末级（替代原独立「###母任务」归属标识）——
       // 输出形如「考研│专业课│母任务X」；母本无分类时退化为单级「母任务X」。
       catChips() {
-        const base = this.$catTagList(this.parent) || [];
+        // 子任务自身改过一/二级标签 → 展示自己的归属；未设置时沿用父任务分类（继承语义不变），
+        // 否则改完标签卡片仍显示父任务分类，看起来像「归属没更新」
+        const own = (this.sub && this.sub.category_id) ? (this.$catTagList(this.sub) || []) : [];
+        const base = own.length ? own : (this.$catTagList(this.parent) || []);
         const pt = (this.parent && this.parent.title ? String(this.parent.title) : '').trim();
         if (!pt) return base;
         if (!base.length) return [pt];
@@ -12366,12 +12564,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // 拖拽时的卡片「悬浮」变换：整体随手指位移 + 方向底色（左滑绿/右滑橙），
       // 与父任务行 rowStyle 口径一致；作为 computed 确保拖拽过程 transform 实时跟手
+      // 跟手 transform 已由 onMove 直接写 DOM（避免每次 pointermove 触发重渲染 → 滑动掉帧发涩）；
+      // 这里只按滑动方向给底色提示
       cardStyle() {
         if (this.dragId !== this.sub._id) return {};
-        const dx = this.dx;
-        const TH = this.$store.SWIPE_TRIGGER_PX;
-        const bg = dx < -TH ? 'rgba(46,204,113,0.15)' : (dx > TH ? 'rgba(231,76,60,0.15)' : 'transparent');
-        return { transform: `translateX(${dx}px)`, transition: this.dragging ? 'none' : 'transform .18s ease', background: bg };
+        const bg = this.swipeDir < 0 ? 'rgba(46,204,113,0.15)' : (this.swipeDir > 0 ? 'rgba(231,76,60,0.15)' : 'transparent');
+        return { background: bg };
       },
     },
     methods: {
@@ -12380,6 +12578,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (e.target.closest('.row-emg-btn')) return;
         if (!this.$store.swipeLock('subcopy_' + this.sub._id)) return;
         this.dragId = this.sub._id; this.startX = e.clientX; this.dx = 0;
+        // 跟手位移走「DOM 直写」（非响应式 _swEl / _swDx），详见 onMove
+        this._swEl = e.currentTarget; this._swDx = 0; this.swipeDir = 0;
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
         this.dragging = true; this.moved = false; this.longFired = false; this.suppressClick = false;
         if (this.longTimer) clearTimeout(this.longTimer);
@@ -12393,14 +12593,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       onMove(e) {
         if (this.dragId !== this.sub._id) return;
-        this.dx = e.clientX - this.startX;
-        if (Math.abs(this.dx) > this.$store.SWIPE_ACTIVATE_PX && this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; this.moved = true; }
+        const dx = e.clientX - this.startX;
+        // 跟手位移直接写 DOM：不再改响应式 dx，避免每次 pointermove 触发重渲染（列表长时掉帧 → 滑动发涩）
+        this._swDx = dx;
+        if (this._swEl) {
+          this._swEl.style.transition = 'none';
+          this._swEl.style.transform = 'translateX(' + dx + 'px)';
+        }
+        const TH = this.$store.SWIPE_TRIGGER_PX;
+        const dir = dx < -TH ? -1 : (dx > TH ? 1 : 0);
+        if (dir !== this.swipeDir) this.swipeDir = dir;
+        if (Math.abs(dx) > this.$store.SWIPE_ACTIVATE_PX && this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; this.moved = true; }
       },
       onUp() {
         if (this.dragId !== this.sub._id) { this.$store.swipeUnlock('subcopy_' + this.sub._id); return; }
         if (this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; }
-        const dx = this.dx;
-        this.dragging = false; this.dragId = null; this.dx = 0;
+        const dx = this._swDx;
+        // 松手回弹：给一次 .18s 过渡后清空内联 transform
+        const el = this._swEl; this._swEl = null;
+        if (el) {
+          el.style.transition = 'transform .18s ease';
+          el.style.transform = '';
+          setTimeout(function () { if (el.style) { el.style.transition = ''; el.style.transform = ''; } }, 200);
+        }
+        this.dragging = false; this.dragId = null; this.dx = 0; this._swDx = 0; this.swipeDir = 0;
         if (this.longFired) { this.$store.swipeUnlock('subcopy_' + this.sub._id); return; }
         if (this.moved) this.suppressClick = true;
         const TH = this.$store.SWIPE_TRIGGER_PX;
@@ -12424,17 +12640,15 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 与主任务行 rowHintDir/rowHintText 口径完全一致；仅在已开始横向拖动（moved）时显示，避免误触抖动
       cardHintDir() {
         if (this.dragId !== this.sub._id || !this.moved) return '';
-        const TH = this.$store.SWIPE_TRIGGER_PX;
-        if (this.dx < -TH) return 'right';
-        if (this.dx > TH) return 'left';
+        if (this.swipeDir < 0) return 'right';
+        if (this.swipeDir > 0) return 'left';
         return '';
       },
       cardHintText() {
         if (this.dragId !== this.sub._id || !this.moved) return '';
-        const TH = this.$store.SWIPE_TRIGGER_PX;
-        if (this.dx < -TH) return '✓ 完成';
+        if (this.swipeDir < 0) return '✓ 完成';
         // 右滑：已设日期→「🗓 调整」，未设日期→「放弃」（与弹出窗口内容一致）
-        if (this.dx > TH) return this.$store.hasYMD(this.sub) ? '🗓 调整' : '放弃';
+        if (this.swipeDir > 0) return this.$store.hasYMD(this.sub) ? '🗓 调整' : '放弃';
         return '';
       },
     },
@@ -12680,14 +12894,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 延期补卡记录记在原发生日 dt，故网格该日显示为已打卡；real_done 仅用于锚点重算。
         // 显示口径：延期完成（overdue）条目展示「真实完成日」——独立固定/卡住重算漏卡后拖到 real_done 才完成，
         // 该格显示 real_done（如 8.8延期完成 / 7.10延期完成），而非原发生日；与归档仓库归属口径一致。
+        const isRange = !!(t.date_mode === 'range' && t.date_start);
         return dates.map(ds => {
           const isDone = hist.some(h => h.is_archived && (h.execute_date === ds || h.real_done === ds));
           const rec = hist.find(h => h.is_archived && h.overdue && h.execute_date === ds && h.real_done && h.real_done !== ds);
+          // 区间任务：漏卡日后延期补上 → 原日期（21）标「已过期」，完成记在真实完成日（22 标「延期完成」）。
+          // 周期任务维持原口径（完成判定同时匹配 execute_date 与 real_done）。
+          const done = isRange
+            ? hist.some(h => h.is_archived && ((h.real_done === ds) || (h.execute_date === ds && !h.overdue)))
+            : isDone;
           return {
             date: ds,
-            done: isDone,
-            overdue: hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
-            expired: !!(dmode === 'extend' && !isDone && ds < td),
+            done,
+            overdue: isRange
+              ? hist.some(h => h.is_archived && h.overdue && h.real_done === ds)
+              : hist.some(h => h.overdue && (h.execute_date === ds || h.real_done === ds)),
+            expired: isRange
+              ? hist.some(h => h.is_archived && h.overdue && h.execute_date === ds && h.real_done && h.real_done !== ds)
+              : !!(dmode === 'extend' && !isDone && ds < td),
             rdone: rec ? rec.real_done : '',
           };
         });
@@ -12903,7 +13127,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <!-- 折叠态为默认：每次打开详情（刷新 / 切换 / 路由返回）均重置为收起 -->
             <div class="hist-head">
               <h4>执行历史（{{ execHistory.length }}）</h4>
-              <span class="delay-badge" v-if="$store.findTask(taskId) && $store.findTask(taskId).cycle_delay_mode">{{ {recount:'卡住重算',extend:'补位扩展',independent:'独立固定'}[$store.findTask(taskId).cycle_delay_mode] }}</span>
+              <!-- 延期机制徽标属周期概念：区间任务不做机制区分，故仅在有周期规则时展示 -->
+              <span class="delay-badge" v-if="$store.findTask(taskId) && $store.findTask(taskId).cycle && $store.findTask(taskId).cycle_delay_mode">{{ {recount:'卡住重算',extend:'补位扩展',independent:'独立固定'}[$store.findTask(taskId).cycle_delay_mode] }}</span>
               <button class="rec-chart" :title="execHistOpen ? '收起执行历史' : '展开执行历史'" @click="execHistOpen = !execHistOpen">
                 <span class="caret">{{ execHistOpen ? '▼' : '▶' }}</span>
               </button>
@@ -13817,6 +14042,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       taskAddCat: '', taskAddPreset: '', taskAddMonth: null, taskAddDate: '', taskAddWeek: null,
       // —— 滑动打卡窗口：本周/本月区块传入所在周期窗口，今日区块为空（回落 selectedDate）——
       dragWin: null,
+      swipeDir: 0,   // 当前滑动方向（-1 左滑 / 0 未越阈值 / 1 右滑）：仅在越阈值时变化，避免每帧重渲染
       // —— 关联番茄正计时：今日页「任务/子任务」专注计时态（仅本地，落盘仅记累计时长）——
       // focusSub = { kind: 'task'|'sub', taskId, subId }；kind='task' 时无 subId
       focusSub: null, focusStart: 0, focusNow: Date.now(),
@@ -13861,7 +14087,12 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.planOpen.month = _wantMonth && _moCnt > 0;
       }
       // 专注计时时钟（每秒刷新，仅计时中时驱动全屏层时钟）
-      this._focusTick = setInterval(() => { this.focusNow = Date.now(); }, 1000);
+      // 每秒刷新计时读数；滑动手势进行中跳过一次刷新 ——
+      // 该 tick 会触发整页重渲染，正好落在跟手过程会造成顿挫（滑动手感发涩）
+      this._focusTick = setInterval(() => {
+        if (this.dragId) return;          // 正在横向滑动（任务行 / 手牌）：本次不刷新，松手后自然补上
+        this.focusNow = Date.now();
+      }, 1000);
     },
     computed: {
       today() { return this.$store.util.todayStr(); },
@@ -14085,17 +14316,92 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
         return h > 0 ? (h + ':' + pad(m) + ':' + pad(sec)) : (pad(m) + ':' + pad(sec));
       },
+      // 筛选范围编辑用的标签树（一级/二级）：严格对齐「任务夹视图」实际展示的标签。
+      // 两道门槛（与文件夹视图 folderTopCats / folderSubCatsOf 同口径）：
+      //   1) 归属任务夹：不属于收藏夹、也不属于模版夹（复用 store.catInFolder，正确处理中性引用分类）；
+      //   2) 含在册任务：存在未归档、非收藏、非模版任务直接挂在该标签上
+      //      （一级标签自身或其任一直接二级有任务即保留，与 folderTopCats 的 catInScope 判定一致）。
+      // 仅有归档任务或完全无任务的历史空标签不在任务夹显示，也不进入专注筛选范围。
+      // 依赖 state.categories / state.tasks 响应式 —— 标签增删、任务归档/恢复/改挂标签即时同步。
+      // ★ 必须是 computed（不能是 methods）★：今日页每秒刷新 focusNow → 整页重渲染，
+      //   方法版会在每次重渲染时（含每秒 tick）重复执行「分类 × 任务」全表扫描，
+      //   数据量大时单次可达数十万次遍历 → 长按 🧠 打开筛选层后整页卡顿、无法操作。
+      //   computed 仅在 categories / tasks 变更时重算，常规刷新直接命中缓存。
+      focusTagTree() {
+        const cats = this.$store.state.categories || [];
+        const tasks = this.$store.state.tasks || [];
+        if (!cats.length) return [];
+        const byId = {};
+        cats.forEach(c => { if (c && c._id != null) byId[c._id] = c; });
+        // 收藏夹标记：记忆化上溯（自身 is_collection→true；自身 is_task/is_template→false；否则看父级）
+        // guard 上限防御父链成环的脏数据（直接 while 上溯会死循环 → 整页卡死）
+        const collMemo = {};
+        const isColl = (id, guard) => {
+          if (id == null) return false;
+          if (collMemo.hasOwnProperty(id)) return collMemo[id];
+          if (guard > 8) return false;
+          const c = byId[id];
+          if (!c) return false;
+          if (c.is_collection) return collMemo[id] = true;
+          if (c.is_task || c.is_template) return collMemo[id] = false;
+          return collMemo[id] = (c.parent ? isColl(c.parent, guard + 1) : false);
+        };
+        // 单遍扫任务建索引（原实现：每个分类各扫一遍全表 → 分类×任务 量级，首次打开要 1s+）
+        //   collRef / tplRef：被收藏任务 / 模版任务引用到的分类（含其父级）
+        //   liveSet         ：挂有在册任务（未归档、非收藏、非模版、直接挂载）的分类
+        const collRef = {}, tplRef = {}, liveSet = {};
+        tasks.forEach(t => {
+          if (!t || t.is_archived || !t.category_id) return;
+          const id = t.category_id;
+          if (this.$store.isCollectionTask && this.$store.isCollectionTask(t)) {
+            collRef[id] = true;
+            const c = byId[id];
+            if (c && c.parent) collRef[c.parent] = true;
+            return;
+          }
+          if (t.is_template) { tplRef[id] = true; return; }
+          if (isColl(id, 0)) return;
+          liveSet[id] = true;
+        });
+        // 单遍扫分类定「归属任务夹」（非收藏夹、非模版夹）
+        const inTaskSet = {};
+        cats.forEach(c => {
+          if (!c || c._id == null) return;
+          if (c.is_template || isColl(c._id, 0)) return;
+          if (collRef[c._id] || tplRef[c._id]) return;
+          inTaskSet[c._id] = true;
+        });
+        const tops = cats.filter(c => c && inTaskSet[c._id] && (!c.parent || c.parent === '' || c.parent === '0'));
+        return tops
+          .filter(top => liveSet[top._id] || cats.some(c => c.parent === top._id && liveSet[c._id]))
+          .map(top => ({
+            name: top.name,
+            subs: cats.filter(c => inTaskSet[c._id] && c.parent === top._id && liveSet[c._id]).map(c => c.name),
+          }));
+      },
     },
     methods: {
       // —— 🧠 专注筛选：单击开关专注模式（按范围过滤今日待办）；长按🧠进入筛选范围编辑 ——
       // 当前生效的筛选范围（持久化于 settings.focusFilterTags；空数组=未配置，回落「学习标签」默认专注）
       focusTags() { return (this.$store.state.settings && Array.isArray(this.$store.state.settings.focusFilterTags)) ? this.$store.state.settings.focusFilterTags : []; },
+      // 条目「生效分类 id」：子任务副本（今日 / 周月看板的 mkSubProxy）自身 category_id 恒为空，
+      // 归属标签应跟随其父任务（子任务自带分类时以自带为准）。
+      // 否则「学习」标签下的父任务开启 🧠 后，其子任务副本会被判为不在范围内而全部消失。
+      focusCatOf(t) {
+        if (!t) return null;
+        if (t.category_id) return t.category_id;
+        const pid = t._parentId || t.parentId || t._parent_id || '';
+        if (!pid) return null;
+        const p = this.$store.findTask(pid);
+        return p ? (p.category_id || null) : null;
+      },
       // 某任务是否命中专注范围：范围为空→学习标签（isLearningCat）；否则按层级键（'1:一级' / '2:一级>二级'）任一命中
       inFocus(t) {
         if (!t) return false;
         const tags = this.focusTags();
-        if (!tags.length) return this.$store.isLearningCat(t.category_id);
-        const chain = this.$store.categoryChainNames ? this.$store.categoryChainNames(t) : [];
+        const cid = this.focusCatOf(t);   // 子任务副本 → 继承父任务分类
+        if (!tags.length) return this.$store.isLearningCat(cid);
+        const chain = this.$store.categoryChainNames ? this.$store.categoryChainNames({ category_id: cid }) : [];
         if (!chain.length) return false;
         const l1 = chain[0], l2 = chain.length > 1 ? chain[1] : '';
         return tags.some(k => k === '1:' + l1 || (!!l2 && k === '2:' + l1 + '>' + l2));
@@ -14133,29 +14439,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.$store.state.settings.focusFilterTags = this.focusEditTags.slice();
         if (this.$store.persist) this.$store.persist();
         this.focusPickerOpen = false;
-      },
-      // 筛选范围编辑用的标签树（一级/二级）：严格对齐「任务夹视图」实际展示的标签。
-      // 两道门槛（与文件夹视图 folderTopCats / folderSubCatsOf 同口径）：
-      //   1) 归属任务夹：不属于收藏夹、也不属于模版夹（复用 store.catInFolder，正确处理中性引用分类）；
-      //   2) 含在册任务：存在未归档、非收藏、非模版任务直接挂在该标签上
-      //      （一级标签自身或其任一直接二级有任务即保留，与 folderTopCats 的 catInScope 判定一致）。
-      // 仅有归档任务或完全无任务的历史空标签不在任务夹显示，也不进入专注筛选范围。
-      // 依赖 state.categories / state.tasks 响应式 —— 标签增删、任务归档/恢复/改挂标签即时同步。
-      focusTagTree() {
-        const cats = this.$store.state.categories || [];
-        const inTask = c => !this.$store.catInFolder(c._id, 'collection') && !this.$store.catInFolder(c._id, 'template');
-        const isCollCat = id => this.$store.isCollCat(id);
-        // 标签上有在册任务（未归档、非收藏、非模版、直接挂载）
-        const hasLiveTask = id => (this.$store.state.tasks || []).some(t =>
-          !t.is_archived && !t.is_template && !t.is_collection &&
-          t.category_id === id && !(t.category_id && isCollCat(t.category_id)));
-        const tops = cats.filter(c => inTask(c) && (!c.parent || c.parent === '' || c.parent === '0'));
-        return tops
-          .filter(top => hasLiveTask(top._id) || cats.some(c => c.parent === top._id && hasLiveTask(c._id)))
-          .map(top => ({
-            name: top.name,
-            subs: cats.filter(c => inTask(c) && c.parent === top._id && hasLiveTask(c._id)).map(c => c.name),
-          }));
       },
       // 全局标准时间标签（仅展示文本，浅绿色）
       timeLabel(t) { return this.$store.formatTimeLabel(t); },
@@ -14285,6 +14568,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!this.$store.swipeLock('today_' + t._id)) return;
         this.dragWin = win || null;
         this.dragId = t._id; this.startX = e.clientX; this.dragX = 0;
+        // 跟手位移走「DOM 直写」：_swEl / _swDx 为非响应式实例字段（不触发重渲染），
+        // 详见 rowMove —— 行多时每次 pointermove 全量重渲染会明显掉帧，滑动手感发涩
+        this._swEl = e.currentTarget; this._swDx = 0; this.swipeDir = 0;
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
         this.dragging = true; this.moved = false; this.longFired = false; this.suppressClick = false;
         if (this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; }
@@ -14298,15 +14584,33 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       rowMove(e, t) {
         if (this.dragId !== t._id) return;
-        this.dragX = e.clientX - this.startX;
-        if (Math.abs(this.dragX) > this.$store.SWIPE_ACTIVATE_PX && this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; this.moved = true; }
+        const dx = e.clientX - this.startX;
+        // 跟手位移直接写到 DOM：不再改响应式 dragX，避免每次 pointermove 触发整页重渲染
+        // （列表行多 / 今日页每秒 focusNow tick 叠加时，全量 patch 会掉帧 → 滑动迟钝）
+        this._swDx = dx;
+        if (this._swEl) {
+          this._swEl.style.transition = 'none';
+          this._swEl.style.transform = 'translateX(' + dx + 'px)';
+        }
+        // 仅「越阈值」这类状态跳变才更新响应式字段：整段滑动最多几次重渲染
+        const TH = this.$store.SWIPE_TRIGGER_PX;
+        const dir = dx < -TH ? -1 : (dx > TH ? 1 : 0);
+        if (dir !== this.swipeDir) this.swipeDir = dir;
+        if (Math.abs(dx) > this.$store.SWIPE_ACTIVATE_PX && this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; this.moved = true; }
       },
       rowUp(e, t) {
         if (this.dragId !== t._id) { this.$store.swipeUnlock('today_' + t._id); return; }
         if (this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; }
-        const dx = this.dragX;
+        const dx = this._swDx;
+        // 松手回弹：给一次 .18s 过渡后清空内联 transform（直写期间已关闭过渡）
+        const el = this._swEl; this._swEl = null;
+        if (el) {
+          el.style.transition = 'transform .18s ease';
+          el.style.transform = '';
+          setTimeout(function () { if (el.style) { el.style.transition = ''; el.style.transform = ''; } }, 200);
+        }
         const win = this.dragWin; this.dragWin = null;
-        this.dragging = false; this.dragId = null; this.dragX = 0;
+        this.dragging = false; this.dragId = null; this.dragX = 0; this._swDx = 0; this.swipeDir = 0;
         if (this.longFired) { this.$store.swipeUnlock('today_' + t._id); return; }
         if (this.moved) this.suppressClick = true;
         const TH = this.$store.SWIPE_TRIGGER_PX;
@@ -14327,30 +14631,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const t = id ? this.$store.findTask(id) : null;
         return !!(t && (t.cycle || (t.date_mode === 'range' && t.date_start)));
       },
+      // 跟手 transform 已由 rowMove 直接写 DOM（避免每次 pointermove 全量重渲染 → 滑动掉帧发涩）；
+      // 这里只按滑动方向给底色提示
       rowStyle(t) {
         if (this.dragId !== t._id) return {};
-        const dx = this.dragX;
-        const TH = this.$store.SWIPE_TRIGGER_PX;
         let bg = 'transparent';
-        if (dx < -TH) bg = 'rgba(46,204,113,0.15)';
-        else if (dx > TH) bg = 'rgba(231,76,60,0.15)';
-        return { transform: `translateX(${dx}px)`, transition: this.dragging ? 'none' : 'transform .18s ease', background: bg };
+        if (this.swipeDir < 0) bg = 'rgba(46,204,113,0.15)';
+        else if (this.swipeDir > 0) bg = 'rgba(231,76,60,0.15)';
+        return { background: bg };
       },
       // 滑动「完成 / 撤销」提示条方向：左滑→绿色「完成」(right)、右滑→橙色「撤销」(left)，
       // 与归档视图语义一致；仅在已开始横向拖动（moved）时显示，避免误触抖动
       rowHintDir(id) {
         if (this.dragId !== id || !this.moved) return '';
-        const TH = this.$store.SWIPE_TRIGGER_PX;
-        if (this.dragX < -TH) return 'right';
-        if (this.dragX > TH) return 'left';
+        if (this.swipeDir < 0) return 'right';
+        if (this.swipeDir > 0) return 'left';
         return '';
       },
       rowHintText(id) {
         if (this.dragId !== id || !this.moved) return '';
-        const TH = this.$store.SWIPE_TRIGGER_PX;
-        if (this.dragX < -TH) return '✓ 完成';
+        if (this.swipeDir < 0) return '✓ 完成';
         // 右滑：已设日期→「🗓 调整」（时间档 + 放弃）；未设日期→「放弃」（仅放弃二次确认）
-        if (this.dragX > TH) return this.$store.hasYMD(this.$store.findTask(id)) ? '🗓 调整' : '放弃';
+        if (this.swipeDir > 0) return this.$store.hasYMD(this.$store.findTask(id)) ? '🗓 调整' : '放弃';
         return '';
       },
       markDone(t, win) {
@@ -14657,7 +14959,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             <button class="x" @click="closeFocusPicker">✕</button>
           </div>
           <div class="lz-picker-body">
-            <div class="lz-check-group" v-for="node in focusTagTree()" :key="'pf' + node.name">
+            <div class="lz-check-group" v-for="node in focusTagTree" :key="'pf' + node.name">
               <label class="lz-check">
                 <input type="checkbox" :checked="focusEditTags.indexOf('1:' + node.name) >= 0" @change="toggleFocusTag('1:' + node.name)" />
                 <span class="lz-check-name">{{ node.name }}</span>
@@ -14669,7 +14971,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 </label>
               </div>
             </div>
-            <p class="lz-picker-tip" v-if="!focusTagTree().length">任务夹下还没有标签</p>
+            <p class="lz-picker-tip" v-if="!focusTagTree.length">任务夹下还没有标签</p>
           </div>
           <div class="modal-actions">
             <button class="btn ghost" @click="clearFocusTags">清空</button>
@@ -15382,6 +15684,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // —— 滑动手势状态（与今日页 HandCards 方向定义统一：左滑=完成，右滑=未完成，长按=详情）——
         dragId: null, dragTask: null, startX: 0, dragX: 0, dragging: false, moved: false,
         longFired: false, longTimer: null, suppressClick: false, dragGroup: null, // dragGroup：当前滑动所属看板分组（副本），列表母本为 null
+        swipeDir: 0,   // 当前滑动方向（-1 左滑 / 0 未越阈值 / 1 右滑）：仅在越阈值时变化，避免每帧重渲染
         quickSheet: null, // 右滑弹出的「快速时间设置 / 放弃」窗口目标（看板 tab）：{kind:'task'|'sub', id, parentId}
         // —— 待归档列表父任务拖拽排序（与子任务三杠手柄完全统一：长按手柄 350ms 或按住移动 >6px 进入拖拽，松手提交）——
         taskDragMode: false, taskDragId: null, taskDragY: 0, taskDragStartY: 0, taskDragFrom: -1, taskDragTo: -1, taskDragRowH: 56, taskDragList: null, taskDragWhich: null, taskHandlePressing: null, taskHandleTimer: null,
@@ -16015,6 +16318,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!this.$store.swipeLock('inbox_' + t._id)) return;
         this.dragId = t._id; this.dragTask = t; this.startX = e.clientX; this.dragX = 0;
         this.dragGroup = g || null;
+        // 跟手位移走「DOM 直写」（非响应式 _swEl / _swDx），详见 rowMove
+        this._swEl = e.currentTarget; this._swDx = 0; this.swipeDir = 0;
         try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
         this.dragging = true; this.moved = false; this.longFired = false; this.suppressClick = false;
         if (this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; }
@@ -16029,15 +16334,31 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       rowMove(e, t) {
         if (this.dragId !== t._id) return;
-        this.dragX = e.clientX - this.startX;
-        if (Math.abs(this.dragX) > this.$store.SWIPE_ACTIVATE_PX && this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; this.moved = true; }
+        const dx = e.clientX - this.startX;
+        // 跟手位移直接写 DOM：不再改响应式 dragX，避免每次 pointermove 触发整页重渲染（行多时掉帧 → 滑动发涩）
+        this._swDx = dx;
+        if (this._swEl) {
+          this._swEl.style.transition = 'none';
+          this._swEl.style.transform = 'translateX(' + dx + 'px)';
+        }
+        const TH = this.$store.SWIPE_TRIGGER_PX;
+        const dir = dx < -TH ? -1 : (dx > TH ? 1 : 0);
+        if (dir !== this.swipeDir) this.swipeDir = dir;
+        if (Math.abs(dx) > this.$store.SWIPE_ACTIVATE_PX && this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; this.moved = true; }
       },
       rowUp(e, t) {
         if (this.dragId !== t._id) { this.$store.swipeUnlock('inbox_' + t._id); return; }
         if (this.longTimer) { clearTimeout(this.longTimer); this.longTimer = null; }
-        const dx = this.dragX;
+        const dx = this._swDx;
+        // 松手回弹：给一次 .18s 过渡后清空内联 transform
+        const el = this._swEl; this._swEl = null;
+        if (el) {
+          el.style.transition = 'transform .18s ease';
+          el.style.transform = '';
+          setTimeout(function () { if (el.style) { el.style.transition = ''; el.style.transform = ''; } }, 200);
+        }
         const g = this.dragGroup; this.dragGroup = null;
-        this.dragging = false; this.dragId = null; this.dragX = 0; this.dragTask = null;
+        this.dragging = false; this.dragId = null; this.dragX = 0; this._swDx = 0; this.swipeDir = 0; this.dragTask = null;
         if (this.longFired) { this.$store.swipeUnlock('inbox_' + t._id); return; }
         if (this.moved) this.suppressClick = true;
         const TH = this.$store.SWIPE_TRIGGER_PX;
@@ -16063,30 +16384,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (this.suppressClick) { this.suppressClick = false; return; }
         location.hash = '#/subtask/' + s._parentId;
       },
+      // 跟手 transform 已由 rowMove 直接写 DOM（避免每次 pointermove 全量重渲染 → 滑动掉帧发涩）；
+      // 这里只按滑动方向给底色提示
       rowStyle(t) {
         if (this.dragId !== t._id) return {};
-        const dx = this.dragX;
-        const TH = this.$store.SWIPE_TRIGGER_PX;
         let bg = 'transparent';
-        if (dx < -TH) bg = 'rgba(46,204,113,0.15)';
-        else if (dx > TH) bg = 'rgba(231,76,60,0.15)';
-        return { transform: `translateX(${dx}px)`, transition: this.dragging ? 'none' : 'transform .18s ease', background: bg };
+        if (this.swipeDir < 0) bg = 'rgba(46,204,113,0.15)';
+        else if (this.swipeDir > 0) bg = 'rgba(231,76,60,0.15)';
+        return { background: bg };
       },
       // 滑动「完成 / 撤销」提示条方向：左滑→绿色「完成」(right)、右滑→橙色「撤销」(left)，
       // 与归档视图语义一致；仅在已开始横向拖动（moved）时显示，避免误触抖动
       rowHintDir(id) {
         if (this.dragId !== id || !this.moved) return '';
-        const TH = this.$store.SWIPE_TRIGGER_PX;
-        if (this.dragX < -TH) return 'right';
-        if (this.dragX > TH) return 'left';
+        if (this.swipeDir < 0) return 'right';
+        if (this.swipeDir > 0) return 'left';
         return '';
       },
       rowHintText(id) {
         if (this.dragId !== id || !this.moved) return '';
-        const TH = this.$store.SWIPE_TRIGGER_PX;
-        if (this.dragX < -TH) return '✓ 完成';
+        if (this.swipeDir < 0) return '✓ 完成';
         // 右滑：已归档条目仍为「↺ 撤销」（撤销归档）；其余按有无日期显示「🗓 调整」/「放弃」
-        if (this.dragX > TH) {
+        if (this.swipeDir > 0) {
           const t = this.dragTask;
           if (t && (t.is_archived || t._isSubArchive)) return '↺ 撤销';
           return this.$store.hasYMD(t) ? '🗓 调整' : '放弃';
@@ -19171,11 +19490,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const map = {}, order = [];
         this.subs.forEach(s => {
           const key = (s.tags && s.tags.length) ? s.tags[0] : '未分类';
-          if (!map[key]) { map[key] = { name: key, spent: 0, total: 0, done: 0, subs: [] }; order.push(key); }
+          if (!map[key]) { map[key] = { name: key, spent: 0, subs: [] }; order.push(key); }
           const g = map[key];
           g.spent += this.$store.subSpentMin(s);
-          g.total += 1;
-          if (this.$store.isSubComplete(s)) g.done += 1;
           g.subs.push(s);
         });
         return order.map(k => map[k]);
@@ -19187,8 +19504,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         return g.subs.map(s => ({
           name: s.title,
           spent: this.$store.subSpentMin(s),
-          total: 1,
-          done: this.$store.isSubComplete(s) ? 1 : 0,
           sid: s.sid,
         }));
       },
@@ -19203,7 +19518,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const ratio = tot > 0 ? g.spent / tot : 0;
           const len = ratio * C;
           const s = {
-            name: g.name, spent: g.spent, done: g.done, total: g.total, sid: g.sid,
+            name: g.name, spent: g.spent, sid: g.sid,
             color: this.palette[i % this.palette.length],
             pct: tot > 0 ? Math.round(ratio * 100) : 0,
             dash: len + ' ' + (C - len),
@@ -19218,8 +19533,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       hasData() { return this.totalSpent > 0; },
       centerMain() { return this.$store.fmtSpent(this.totalSpent); },
       centerSub() { return this.drillTag ? this.drillTag : '总耗时'; }, // 标签名直出，全站统一无 # 前缀
-      doneAll() { return this.groups.reduce((a, g) => a + g.done, 0); },
-      totalAll() { return this.groups.reduce((a, g) => a + g.total, 0); },
     },
     methods: {
       fmt(m) { return this.$store.fmtSpent(m); },
@@ -19235,7 +19548,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     <div class="tagpie">
       <div class="tagpie-head">
         <span class="tagpie-title">🥧 标签耗时分布</span>
-        <span class="tagpie-pct" v-if="totalAll">完成 {{ doneAll }}/{{ totalAll }}</span>
       </div>
       <div class="tagpie-crumb">
         <button class="crumb-link" v-if="drillTag" @click="backToTop">全部标签</button>
@@ -19270,8 +19582,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               <span class="tagpie-info">
                 <span class="tagpie-name">{{ s.name }}</span>
                 <span class="tagpie-meta">
-                  <b>{{ fmt(s.spent) }}</b> · 完成 {{ s.done }}/{{ s.total }}
-                  <span class="tagpie-done" v-if="s.total && s.done === s.total">已全部完成</span>
+                  <b>{{ fmt(s.spent) }}</b>
                 </span>
               </span>
               <span class="tagpie-pct">{{ s.pct }}%</span>
@@ -19283,59 +19594,327 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     </div>`,
   };
 
-  /* -------- ProjectSubTotals —— 项目级「子任务累计打卡 / 完成量」可视化（与甘特图、标签耗时饼图并列） --------
-   * 按子任务汇总到今天为止的累计数据：打卡天数（当日有填报即记 1 天，行内按日期去重）+ 完成量（actualNum 累加）；
-   * 合计打卡天数 = 跨子任务按日期去重（同一天多个子任务打卡只记 1 天，非各行相加）；完成量合计 = 各行求和；
-   * 仅统计 recordDate ≤ 今天的记录；行按完成量降序（零数据子任务垫底灰显）。仅做只读可视化。 */
+  /* -------- C.vizUtil —— 可视化共用工具（时段窗口 / 分桶 / 配色 / 饼图几何） --------
+   * 背景：ProjVizPage（app.js IIFE）与 ProjectSubTotals（components IIFE）需要同一套时段窗口逻辑，
+   *   两者分处不同 IIFE，唯一共同可见的挂载点是 C（= window.MPComponents），故抽成纯函数挂在这里。
+   * 为什么不抽 mixin：Options API 的 computed/methods 同名合并是「静默覆盖」，共享 vizWindow 就必须
+   *   约定宿主提供一个 vizRecords computed —— 隐式契约易被误改；纯函数显式传参无此问题，且便于单独验证。
+   * 为什么不共用 WishPool 那份（13368 附近）：它走全套 UTC（wish_records.time 是 ISO UTC 串，刻意规避
+   *   东八区 0–8 点的跨日坑），且只有 week/month/year 三档、无 all 档、label 文案也不同，语义不兼容。
+   * 时区口径：本地时区（与 ProjVizPage 一致）。 */
+  C.vizUtil = {
+    PALETTE: ['#6a7bff', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6', '#06b6d4', '#ef4444', '#84cc16'],
+    // 记录日期 → 分桶 key：年 / 全部 = 月级（'YYYY-MM'）；周 / 月 = 日级（'YYYY-MM-DD'）
+    bucketKeyOf(date, dim) { return (dim === 'year' || dim === 'all') ? (date || '').slice(0, 7) : (date || ''); },
+    // 某自然日是否落在窗口内（年/全部按月前缀匹配，周/月按日精确匹配）
+    inWindow(keys, dim, date) {
+      const k = this.bucketKeyOf(date, dim);
+      return keys.indexOf(k) >= 0;
+    },
+    // 时段窗口：全部=有记录的所有月份 ∪ 当月（按月聚合）；年=当年 12 个月；月=当月逐日；周=本周（周一起）7 天
+    // offset 为正表示「更早」（0 = 当前时段）
+    windowOf(records, dim, offset, util) {
+      const pad = n => String(n).padStart(2, '0');
+      const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+      const todayStr = util.todayStr();
+      const off = Number(offset) || 0;
+      if (dim === 'all') {
+        const set = {}; set[todayStr.slice(0, 7)] = true;
+        (records || []).forEach(r => { const d = r && r.recordDate ? r.recordDate : ''; if (/^\d{4}-\d{2}/.test(d)) set[d.slice(0, 7)] = true; });
+        return { dim, label: '全部时段', title: '专注时长', keys: Object.keys(set).sort() };
+      }
+      if (dim === 'year') {
+        const y = new Date().getFullYear() - off;
+        const keys = []; for (let m = 1; m <= 12; m++) keys.push(y + '-' + pad(m));
+        return { dim, label: y + '年', title: '专注时长', keys };
+      }
+      if (dim === 'month') {
+        const now = new Date();
+        const base = new Date(now.getFullYear(), now.getMonth() - off, 1);
+        const y = base.getFullYear(), m = base.getMonth();
+        const days = new Date(y, m + 1, 0).getDate();
+        const keys = []; for (let i = 1; i <= days; i++) keys.push(y + '-' + pad(m + 1) + '-' + pad(i));
+        return { dim, label: y + '年' + pad(m + 1) + '月' + (off ? ' · ' + off + '个月前' : ''), title: '专注时长', keys };
+      }
+      // 周：周一为起点
+      const d0 = util.parseDate(todayStr);
+      const wd0 = (d0.getDay() + 6) % 7;
+      const mon = new Date(d0.getFullYear(), d0.getMonth(), d0.getDate() - wd0 - off * 7);
+      const keys = []; for (let i = 0; i < 7; i++) { const dd = new Date(mon); dd.setDate(mon.getDate() + i); keys.push(fmt(dd)); }
+      return { dim, label: '本周' + (off ? ' · ' + off + '周前' : ''), title: '专注时长', keys };
+    },
+    // 柱 x 轴标签：年/全部=「N月」（跨年用 YY.MM 避免歧义）；月=日期号；周=MM/DD
+    bucketLabel(win, k) {
+      if (win.dim === 'year') return k.slice(5) + '月';
+      if (win.dim === 'month') return k.slice(8, 10);
+      if (win.dim === 'all') {
+        const crossYear = win.keys.some(x => x.slice(0, 4) !== win.keys[0].slice(0, 4));
+        return crossYear ? (k.slice(2, 4) + '.' + k.slice(5)) : (k.slice(5) + '月');
+      }
+      return k.slice(5) + '/' + k.slice(8);
+    },
+    // 周一=0 … 周日=6
+    weekdayIndex(util, k) { const d = util.parseDate(k); return (d.getDay() + 6) % 7; },
+    // 实心饼：前 i 项的累计角度（i<0 返回 0）
+    pieCum(rows, i) {
+      let s = 0;
+      for (let j = 0; j <= i && j < rows.length; j++) s += (rows[j].ratio || 0);
+      return s * 360;
+    },
+    // 环形扇区：沿周长用 dasharray 分配（单扇区 100% 也正确渲染）
+    ringSlice(ratio, C) {
+      const len = (Number(ratio) || 0) * C;
+      return { dash: len + ' ' + (C - len) };
+    },
+    // 按名称稳定取色：去重 + 字典序 → 色板循环分配（保证「同种同色」，不随数值/时段变化）
+    colorMap(names, start) {
+      const uniq = [];
+      (names || []).forEach(n => { if (n && uniq.indexOf(n) < 0) uniq.push(n); });
+      uniq.sort();
+      const out = {};
+      uniq.forEach((n, i) => { out[n] = this.PALETTE[((Number(start) || 0) + i) % this.PALETTE.length]; });
+      return out;
+    },
+  };
+
+  /* -------- ProjectSubTotals —— 项目级「子任务可视化」（与甘特图、标签耗时饼图并列） --------
+   * 样式与统计口径严格对齐独立页 ProjVizPage（专注时长可视化）：
+   *   ① 维度切换 全部 / 周 / 月 / 年 + 时段翻页 + 回到本周·月·年（时段窗口复用 C.vizUtil.windowOf）
+   *   ② 专注时长柱状图（每日 / 每月学了多久）+ 完成量堆叠柱状图（按子任务分色）
+   *   ③ 打卡天数覆盖率：已打卡 X 天 / 共 Y 天 · 覆盖率 Z%
+   *   ④ 按日期：有几天学习、每天学了哪些子任务、各学了多少（耗时 + 完成量）
+   *   ⑤ 按任务：每个子任务学了多少、学了几天（耗时 + 完成量 + 打卡天数）
+   * 口径：仅统计 recordDate ≤ 今天、未软删、属本项目子任务的记录；软删子任务的记录整行排除。
+   * 仅做只读可视化，不修改任何数据。 */
   C.ProjectSubTotals = {
     name: 'ProjectSubTotals',
     props: { pid: { type: String, required: true } },
+    data() {
+      let dim = 'month';
+      try {
+        const d = localStorage.getItem('mindpocket:pstVizDim');
+        if (d === 'all' || d === 'week' || d === 'month' || d === 'year') dim = d;
+      } catch (e) {}
+      return { vizDim: dim, vizOffset: 0 };
+    },
+    // 切换项目时回到当前时段（<component :is> 无 key + v-show 常驻 → 组件实例复用，状态不会自动重置）
+    watch: { pid() { this.vizOffset = 0; } },
     computed: {
       subs() { return this.$store.getSubsOrdered(this.pid); },
       today() { return this.$store.util.todayStr(); },
-      // 一次遍历同时产出：每子任务累计行（days=recordDate 去重，当日有填报即记 1 天；amount=actualNum 求和）
-      // + 项目级日期并集（合计打卡天数=跨子任务去重，同一天多子任务打卡只记 1 天）；仅统计今天及以前
-      agg() {
-        const set = {};
-        this.subs.forEach(s => { if (s && s.sid) set[s.sid] = { title: s.title || '未命名', daysSet: {}, amount: 0 }; });
-        const projDays = {};
-        (this.$store.state.project_records || []).forEach(r => {
-          if (!r || r.deleted_at) return;
-          const d = r.recordDate || '';
-          if (!d || d > this.today) return;
-          const row = set[r.sid];
-          if (!row) return;              // 非本项目子任务（含软删子任务）的记录不计入
-          row.daysSet[d] = true;
-          row.amount += Number(r.actualNum) || 0;
-          projDays[d] = true;            // 项目级去重：与行同口径（≤今天、未软删、属本项目子任务）
-        });
-        const rows = this.subs.map(s => set[s.sid]).filter(Boolean).map(row => ({
-          title: row.title,
-          days: Object.keys(row.daysSet).length,
-          amount: row.amount,
-        })).sort((a, b) => (b.amount - a.amount) || (b.days - a.days));
-        return { rows, totalDays: Object.keys(projDays).length, totalAmount: rows.reduce((a, r) => a + r.amount, 0) };
+      subNames() {
+        const map = {};
+        this.subs.forEach(s => { if (s && s.sid) map[s.sid] = s.title || '未命名'; });
+        return map;
       },
-      rows() { return this.agg.rows; },
-      // 合计打卡天数：跨子任务按日期去重（同一天多个子任务打卡只记 1 天），而非各行相加
-      totalDays() { return this.agg.totalDays; },
-      totalAmount() { return this.agg.totalAmount; },
-      hasData() { return this.rows.some(r => r.days > 0 || r.amount > 0); },
+      // 本项目子任务的填报记录（排除软删记录；沿用既有「未来日期不计」口径）
+      scopedRecords() {
+        const set = {};
+        this.subs.forEach(s => { if (s && s.sid) set[s.sid] = true; });
+        return (this.$store.state.project_records || []).filter(r => {
+          if (!r || r.deleted_at) return false;
+          const d = r.recordDate || '';
+          if (!d || d > this.today) return false;
+          return !!set[r.sid];
+        });
+      },
+      vizWindow() { return C.vizUtil.windowOf(this.scopedRecords, this.vizDim, this.vizOffset, this.$store.util); },
+      // 子任务配色：按名称字典序稳定分配（与堆叠柱、日期明细共用，保证同种同色）
+      subColors() {
+        const names = [];
+        this.subs.forEach(s => { const n = s && (s.title || '未命名'); if (n && names.indexOf(n) < 0) names.push(n); });
+        return C.vizUtil.colorMap(names, 0);
+      },
+      // 专注时长柱状图（各时段累计分钟）—— 与 ProjVizPage 主柱同款（CHART_H=135）
+      timeBuckets() {
+        const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = 0);
+        this.scopedRecords.forEach(r => {
+          const k = C.vizUtil.bucketKeyOf(r.recordDate, win.dim);
+          if (win.keys.indexOf(k) < 0) return;
+          map[k] += Number(r.spentMin) || 0;
+        });
+        const max = Math.max.apply(null, win.keys.map(k => map[k]).concat([0]));
+        const CHART_H = 135;
+        return win.keys.map(k => ({
+          key: k,
+          label: C.vizUtil.bucketLabel(win, k),
+          min: map[k],
+          barPx: max > 0 ? Math.max(map[k] > 0 ? 3 : 1, Math.round(map[k] / max * CHART_H)) : 1,
+        }));
+      },
+      hasTimeData() { return this.timeBuckets.some(b => b.min > 0); },
+      totalMin() { return this.timeBuckets.reduce((a, b) => a + b.min, 0); },
+      // 打卡天数：按窗口统计「有填报记录」的日期（同 ProjVizPage 口径，自然日去重）
+      checkinBuckets() {
+        const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = {});
+        this.scopedRecords.forEach(r => {
+          const d = r.recordDate || '';
+          if (!d) return;
+          const k = C.vizUtil.bucketKeyOf(d, win.dim);
+          if (win.keys.indexOf(k) < 0) return;
+          map[k][d] = true;
+        });
+        const wd = ['一', '二', '三', '四', '五', '六', '日'];
+        return win.keys.map(k => {
+          const days = Object.keys(map[k]).length;
+          const label = win.dim === 'week' ? (wd[C.vizUtil.weekdayIndex(this.$store.util, k)] || k.slice(8))
+            : (win.dim === 'month' ? k.slice(8, 10) : k.slice(5) + '月');
+          return { key: k, label, days, pct: days > 0 ? 100 : 0 };
+        });
+      },
+      checkinTotal() {
+        if (this.vizDim === 'year' || this.vizDim === 'all') return this.checkinBuckets.reduce((a, b) => a + b.days, 0);
+        return this.checkinBuckets.filter(b => b.days > 0).length;
+      },
+      checkinDenominator() {
+        const win = this.vizWindow;
+        if (this.vizDim === 'all') return win.keys.reduce((a, k) => a + new Date(Number(k.slice(0, 4)), Number(k.slice(5, 7)), 0).getDate(), 0);
+        if (this.vizDim === 'week') return 7;
+        if (this.vizDim === 'month') {
+          const now = new Date();
+          const base = new Date(now.getFullYear(), now.getMonth() - (this.vizOffset || 0), 1);
+          return new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate();
+        }
+        const y = new Date().getFullYear() - (this.vizOffset || 0);
+        return (y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0)) ? 366 : 365;
+      },
+      checkinPct() { const den = this.checkinDenominator; return den > 0 ? Math.round(this.checkinTotal / den * 100) : 0; },
+      // 完成量堆叠柱状图（按子任务分色）—— 与 ProjVizPage 完成量图同款（CHART_H=108）
+      checkinAmountBuckets() {
+        const win = this.vizWindow;
+        const cell = {}; win.keys.forEach(k => { cell[k] = {}; });
+        const subTotals = {};
+        this.scopedRecords.forEach(r => {
+          const d = r.recordDate || '';
+          if (!d) return;
+          const k = C.vizUtil.bucketKeyOf(d, win.dim);
+          if (win.keys.indexOf(k) < 0) return;
+          const amt = Number(r.actualNum) || 0;
+          if (amt <= 0) return;
+          const name = this.subNames[r.sid] || '已删除子任务';
+          cell[k][name] = (cell[k][name] || 0) + amt;
+          subTotals[name] = (subTotals[name] || 0) + amt;
+        });
+        const names = Object.keys(subTotals).sort((a, b) => subTotals[b] - subTotals[a]);
+        const CHART_H = 108;
+        const maxTotal = Math.max.apply(null, win.keys.map(k => { let s = 0; for (const n in cell[k]) s += cell[k][n]; return s; }).concat([0]));
+        const dayMap = {}; this.checkinBuckets.forEach(b => { dayMap[b.key] = b.days; });
+        const buckets = win.keys.map(k => {
+          const segs = names.filter(n => cell[k][n]).map(n => ({ name: n, amount: cell[k][n], color: this.subColor(n) }));
+          const total = segs.reduce((a, s) => a + s.amount, 0);
+          segs.sort((a, b) => b.amount - a.amount);
+          const stackPx = maxTotal > 0 ? Math.round(total / maxTotal * CHART_H) : 0;
+          segs.forEach(s => { s.segPx = total > 0 ? Math.round(s.amount / total * stackPx) : 0; });
+          return { key: k, label: C.vizUtil.bucketLabel(win, k), total, stackPx, segs, days: dayMap[k] || 0 };
+        });
+        return { maxTotal, palette: names.map(n => ({ name: n, color: this.subColor(n), total: subTotals[n] })), buckets };
+      },
+      hasCheckinAmountData() { return this.checkinAmountBuckets.buckets.some(b => b.total > 0); },
+      totalAmount() { return this.checkinAmountBuckets.buckets.reduce((a, b) => a + b.total, 0); },
+      // —— 按任务（每个子任务学了多少 · 学了几天）——
+      subRows() {
+        const win = this.vizWindow;
+        const stat = {};
+        this.subs.forEach(s => {
+          if (!s || !s.sid) return;
+          const n = s.title || '未命名';
+          stat[s.sid] = { sid: s.sid, name: n, color: this.subColor(n), min: 0, amount: 0, days: {} };
+        });
+        this.scopedRecords.forEach(r => {
+          const d = r.recordDate || ''; if (!d) return;
+          if (!C.vizUtil.inWindow(win.keys, win.dim, d)) return;
+          const st = stat[r.sid]; if (!st) return;
+          st.min += Number(r.spentMin) || 0;
+          st.amount += Number(r.actualNum) || 0;
+          st.days[d] = true;
+        });
+        const rows = this.subs.map(s => stat[s.sid]).filter(Boolean).map(st => ({
+          sid: st.sid, name: st.name, color: st.color, min: st.min, amount: st.amount,
+          days: Object.keys(st.days).length,
+          idle: !(st.min > 0 || st.amount > 0 || Object.keys(st.days).length > 0),
+        }));
+        // 主序耗时降序 → 打卡天数 → 完成量；零数据垫底灰显
+        return rows.filter(r => !r.idle).sort((a, b) => (b.min - a.min) || (b.days - a.days) || (b.amount - a.amount))
+          .concat(rows.filter(r => r.idle));
+      },
+      hasData() { return this.subRows.some(r => !r.idle); },
+      // 「回到本周 / 本月 / 本年」按钮文案 —— 必须是 computed：模板插值 {{ backNowLabel }}
+      // 对 methods 取到的是 bind 后的函数对象，会渲染成「function () { [native code] }」
+      backNowLabel() { return this.vizDim === 'week' ? '回到本周' : (this.vizDim === 'month' ? '回到本月' : '回到本年'); },
+    },
+    methods: {
+      fmt(m) { return this.$store.fmtSpent(m); },
+      // 注意：方法名不能叫 _bucketLabel（会污染 ProjVizPage 的同名方法，被既有测试当组件探针使用）
+      bucketLabel(win, k) { return C.vizUtil.bucketLabel(win, k); },
+      subColor(n) { return this.subColors[n] || C.vizUtil.PALETTE[0]; },
+      setVizDim(d) { this.vizDim = d; this.vizOffset = 0; try { localStorage.setItem('mindpocket:pstVizDim', d); } catch (e) {} },
+      prev() { if (this.vizDim === 'all') return; this.vizOffset = this.vizOffset + 1; },
+      next() { if (this.vizDim === 'all') return; this.vizOffset = Math.max(0, this.vizOffset - 1); },
+      backNow() { this.vizOffset = 0; },
     },
     template: `
     <div class="pst">
       <div class="viz-checkin-wrap">
-        <div class="viz-sec-title">📊 子任务打卡 / 完成量（截至今天）</div>
-        <p class="viz-checkin-summary">合计：打卡 <b>{{ totalDays }}</b> 天 · 完成量 <b>{{ totalAmount }}</b></p>
-        <div class="pst-rows" v-if="rows.length">
-          <div class="pst-row" v-for="r in rows" :key="r.title" :class="{ idle: !r.days && !r.amount }"
-               :title="r.title + '：打卡 ' + r.days + ' 天 · 完成量 ' + r.amount">
-            <span class="pst-name">{{ r.title }}</span>
-            <span class="pst-nums">打卡 <b>{{ r.days }}</b> 天 · 完成 <b>{{ r.amount }}</b></span>
+        <div class="viz-sec-title">📈 专注时长 / 打卡天数 / 完成量（{{ vizWindow.label }}）</div>
+        <div class="view-toggle">
+          <button :class="{on: vizDim==='all'}" @click="setVizDim('all')">全部</button>
+          <button :class="{on: vizDim==='week'}" @click="setVizDim('week')">周</button>
+          <button :class="{on: vizDim==='month'}" @click="setVizDim('month')">月</button>
+          <button :class="{on: vizDim==='year'}" @click="setVizDim('year')">年</button>
+        </div>
+        <div class="viz-period-nav">
+          <button class="icon-btn" :disabled="vizDim==='all'" @click="prev" title="更早时段">‹</button>
+          <div class="viz-period-label viz-period-col">
+            <span>{{ vizWindow.label }}</span>
+            <button class="btn-mini" v-if="vizDim!=='all' && vizOffset>0" @click="backNow">{{ backNowLabel }}</button>
+          </div>
+          <button class="icon-btn" :disabled="vizOffset===0 || vizDim==='all'" @click="next" title="更近时段">›</button>
+        </div>
+        <p class="viz-checkin-summary">已打卡 <b>{{ checkinTotal }}</b> 天 / 共 {{ checkinDenominator }} 天 · 覆盖率 <b>{{ checkinPct }}%</b> · 完成量 <b>{{ totalAmount }}</b> · 时长 <b>{{ fmt(totalMin) }}</b></p>
+
+        <div class="viz-sub-title">⏱ 专注时长</div>
+        <div class="chart-bars" v-if="hasTimeData" style="height:170px;margin-top:6px;">
+          <div class="chart-bar" v-for="b in timeBuckets" :key="'t'+b.key">
+            <div class="bar-val">{{ b.min > 0 ? fmt(b.min) : '' }}</div>
+            <div class="bar-col" :style="{height: b.barPx + 'px'}"></div>
+            <div class="bar-label">{{ b.label }}</div>
           </div>
         </div>
-        <p class="empty-tip" v-else>暂无子任务</p>
-        <p class="empty-tip" v-if="rows.length && !hasData">所有子任务均未打卡（统计截至今天）</p>
+        <p class="empty-tip" v-else>当前时段暂无专注时长记录</p>
+
+        <div class="viz-sub-title">📊 完成量（按子任务）</div>
+        <div class="chart-bars" v-if="hasCheckinAmountData" style="height:140px;margin-top:6px;">
+          <div class="chart-bar" v-for="b in checkinAmountBuckets.buckets" :key="b.key"
+               :title="b.total > 0 ? ('完成量 ' + b.total + ' · 已打卡 ' + b.days + ' 天') : ('已打卡 ' + b.days + ' 天 · 无完成量')">
+            <div class="bar-val">{{ b.total > 0 ? b.total : (b.days > 0 ? '✓' : '–') }}</div>
+            <div class="bar-stack" :style="{ height: b.stackPx + 'px' }">
+              <div class="bar-seg" v-for="s in b.segs" :key="s.name" :style="{ height: s.segPx + 'px', background: s.color }" :title="s.name + '：' + s.amount"></div>
+            </div>
+            <div class="bar-label">{{ b.label }}</div>
+          </div>
+        </div>
+        <p class="empty-tip" v-else>当前时段暂无完成量记录</p>
+        <div class="viz-legend" v-if="checkinAmountBuckets.palette.length" style="margin-top:10px;">
+          <div class="viz-leg-item" v-for="p in checkinAmountBuckets.palette" :key="p.name">
+            <span class="viz-dot" :style="{background: p.color}"></span>
+            <span class="viz-leg-name">{{ p.name }}</span>
+            <span class="viz-leg-pct">{{ p.total }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="viz-checkin-wrap">
+        <div class="viz-sec-title">🗂 按任务</div>
+        <p class="empty-tip" v-if="!subs.length">暂无子任务</p>
+        <p class="empty-tip" v-else-if="!hasData">当前时段所有子任务均未打卡</p>
+        <div class="pst-rows" v-else>
+          <div class="pst-row" v-for="r in subRows" :key="r.sid" :class="{ idle: r.idle }"
+               :title="r.name + '：打卡 ' + r.days + ' 天 · 完成量 ' + r.amount + ' · 耗时 ' + fmt(r.min)">
+            <span class="viz-dot" :style="{background: r.color}"></span>
+            <span class="pst-name">{{ r.name }}</span>
+            <span class="pst-nums">⏱ {{ fmt(r.min) }} · 完成 <b>{{ r.amount }}</b> · 打卡 <b>{{ r.days }}</b> 天</span>
+          </div>
+        </div>
       </div>
     </div>`,
   };
@@ -22708,13 +23287,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       allTags(nv) {
         if (this.filterTag && nv.indexOf(this.filterTag) < 0) this.filterTag = '';
       },
-      // 顶部「可撤销一步」提示：每次数据变更（store.undoHint 携带递增序号）弹出，2 秒无新操作自动消失
+      // 顶部「可撤销一步」提示：每次数据变更（store.undoHint 携带递增序号）弹出，4 秒无新操作自动消失
       '$store.state.undoHint'(v) {
         if (v && v.seq) {
           this.undoBanner.show = true;
           this._undoShownAt = Date.now();   // 记录弹出时刻，用于「刚弹出宽限期」内忽略手势合成事件
           if (this._undoTimer) clearTimeout(this._undoTimer);
-          this._undoTimer = setTimeout(() => { this.undoBanner.show = false; }, 2000);
+          // 4 秒自动消失：留足点击「撤销上一步」的时间（原 2 秒偏紧，手还没点到就消失了）
+          this._undoTimer = setTimeout(() => { this.undoBanner.show = false; }, 4000);
         }
       },
       // 存储告警：本地存储（localStorage + IndexedDB）均写不下时，显示持久提示，绝不静默丢数据
@@ -23354,7 +23934,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() {
       let dim = 'month';   // 默认「月」（无历史选择时；已保存过偏好则尊重记忆）
       try { const d = localStorage.getItem('mindpocket:projVizDim'); if (d === 'all' || d === 'week' || d === 'month' || d === 'year') dim = d; } catch (e) {}
-      return { vizDim: dim, vizOffset: 0, toast: '', toastTimer: null };
+      // drillPid：当前下钻的项目（null = 一级「按项目分布」）。不持久化 —— 刷新回到一级，符合临时下钻语义
+      return { vizDim: dim, vizOffset: 0, toast: '', toastTimer: null, drillPid: null };
     },
     computed: {
       // 当前生效的标签筛选：与编排表（ProjectsPage）共用 localStorage 键，进入/退出可视化页保持记忆
@@ -23391,45 +23972,80 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         });
         return map;
       },
+      // sid → 所属项目 pid 映射（饼图扇区下钻用：点击扇区要知道钻哪个项目）
+      subProjPid() {
+        const map = {};
+        (this.$store.state.projects || []).forEach(p => {
+          const subs = (this.$store.getSubs ? this.$store.getSubs(p.pid) : (p.sub_tasks || [])) || [];
+          subs.forEach(s => { if (s && s.sid) map[s.sid] = p.pid; });
+        });
+        return map;
+      },
+      // 当前下钻项目的子任务 sid 集合。
+      // ⚠ 故意取 state.project_subs 全量（含软删），而非 $store.getSubs（排除软删）：
+      //   一级饼图把这些记录归到「未关联项目」，若此处排除软删，二级各子任务之和会小于一级该项目值，
+      //   用户会以为「下钻后数据缩水了」。软删子任务统一归入「已删除子任务」扇区。
+      drillSidSet() {
+        const out = {};
+        if (!this.drillPid) return out;
+        (this.$store.state.project_subs || []).forEach(s => { if (s && s.pid === this.drillPid && s.sid) out[s.sid] = true; });
+        return out;
+      },
+      // sid → 子任务标题（仅当前下钻项目）
+      drillSubName() {
+        const map = {};
+        if (!this.drillPid) return map;
+        (this.$store.state.project_subs || []).forEach(s => { if (s && s.pid === this.drillPid && s.sid) map[s.sid] = s.title || '未命名'; });
+        return map;
+      },
+      // 当前下钻项目名称
+      drillName() {
+        if (!this.drillPid) return '';
+        const p = (this.$store.state.projects || []).find(x => x.pid === this.drillPid);
+        return (p && p.name) || '未命名';
+      },
+      // 下钻过滤层：一级=原 records（含标签筛选）；二级=仅该项目子任务的记录
+      scopedRecords() {
+        const base = this.records;
+        if (!this.drillPid) return base;
+        const set = this.drillSidSet;
+        return base.filter(r => set[r.sid]);
+      },
+      // 二级配色：该项目子任务按字典序取色，起点 = 父项目在色板中的下标 +1（避免与父项目同色）
+      drillColors() {
+        const names = [];
+        (this.$store.getSubs ? this.$store.getSubs(this.drillPid) : []).forEach(s => {
+          const n = (s && (s.title || '未命名')) || '未命名';
+          if (names.indexOf(n) < 0) names.push(n);
+        });
+        if (names.indexOf('已删除子任务') < 0) names.push('已删除子任务');
+        const keys = Object.keys(this.projColors);
+        const start = (Math.max(0, keys.indexOf(this.drillName)) + 1) % C.vizUtil.PALETTE.length;
+        return C.vizUtil.colorMap(names, start);
+      },
+      // 环形饼图扇区：单扇区 100% 也能正确渲染（沿周长用 dasharray 分配）
+      pieSlices() {
+        const rows = this.pieData;
+        const CIRC = 2 * Math.PI * 42;
+        let acc = 0;
+        return rows.map(s => {
+          const len = (s.ratio || 0) * CIRC;
+          const seg = Object.assign({}, s, { drillable: this.canDrill(s), dash: len + ' ' + (CIRC - len), offset: -acc });
+          acc += len;
+          return seg;
+        }).filter(s => s.ratio > 0);
+      },
       // 当前时段窗口：全部=有记录的所有月份（按月聚合）；周=本周（含偏移）；月=当月逐日（含偏移）；年=当年 12 个月
       // 「回到本周/月/年」按钮文案：随维度切换（与习惯图 mc-now 口径一致）
       backNowLabel() { return this.vizDim === 'week' ? '回到本周' : (this.vizDim === 'month' ? '回到本月' : '回到本年'); },
       vizWindow() {
-        const dim = this.vizDim, off = this.vizOffset || 0;
-        const pad = n => String(n).padStart(2, '0');
-        const fmt = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-        const todayStr = this.$store.util.todayStr();
-        if (dim === 'all') {
-          // 全部时段：覆盖「有记录的每个月份」∪ 当月（无记录时至少展示当月），按月聚合、无翻页概念
-          const set = {}; set[todayStr.slice(0, 7)] = true;
-          this.records.forEach(r => { const d = r.recordDate || ''; if (/^\d{4}-\d{2}/.test(d)) set[d.slice(0, 7)] = true; });
-          const keys = Object.keys(set).sort();
-          return { dim, label: '全部时段', title: '专注时长', keys };
-        }
-        if (dim === 'year') {
-          const y = new Date().getFullYear() - off;
-          const keys = []; for (let m = 1; m <= 12; m++) keys.push(y + '-' + pad(m));
-          return { dim, label: y + '年', title: '专注时长', keys };
-        }
-        if (dim === 'month') {
-          const now = new Date();
-          const base = new Date(now.getFullYear(), now.getMonth() - off, 1);
-          const y = base.getFullYear(), m = base.getMonth();
-          const days = new Date(y, m + 1, 0).getDate();
-          const keys = []; for (let i = 1; i <= days; i++) keys.push(y + '-' + pad(m + 1) + '-' + pad(i));
-          return { dim, label: y + '年' + pad(m + 1) + '月' + (off ? ' · ' + off + '个月前' : ''), title: '专注时长', keys };
-        }
-        // 周：本周（含偏移），周一对周一
-        const d = this.$store.util.parseDate(todayStr);
-        const wd0 = (d.getDay() + 6) % 7;
-        const mon = new Date(d.getFullYear(), d.getMonth(), d.getDate() - wd0 - off * 7);
-        const keys = []; for (let i = 0; i < 7; i++) { const dd = new Date(mon); dd.setDate(mon.getDate() + i); keys.push(fmt(dd)); }
-        return { dim, label: '本周' + (off ? ' · ' + off + '周前' : ''), title: '专注时长', keys };
+        // 下钻态窗口基于该项目的数据（records → scopedRecords），与饼图/柱图口径一致
+        return C.vizUtil.windowOf(this.scopedRecords, this.vizDim, this.vizOffset, this.$store.util);
       },
       // 柱状图：各时段累计专注分钟
       barBuckets() {
         const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = 0);
-        this.records.forEach(r => {
+        this.scopedRecords.forEach(r => {
           const k = (win.dim === 'year' || win.dim === 'all') ? (r.recordDate || '').slice(0, 7) : (r.recordDate || '');
           if (win.keys.indexOf(k) < 0) return;
           map[k] += Number(r.spentMin) || 0;
@@ -23470,35 +24086,29 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 否则 this.projColor(name) 会先命中同名 computed 取值器（拿到字符串）再尝试调用，
       // 抛 TypeError: Cannot convert object to primitive value，整页图表白屏。
       // 饼图：各项目专注分钟占比
+      // 一级 = 按项目聚合；二级（drillPid）= 按该项目下的子任务聚合
       pieData() {
-        const win = this.vizWindow; const map = {};
-        this.records.forEach(r => {
+        const win = this.vizWindow; const map = {}, pidOf = {};
+        this.scopedRecords.forEach(r => {
           const k = (win.dim === 'year' || win.dim === 'all') ? (r.recordDate || '').slice(0, 7) : (r.recordDate || '');
           if (win.keys.indexOf(k) < 0) return;
-          const name = this.subProjName[r.sid] || '未关联项目';
+          const name = this.groupOf(r);
+          if (this.drillPid) { /* 二级：子任务 */ } else if (this.subProjPid[r.sid]) pidOf[name] = this.subProjPid[r.sid];
           map[name] = (map[name] || 0) + (Number(r.spentMin) || 0);
         });
         const arr = Object.keys(map).map(n => ({ name: n, min: map[n] })).sort((a, b) => b.min - a.min);
         const total = arr.reduce((a, x) => a + x.min, 0);
-        let acc = 0;
         return arr.map((x) => {
           const ratio = total > 0 ? x.min / total : 0;
-          const slice = { name: x.name, min: x.min, pct: total > 0 ? Math.round(ratio * 100) : 0, color: this.projColor(x.name), ratio };
-          acc += ratio; return slice;
+          return { name: x.name, min: x.min, pct: total > 0 ? Math.round(ratio * 100) : 0, color: this.colorOf(x.name), ratio, pid: pidOf[x.name] || null };
         });
       },
-      pieGradient() {
-        if (!this.pieData.length) return 'conic-gradient(#eef0f5 0deg 360deg)';
-        let acc = 0;
-        const parts = this.pieData.map(s => { const a0 = acc * 360, a1 = (acc + s.ratio) * 360; acc += s.ratio; return s.color + ' ' + a0.toFixed(2) + 'deg ' + a1.toFixed(2) + 'deg'; });
-        return 'conic-gradient(' + parts.join(', ') + ')';
-      },
-      hasData() { return this.records.length > 0 && this.barBuckets.some(b => b.min > 0); },
+      hasData() { return this.scopedRecords.length > 0 && this.barBuckets.some(b => b.min > 0); },
       totalMin() { return this.barBuckets.reduce((a, b) => a + b.min, 0); },
       // 打卡天数：按窗口统计「有填报记录」的日期——只要当日有填报（无论是否填写专注时长）即记为打卡 1 天
       checkinBuckets() {
         const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = {});
-        this.records.forEach(r => {
+        this.scopedRecords.forEach(r => {
           const d = r.recordDate || '';
           if (!d) return;
           const k = (win.dim === 'year' || win.dim === 'all') ? d.slice(0, 7) : d;
@@ -23547,14 +24157,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const win = this.vizWindow;
         const cell = {}; win.keys.forEach(k => { cell[k] = {}; });
         const projTotals = {};
-        this.records.forEach(r => {
+        this.scopedRecords.forEach(r => {
           const d = r.recordDate || '';
           if (!d) return;
           const k = (win.dim === 'year' || win.dim === 'all') ? d.slice(0, 7) : d;
           if (win.keys.indexOf(k) < 0) return;
           const amt = Number(r.actualNum) || 0;
           if (amt <= 0) return;
-          const name = this.subProjName[r.sid] || '未关联项目';
+          const name = this.groupOf(r);   // 一级=项目名；下钻态=子任务名
           cell[k][name] = (cell[k][name] || 0) + amt;
           projTotals[name] = (projTotals[name] || 0) + amt;
         });
@@ -23565,7 +24175,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const maxTotal = Math.max.apply(null, win.keys.map(k => { let s = 0; for (const n in cell[k]) s += cell[k][n]; return s; }).concat([0]));
         const dayMap = {}; this.checkinBuckets.forEach(b => { dayMap[b.key] = b.days; });
         const buckets = win.keys.map(k => {
-          const segs = projNames.filter(n => cell[k][n]).map(n => ({ name: n, amount: cell[k][n], color: this.projColor(n) }));
+          const segs = projNames.filter(n => cell[k][n]).map(n => ({ name: n, amount: cell[k][n], color: this.colorOf(n) }));
           const total = segs.reduce((a, s) => a + s.amount, 0);
           segs.sort((a, b) => b.amount - a.amount);
           const stackPx = maxTotal > 0 ? Math.round(total / maxTotal * CHART_H) : 0;
@@ -23576,7 +24186,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         });
         return {
           maxTotal,
-          palette: projNames.map(n => ({ name: n, color: this.projColor(n), total: projTotals[n] })),
+          palette: projNames.map(n => ({ name: n, color: this.colorOf(n), total: projTotals[n] })),
           buckets,
         };
       },
@@ -23609,6 +24219,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const c = this.projColors[name];
         return c || '#6a7bff';
       },
+      // —— 饼图下钻：一级（项目）→ 二级（该项目的子任务）——
+      // 实体归属名：一级=项目名（兜底「未关联项目」）；二级=子任务标题（软删归入「已删除子任务」）
+      groupOf(r) {
+        if (!this.drillPid) return this.subProjName[r.sid] || '未关联项目';
+        return this.drillSubName[r.sid] || '已删除子任务';
+      },
+      // 配色：一级取项目色（projColors）；二级取该项目子任务色（drillColors）
+      colorOf(name) {
+        if (this.drillPid) return this.drillColors[name] || C.vizUtil.PALETTE[0];
+        return this.projColor(name);
+      },
+      // 仅一级的项目扇区可下钻（「未关联项目」无 pid，二级态也不可再钻）
+      canDrill(s) { return !this.drillPid && !!s.pid; },
+      onPieClick(s) {
+        if (!this.canDrill(s)) return;
+        this.drillPid = s.pid;
+        this.vizOffset = 0;   // 带着旧偏移进入新上下文会造成误解，统一回到当前时段
+      },
+      exitDrill() { this.drillPid = null; this.vizOffset = 0; },
+      // 下钻态：点击二级扇区不做进一步动作（子任务已是最小粒度）
       // 专注时长计量：小时用 h、分钟用 min（如 45 → 45min，60 → 1h，90 → 1h30min）
       fmtH(m) {
         m = Math.max(0, Math.round(Number(m) || 0));
@@ -23622,9 +24252,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     <div class="page projviz-page">
       <div class="detail-head">
         <button class="back" @click="back">‹ 返回</button>
-        <h2 class="page-title" style="flex:1;margin:0;text-align:center;">专注时长可视化</h2>
+        <h2 class="page-title" style="flex:1;margin:0;text-align:center;">{{ drillName ? drillName + ' · ' : '' }}专注时长可视化</h2>
         <span style="width:52px"></span>
       </div>
+      <!-- 下钻面包屑：二级态可一键回到「全部项目」；一级态给出可下钻提示 -->
       <div class="block" style="margin-top:4px;">
         <div class="view-toggle">
           <button :class="{on: vizDim==='all'}" @click="setVizDim('all')">全部</button>
@@ -23649,12 +24280,35 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         </div>
         <p class="empty-tip" v-else>当前时段暂无专注时长记录</p>
         <div class="viz-pie-wrap" v-if="hasData && pieData.length" style="margin-top:16px;">
-          <div class="viz-pie" :style="{background: pieGradient}"></div>
+          <!-- 环形饼图（SVG）：扇区可点击下钻；单扇区 100% 也能正确渲染 -->
+          <svg class="viz-pie-svg" width="130" height="130" viewBox="0 0 100 100">
+            <circle cx="50" cy="50" r="42" fill="none" stroke="#eef0f5" stroke-width="15" />
+            <circle v-for="s in pieSlices" :key="'sl'+s.name" class="viz-pie-sec"
+                    :class="{ clickable: s.drillable }"
+                    cx="50" cy="50" r="42" fill="none"
+                    :stroke="s.color" stroke-width="15"
+                    :stroke-dasharray="s.dash" :stroke-dashoffset="s.offset"
+                    transform="rotate(-90 50 50)"
+                    @click="onPieClick(s)">
+              <title>{{ s.name }} · {{ fmtH(s.min) }}（{{ s.pct }}%）</title>
+            </circle>
+            <text x="50" y="48" text-anchor="middle" class="tagpie-center-main">{{ fmtH(totalMin) }}</text>
+            <text x="50" y="60" text-anchor="middle" class="tagpie-center-sub">{{ drillName || '总耗时' }}</text>
+          </svg>
           <div class="viz-legend">
-            <div class="viz-leg-item" v-for="s in pieData" :key="s.name">
+            <!-- 下钻面包屑：置于图例上方（返回一级） -->
+            <div class="viz-crumb" v-if="drillPid">
+              <button class="viz-crumb-link" @click="exitDrill">‹ 全部项目</button>
+              <span class="viz-crumb-sep">›</span>
+              <span class="viz-crumb-cur">{{ drillName }}</span>
+            </div>
+            <div class="viz-leg-item" v-for="s in pieData" :key="s.name"
+                 :class="{ clickable: s.pid && !drillPid }" @click="onPieClick(s)"
+                 :title="s.pid && !drillPid ? '点击下钻到该项目下的子任务' : ''">
               <span class="viz-dot" :style="{background: s.color}"></span>
               <span class="viz-leg-name">{{ s.name }}</span>
               <span class="viz-leg-pct">{{ s.pct }}% · {{ fmtH(s.min) }}</span>
+              <span class="viz-drill-icon" v-if="s.pid && !drillPid">›</span>
             </div>
           </div>
         </div>
