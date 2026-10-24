@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261023.9" />
+  <meta name="mp-version" content="20261024.5" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -249,11 +249,18 @@ button { font-family: inherit; cursor: pointer; border: none; border-radius: var
 .handcard.is-holiday { background: linear-gradient(135deg, #95a5a6, #7f8c8d); }
 .handcard.done-success { background: linear-gradient(135deg, #2ecc71, #27ae60); }
 .handcard.done-fail { background: linear-gradient(135deg, #e74c3c, #c0392b); }
-.handcard-top { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 11px; }
-.handcard-type { opacity: .85; background: rgba(255,255,255,.2); padding: 2px 7px; border-radius: var(--radius-sm); }
+/* 卡片顶部：仅「今日 ✅ / 今日 ❌」徽标（类型标签与「未打卡」字样均已移除），居中保持视觉平衡。
+   未打卡时该行无任何 span，不占高度（由 :empty 兜底为 0）。 */
+.handcard-top { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 11px; }
+.handcard-top:empty { display: none; }
 .handcard-badge { background: rgba(255,255,255,.28); padding: 2px 7px; border-radius: var(--radius-sm); }
-.handcard-name { font-size: 19px; font-weight: 700; margin-top: 8px; line-height: 1.25; }
-.handcard-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; opacity: .92; margin-top: auto; padding-top: 6px; }
+/* 习惯名：卡片视觉主体，水平 + 垂直双向居中（占据顶栏与底栏之间的全部剩余空间）。
+   放大后的字号（19px → 23px）保持不变。 */
+.handcard-name {
+  flex: 1 1 auto; display: flex; align-items: center; justify-content: center;
+  font-size: 23px; font-weight: 700; line-height: 1.25; text-align: center; padding: 2px 0;
+}
+.handcard-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; opacity: .92; padding-top: 6px; }
 .handcard-remind { opacity: .8; }
 .handcards-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; position: relative; z-index: var(--z-handnav); }
 .hn-page { display: flex; align-items: center; gap: 6px; }
@@ -2563,11 +2570,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   var _undoSeq = 0;           // 自增序号，通知 UI 刷新提示
   var _uiHintEnabled = false; // 启动阶段不弹提示，初始化完成后置 true
   function recordSnapshot() {
+    // 首次产生的快照几乎都来自启动期的程序化写入（数据迁移 / 日切顺延 / 自动归档扫描），
+    // 并非用户操作 —— 不应弹「撤销上一步」，否则刚进 App 就会误弹一条可撤销提示。
+    const isFirstSnapshot = (_undoSeq === 0);
     try {
       const prev = localStorage.getItem(STORAGE_KEY); // 磁盘仍是「本次变更前」旧数据（新数据防抖后才写盘）
       if (prev) { _undoSnapshot = prev; _undoSeq++; }  // 覆盖式保留最新一步
     } catch (e) {}
-    if (_uiHintEnabled) state.undoHint = { seq: _undoSeq, ts: Date.now() };
+    if (_uiHintEnabled && !isFirstSnapshot) state.undoHint = { seq: _undoSeq, ts: Date.now() };
   }
   function clearUndo() { _undoSnapshot = null; if (_uiHintEnabled) state.undoHint = null; }
   function undoLast() {
@@ -6012,7 +6022,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   }
 
   /* ============================ 分类相关方法（第 3 层模块 2：支持一级+二级层级） ============================ */
-  function findCategory(id) { return state.categories.find(c => c._id === id); }
+  // 分类索引：findCategory 是全站最底层、调用最密集的查找（收藏判定、标签链、可见性规则等
+  // 最终都会落到它）。原先是 categories 线性扫描 O(分类数)，在「归档日历 42 格 × 全量任务 × 每个任务
+  // 上溯祖先」这类组合下会放大成百万级比较 → 切统计 tab 卡死（实测单块 1100ms）。
+  // 改为 Map 索引 O(1)；以 revision + 数组长度双条件失效（分类增删改必然触发 revision 自增）。
+  var _catIndex = { rev: -1, len: -1, map: null };
+  function _catMap() {
+    const rev = state.revision || 0, cs = state.categories || [];
+    if (_catIndex.rev !== rev || _catIndex.len !== cs.length || !_catIndex.map) {
+      const m = {};
+      cs.forEach(c => { if (c && c._id != null) m[c._id] = c; });
+      _catIndex.rev = rev; _catIndex.len = cs.length; _catIndex.map = m;
+    }
+    return _catIndex.map;
+  }
+  function findCategory(id) { return (id == null) ? undefined : _catMap()[id]; }
   // 第 3 层模块 2：新增分类，parent 为一级分类 _id（为空=一级分类）；仅允许两级嵌套
   // folder：'task' | 'collection' | 'template' —— 新建分类直接落库所属文件夹标记，
   // 避免「刚建好、任务还没落库」瞬间 folderOfCat 因无任务引用而误判为 task。
@@ -6029,14 +6053,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   // 预置 COLLECTION_CATS（好物/影片/书籍/旅游）已在 seed 时显式打 is_collection 标记；
   // 旧收藏任务也带 is_collection 标记；收藏夹视图另靠 collectionCats 的内置名列表兜底，
   // 故去掉 isCollCat 名字兜底可避免「任务夹建同名标签被误判为收藏、无法合并」的问题。
+  // 祖先链上溯结果记忆化：收藏判定逐任务调用，且同一祖先链会被反复上溯（如 60 个二级挂 12 个一级）。
+  // 命中后整条链结果一致（祖先一旦给出确定值，其下所有节点同值），故可整链回填。
+  // 同样以 revision + 长度失效，并加环保护（脏数据父链成环时原来的裸 while 会死循环）。
+  var _collCache = { rev: -1, len: -1, map: {} };
   function isCollCat(catId) {
-    let c = findCategory(catId);
+    if (catId == null || catId === '') return false;
+    const rev = state.revision || 0, cs = state.categories || [];
+    if (_collCache.rev !== rev || _collCache.len !== cs.length) {
+      _collCache.rev = rev; _collCache.len = cs.length; _collCache.map = {};
+    }
+    const m = _collCache.map;
+    if (Object.prototype.hasOwnProperty.call(m, catId)) return m[catId];
+    let c = findCategory(catId), res = false, chain = [], seen = {};
     while (c) {
-      if (c.is_collection) return true;
-      if (c.is_task || c.is_template) return false;
+      if (Object.prototype.hasOwnProperty.call(m, c._id)) { res = m[c._id]; break; }
+      if (seen[c._id]) break;                       // 环保护
+      seen[c._id] = true; chain.push(c._id);
+      if (c.is_collection) { res = true; break; }
+      if (c.is_task || c.is_template) { res = false; break; }
       c = c.parent ? findCategory(c.parent) : null;
     }
-    return false;
+    for (let i = 0; i < chain.length; i++) m[chain[i]] = res;
+    m[catId] = res;
+    return res;
   }
   // 一级标签（分类）是否为「学习」：自身或沿父级上溯命中即算（如二级分类的父级是一级「学习」）
   function isLearningCat(catId) {
@@ -10242,11 +10282,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         <div v-if="!hasCards" class="handcards-empty">暂无养成型习惯，点击「今日」页「养成手牌」右侧 ＋ 新增</div>
         <div v-else class="handcards-stack" @pointerdown="onDown" @pointermove="onMove" @pointerup="onUp" @pointercancel="onUp">
           <div v-for="(h,i) in habits" :key="h._id" class="handcard" :class="cardClass(i)" :style="cardStyle(i)">
+            <!-- 顶部仅保留已完成 / 未完成的打卡徽标；未打卡不再显示「未打卡」字样 -->
             <div class="handcard-top">
-              <span class="handcard-type">养成手牌</span>
               <span v-if="statusOf(h)==='success'" class="handcard-badge ok">今日 ✅</span>
               <span v-else-if="statusOf(h)==='fail'" class="handcard-badge no">今日 ❌</span>
-              <span v-else class="handcard-badge wait">未打卡</span>
             </div>
             <div class="handcard-name">{{ h.name }}</div>
             <div class="handcard-foot">
@@ -10764,6 +10803,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return '';
   }
 
+  // 历史标签胶囊缓存（TaskFormCore.recentTagCaps）：跨组件实例复用，见 computed 内注释
+  var _recentTagCache = { key: '', val: null };
   C.TaskFormCore = {
     name: 'TaskFormCore',
     mixins: [C.MaterialLinkMixin], // 素材链接识别：原内联实现已抽出，行为不变
@@ -10811,6 +10852,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       recentTagCaps() {
         const ft = this.draft.folderType || 'task';
         const qv = this.$store.getQuickViewCatId ? this.$store.getQuickViewCatId() : '';
+        // 记忆化：弹窗内每次数据变更（如点胶囊后建分类）都会让 revision 自增 → computed 失效重算，
+        // 而这里要 filter + sort 全量任务（长列表下每次十几毫秒，连续点选即感卡顿）。
+        // 以 (归属夹, revision, 快视图分类, 任务数, 分类数) 为键跨组件实例缓存，键不变直接命中。
+        // 注意必须带上「数量」：数据从磁盘加载完成（state.tasks 由空变满）并不自增 revision，
+        // 只看 revision 会把「加载前算出的空结果」固化下来，导致胶囊永远不显示。
+        const _key = ft + '|' + (this.$store.state.revision || 0) + '|' + qv + '|'
+          + ((this.$store.state.tasks || []).length) + '|' + ((this.$store.state.categories || []).length);
+        if (_recentTagCache.key === _key) return _recentTagCache.val;
         const list = (this.$store.state.tasks || []).filter(t => {
           if (!t || t.deleted_at) return false;
           if (ft === 'template') return !!t.is_template;
@@ -10832,6 +10881,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             value: l2 ? ('#' + pair.l1.name + '##' + l2.name) : ('#' + pair.l1.name),
           });
         });
+        _recentTagCache.key = _key; _recentTagCache.val = out;
         return out;
       },
       cycleType() { return this.draft.cycle ? this.draft.cycle.type : 'none'; },
@@ -13973,6 +14023,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (v && typeof v === 'object') { try { return JSON.parse(JSON.stringify(v)); } catch (e) {} }
     return v;
   }
+  // 主 Tab 路由：切到这些路由属于「Tab 切换」（区别于「本页内进入详情再原路返回」）
+  var MAIN_TAB_ROUTES = ['/today', '/inbox', '/projects', '/stats', '/finance', '/career'];
   var MP_UI = {
     created() {
       var key = (typeof this.uiKey === 'function') ? this.uiKey() : (this.uiKey || '');
@@ -13987,10 +14039,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     beforeUnmount() {
       var key = (typeof this.uiKey === 'function') ? this.uiKey() : (this.uiKey || '');
       if (!key) return;
+      var to = String(location.hash || '').replace(/^#/, '');
+      var toMainTab = MAIN_TAB_ROUTES.indexOf(to) >= 0;
+      var noKeep = this.uiNoPersist || [];   // 不跨 Tab 记忆的字段（如搜索关键词）
       var fields = this.uiFields || [];
-      var snap = {};
+      var snap = PAGE_UI[key] || {};
       for (var i = 0; i < fields.length; i++) {
         var f = fields[i];
+        // 「切主 Tab 时自动清空」：这些字段在切到主 Tab 时不写入快照，
+        // 下次进入本页时快照里没有它 → 组件保持 data 初始值（空）→ 搜索框自动清空。
+        // 只有「本页内进入详情再原路返回」（目标非主 Tab）才保留，避免搜索结果被无谓丢掉。
+        if (toMainTab && noKeep.indexOf(f) >= 0) { delete snap[f]; continue; }
         // 注意：不能用 hasOwnProperty 判 this —— Vue3 实例代理的 getOwnPropertyDescriptor
         // 陷阱对 data 属性返回 undefined（has 陷阱却命中），直接取值即可（未声明字段得 undefined，无害）。
         snap[f] = _uiClone(this[f]);
@@ -16009,10 +16068,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           const toSubtaskPage = to.indexOf('/subtask/') === 0;
           // 其余时间维度分组（上周 / 下月等）同样不持久化（全局规则：离开页面后全部重置为默认折叠）。
           // folderView / pageTab / boardSub / modeFilter / activeCat 属于导航偏好，保留持久化。
+          // 搜索关键词：仅「进入子任务全屏页」这一条原路返回路径才落盘（返回后搜索结果不丢）。
+          // 切主 Tab / 刷新等其余去向一律不记录（undefined 会被 JSON.stringify 省略 → 还原时保持空），
+          // 即回到待归档页时搜索框自动为空，不残留上次的搜索词。
           localStorage.setItem('mindpocket:inboxUi', JSON.stringify({
             folderView: this.folderView, pageTab: this.pageTab, boardSub: this.boardSub,
             modeFilter: this.modeFilter, activeCat: this.activeCat,
-            searchKeyword: this.searchKeyword,
+            searchKeyword: toSubtaskPage ? this.searchKeyword : undefined,
             // 一级/二级标签展开树：随路由栈进入子任务页再返回时还原，避免展开态丢失
             catOpen: this.catOpen, uncatOpen: this.uncatOpen,
             catExpand: this.catExpand, subExpand: this.subExpand,
@@ -19725,25 +19787,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         this.subs.forEach(s => { const n = s && (s.title || '未命名'); if (n && names.indexOf(n) < 0) names.push(n); });
         return C.vizUtil.colorMap(names, 0);
       },
-      // 专注时长柱状图（各时段累计分钟）—— 与 ProjVizPage 主柱同款（CHART_H=135）
-      timeBuckets() {
-        const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = 0);
-        this.scopedRecords.forEach(r => {
-          const k = C.vizUtil.bucketKeyOf(r.recordDate, win.dim);
-          if (win.keys.indexOf(k) < 0) return;
-          map[k] += Number(r.spentMin) || 0;
-        });
-        const max = Math.max.apply(null, win.keys.map(k => map[k]).concat([0]));
-        const CHART_H = 135;
-        return win.keys.map(k => ({
-          key: k,
-          label: C.vizUtil.bucketLabel(win, k),
-          min: map[k],
-          barPx: max > 0 ? Math.max(map[k] > 0 ? 3 : 1, Math.round(map[k] / max * CHART_H)) : 1,
-        }));
+      // 窗口内专注时长合计（仅顶部 summary 展示数字；时长条形图已按需求移除）
+      totalMin() {
+        return this.scopedRecords.reduce((a, r) => a + (Number(r.spentMin) || 0), 0);
       },
-      hasTimeData() { return this.timeBuckets.some(b => b.min > 0); },
-      totalMin() { return this.timeBuckets.reduce((a, b) => a + b.min, 0); },
       // 打卡天数：按窗口统计「有填报记录」的日期（同 ProjVizPage 口径，自然日去重）
       checkinBuckets() {
         const win = this.vizWindow; const map = {}; win.keys.forEach(k => map[k] = {});
@@ -19871,16 +19918,6 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <button class="icon-btn" :disabled="vizOffset===0 || vizDim==='all'" @click="next" title="更近时段">›</button>
         </div>
         <p class="viz-checkin-summary">已打卡 <b>{{ checkinTotal }}</b> 天 / 共 {{ checkinDenominator }} 天 · 覆盖率 <b>{{ checkinPct }}%</b> · 完成量 <b>{{ totalAmount }}</b> · 时长 <b>{{ fmt(totalMin) }}</b></p>
-
-        <div class="viz-sub-title">⏱ 专注时长</div>
-        <div class="chart-bars" v-if="hasTimeData" style="height:170px;margin-top:6px;">
-          <div class="chart-bar" v-for="b in timeBuckets" :key="'t'+b.key">
-            <div class="bar-val">{{ b.min > 0 ? fmt(b.min) : '' }}</div>
-            <div class="bar-col" :style="{height: b.barPx + 'px'}"></div>
-            <div class="bar-label">{{ b.label }}</div>
-          </div>
-        </div>
-        <p class="empty-tip" v-else>当前时段暂无专注时长记录</p>
 
         <div class="viz-sub-title">📊 完成量（按子任务）</div>
         <div class="chart-bars" v-if="hasCheckinAmountData" style="height:140px;margin-top:6px;">
@@ -20027,6 +20064,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() {
       return {
         uiKey: 'projects', uiFields: ['searchKeyword', 'filterTags', 'openFids', 'showArchived'],
+        // 搜索关键词不跨 Tab 记忆：切到主 Tab 即丢弃，回到项目页时搜索框自动为空
+        uiNoPersist: ['searchKeyword'],
         tab: 'tb', showEdit: false, editPid: '',
         // 返回还原 tab 期间为 true：抑制 tab watch 清空搜索词（搜索词由 MP_UI 快照还原）
         _tabRestoring: false,
@@ -21514,6 +21553,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       const now = new Date();
       return {
         uiKey: 'finance', uiFields: ['searchText', 'vizType', 'vizRange', 'vizScope', 'vizCat', 'year', 'month', 'allYears'],
+        // 搜索关键词不跨 Tab 记忆：切到主 Tab 即丢弃，回到财务页时搜索框自动为空
+        uiNoPersist: ['searchText'],
         year: now.getFullYear(), month: 0, allYears: true,
         showEntry: false, entryMode: 'add', entryModule: null, editId: null, draft: null,
         showModule: false, moduleEdit: null, moduleType: 'expense',
@@ -23262,12 +23303,17 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const isChildReturn = oldRoute && (oldRoute.indexOf('/subtask/') === 0 || oldRoute.indexOf('/project/') === 0);
         // 目标滚动位置：原路返回子任务/项目页 → 恢复进入子任务页时的滑动位置；其余切换 → 复位到顶部
         const targetY = (isChildReturn && this._scrollCache[newRoute]) ? (this._scrollCache[newRoute].win || 0) : null;
+        // 性能：scrollTop/scrollTo 会强制同步布局（长列表下可达百毫秒级，实测返回子任务页 110ms），
+        // 故「已经处于目标位置」时直接跳过；并把补帧次数由 3 次降为 2 次（nextTick + 一个动画帧）。
         const applyScroll = (y) => {
           const main = this.$el && this.$el.querySelector ? this.$el.querySelector('.app-main') : null;
+          const winY = window.scrollY || window.pageYOffset || 0;
           if (y === null) {                         // 普通切换：复位到顶部
+            if (winY === 0 && (!main || main.scrollTop === 0)) return; // 已在顶部：跳过强制布局
             if (main) main.scrollTop = 0;            // 兜底：若 .app-main 本身是滚动容器
             window.scrollTo(0, 0);                   // 主滚动容器为 window/body 时的复位
           } else {                                   // 原路返回：恢复进入子任务页时的滑动位置
+            if (Math.abs(winY - y) < 2 && (!main || Math.abs(main.scrollTop - y) < 2)) return;
             if (main && main.scrollHeight > main.clientHeight + 4) main.scrollTop = y;
             window.scrollTo(0, y);
           }
@@ -23276,17 +23322,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 规避「展开标签 / 长列表 / 字体图片晚一帧才撑开高度」导致 window.scrollTo 提前被夹到较小 maxScroll、
         // 返回后实际落点偏顶（看似「折叠标签 / 跳到顶部 / 周月计划默认态」）的时序问题。
         this.$nextTick(() => { applyScroll(targetY); });
-        this.$nextTick(() => {
-          requestAnimationFrame(() => {
-            applyScroll(targetY);
-            requestAnimationFrame(() => { applyScroll(targetY); });
-          });
-        });
+        // 补一次动画帧即可：规避「长列表/字体图片晚一帧撑开高度」使 scrollTo 被夹到较小 maxScroll。
+        // 再往后的帧由浏览器自然布局，无需继续强制（原实现补 3 次，长列表下是不必要的强制布局开销）。
+        this.$nextTick(() => { requestAnimationFrame(() => { applyScroll(targetY); }); });
       },
       // 若当前选中的标签已不再存在（被全部删除/移除），自动取消筛选，避免停在空列表
       allTags(nv) {
         if (this.filterTag && nv.indexOf(this.filterTag) < 0) this.filterTag = '';
       },
+      // 顶部「可撤销一步」提示：每次数据变更（store.undoHint 携带递增序号）弹出，4 秒无新操作自动消失
+      '$store.state.revision'() { this._schedulePreheat(); },
       // 顶部「可撤销一步」提示：每次数据变更（store.undoHint 携带递增序号）弹出，4 秒无新操作自动消失
       '$store.state.undoHint'(v) {
         if (v && v.seq) {
@@ -23308,6 +23353,50 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     methods: {
       go(path) { location.hash = path; },
+      // 统计 tab 预热（分片、空闲执行）：首次切到统计页时，归档仓库要遍历全量任务/子任务/习惯/项目
+      // 构造展示对象（buildArchBase），并为当月 42 个日历格逐格统计归档数与计划数（每格全量扫任务）。
+      // 大数据量下这是一块 100~300ms 的同步阻塞，正好压在「切 tab」的渲染上 → 用户感知为卡顿。
+      // 这些结果本身按 revision 记忆化，故首屏渲染完成后趁空闲提前算一次，切 tab 时直接命中缓存。
+      // 分片（每片 6 天）：单次占用极短，不与用户操作争抢主线程；任何异常都不影响功能。
+      // 数据变更后重新预热：归档库与日历统计都是「按 revision 记忆化」的，任何一次数据变更
+      // （打卡 / 编辑 / 启动期的迁移与逾期顺延）都会让整批缓存失效。若只在启动时预热一次，
+      // 「先操作数据 → 再切统计 tab」就会退化为现算（实测 270ms 级长任务）。
+      // 这里在 revision 停止变化 1.2 秒后趁空闲补一次预热，覆盖该场景。
+      _schedulePreheat() {
+        if (this._phTimer) clearTimeout(this._phTimer);
+        this._phTimer = setTimeout(() => { this._phTimer = null; this._preheatStats(); }, 1200);
+      },
+      _preheatStats() {
+        const S = window.MPStore;
+        if (!S || !S.buildArchBase) return;
+        const pad = n => String(n).padStart(2, '0');
+        const now = new Date();
+        const y = now.getFullYear(), m = now.getMonth() + 1;
+        const days = new Date(y, m, 0).getDate();
+        const dates = [];
+        for (let i = 1; i <= days; i++) dates.push(y + '-' + pad(m) + '-' + pad(i));
+        let i = 0, baseDone = false;
+        // 每片只算 2 天：单片阻塞控制在 ~30ms 以内（6 天一片在低端机上可达近百毫秒），
+        // 宁可多占几个空闲帧，也不让任何一帧被明显拖住。
+        const chunk = () => {
+          try {
+            if (!baseDone) { S.buildArchBase('', '__all__'); baseDone = true; return; }
+            for (let k = 0; k < 2 && i < dates.length; k++, i++) {
+              S.archivedCountOnDate(dates[i]);
+              S.plannedCountOnDate(dates[i]);
+            }
+          } catch (e) { i = dates.length; baseDone = true; }
+        };
+        const tick = () => {
+          chunk();
+          if (baseDone && i >= dates.length) return;
+          if (window.requestIdleCallback) window.requestIdleCallback(tick, { timeout: 1500 });
+          else setTimeout(tick, 60);
+        };
+        // 首屏先让位：等设备空闲（或最迟 1.5 秒）再开始，绝不拖慢启动与首屏交互
+        if (window.requestIdleCallback) window.requestIdleCallback(tick, { timeout: 1500 });
+        else setTimeout(tick, 900);
+      },
       onHash() {
         const newRoute = location.hash.replace('#', '') || '/today';
         // 浮层（全屏输入 / 弹窗）打开时，任何 hash 变化都来自系统返回：
@@ -23324,6 +23413,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (newRoute === this.route) return;
         this.prevRoute = this.route; // 记录进入当前页之前的上一级路由（用于返回键原路返回）
         this.route = newRoute;
+        // 切换主 Tab / 页面时立即收起「撤销上一步」提示：
+        // 交互监听有 500ms 手势宽限期（防止滑动手势的合成事件误关），
+        // 刚弹出的提示在切 Tab 时会被该宽限期跳过而残留到别的页面，故在此强制收起。
+        if (this.undoBanner.show) {
+          if (this._undoTimer) { clearTimeout(this._undoTimer); this._undoTimer = null; }
+          this.undoBanner.show = false;
+        }
       },
       // 浮层栈：全屏输入 / 弹窗 打开时压入 dismiss；系统返回优先关闭顶层浮层，不导航路由
       pushOverlay(dismiss) { this.overlayStack.push(dismiss); },
@@ -23372,12 +23468,14 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       ['click', 'scroll', 'wheel', 'touchstart', 'touchmove', 'keydown'].forEach((t) => {
         document.addEventListener(t, onUserInteract, true);
       });
+      this._preheatStats();
     },
     beforeUnmount() {
       window.removeEventListener('hashchange', this.onHash);
       if (this._onUserInteract) ['click', 'scroll', 'wheel', 'touchstart', 'touchmove', 'keydown'].forEach((t) => {
         document.removeEventListener(t, this._onUserInteract, true);
       });
+      if (this._phTimer) { clearTimeout(this._phTimer); this._phTimer = null; }
     },
     template: `
     <div class="app-shell">
@@ -23824,8 +23922,24 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     return l1; // 一级标签直出名称，不再拼接 # 前缀
   };
   // 多条标签：逐个格式化、空格分隔展示（兼容底层多标签编码串）
+  // 性能：本方法是全局方法、在模板里被「逐行」调用（今日/待归档/归档库/统计各列表行，
+  // 长列表一次渲染即上千次）。结果只取决于任务的 3 个分类字段 + 分类表，故按
+  // (字段指纹 + revision) 记忆化；revision 自增（分类增删改）时整表失效。
+  // 返回共享数组引用：调用方一律只读（模板 v-for / .map 生成新数组），不会就地修改。
+  // 失效条件同样带上「分类数」：数据加载完成（categories 由空变满）不一定自增 revision，
+  // 只看 revision 会把加载前算出的空标签固化下来。
+  var _catTagListCache = { rev: -1, ncat: -1, map: {} };
   app.config.globalProperties.$catTagList = function (t) {
     if (!t) return [];
+    const _st = (window.MPStore && window.MPStore.state) ? window.MPStore.state : null;
+    const rev = _st ? (_st.revision || 0) : 0;
+    const ncat = _st && _st.categories ? _st.categories.length : 0;
+    if (_catTagListCache.rev !== rev || _catTagListCache.ncat !== ncat) {
+      _catTagListCache.rev = rev; _catTagListCache.ncat = ncat; _catTagListCache.map = {};
+    }
+    const _fp = (t._id || '') + '|' + (t.category_id || '') + '|' + (t.parent_category || '') + '|' + (t.category || '');
+    const _hit = _catTagListCache.map[_fp];
+    if (_hit) return _hit;
     const out = [];
     if (t.category_id || t.parent_category) {
       // 新模型：parent_category + category_id 唯一表示一条（可能两级）标签
@@ -23839,7 +23953,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       });
     }
     // 自动去重：重复 #标签只保留一个（卡片展示层统一保障）
-    return Array.from(new Set(out));
+    const res = Array.from(new Set(out));
+    _catTagListCache.map[_fp] = res;
+    return res;
   };
   /* ================== 进度记录同步信息 $progressSync ==================
    * 统一用于在「全部任务卡片」展示进度记录同步信息（📊）。
