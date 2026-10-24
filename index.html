@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261024.5" />
+  <meta name="mp-version" content="20261024.6" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -12206,7 +12206,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
              @pointerup="onSubUp(s)" @pointercancel="onSubUp(s)">
           <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onHandleDown(s,$event)" @pointermove.stop="onHandleMove($event)" @pointerup.stop="onHandleUp($event)" @pointercancel.stop="onHandleUp($event)">⠿</span>
           <input v-if="s.hasCheckbox !== false" type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
-          <span class="st-main"><span class="st-line1"><span class="st-title" :class="{done:s.is_done}" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span class="st-desc" v-if="s.material_notes" @click="onSubMainClick(s)">{{ s.material_notes }}</span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
+          <span class="st-main"><span class="st-line1"><span class="st-title" :class="{done:s.is_done}" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span class="st-desc" v-if="s.desc" @click="onSubMainClick(s)">{{ s.desc }}</span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
           <button class="st-del" @click.stop="askDel(s)">✕</button>
         </div>
         <p v-if="!activeSubs.length" class="empty-tip">还没有子任务，用上方输入框快速新增（左滑可归档）</p>
@@ -12223,7 +12223,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                @pointerup="onSubUp(s)" @pointercancel="onSubUp(s)">
             <span class="st-drag" title="长按拖动排序" @pointerdown.stop="onHandleDown(s,$event)" @pointermove.stop="onHandleMove($event)" @pointerup.stop="onHandleUp($event)" @pointercancel.stop="onHandleUp($event)">⠿</span>
             <input v-if="s.hasCheckbox !== false" type="checkbox" :checked="s.is_done" @click.stop @change="toggle(s)" />
-            <span class="st-main"><span class="st-line1"><span class="st-title done" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span class="st-desc" v-if="s.material_notes" @click="onSubMainClick(s)">{{ s.material_notes }}</span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
+            <span class="st-main"><span class="st-line1"><span class="st-title done" @click="onSubMainClick(s)">{{ s.title }}</span><span class="rt-badges"><MaterialBadges :item="s" :parent-id="tid" /><span v-if="s.isEmergency" class="tag emergency">🚨 紧急</span></span></span><span class="st-desc" v-if="s.desc" @click="onSubMainClick(s)">{{ s.desc }}</span></span><span v-if="subTimeCap(s)" class="cap" :class="'cap-'+subTimeCap(s).kind"><span class="cap-ico">{{ subTimeCap(s).icon }}</span><span class="cap-txt">{{ subTimeCap(s).text }}</span></span><span v-if="$progressSync(s)" class="cap cap-prog">📊 {{ $progressSync(s) }}</span>
             <button class="st-del" @click.stop="askDel(s)">✕</button>
           </div>
         </div>
