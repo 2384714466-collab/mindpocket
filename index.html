@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261024.10" />
+  <meta name="mp-version" content="20261024.13" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -6750,10 +6750,28 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     persist();
     return sub;
   }
+  // 手动完成（未设开始 / 结束时间）时补齐实际区间：
+  //   结束时间 = 完成当日（今天）；开始时间 = 第一次填报日期（从未填报过 → 回落为完成当日，保证区间合法）
+  // 已手工设置过的字段一律保留，不覆盖用户填写值；取消完成不清空（区间即真实投入区间）。
+  function fillSubSpanOnDone(s) {
+    if (!s) return;
+    const td = todayStr();
+    if (!s.sub_end) s.sub_end = td;
+    if (!s.sub_start) {
+      const first = (state.project_records || [])
+        .filter(r => r && r.sid === s.sid && !r.deleted_at && r.recordDate)
+        .map(r => r.recordDate)
+        .sort()[0] || '';
+      s.sub_start = first || td;
+    }
+  }
   function updateSub(sid, patch) {
     const s = state.project_subs.find(x => x.sid === sid);
     if (!s) return;
+    const _wasDone = isSubComplete(s);
     Object.assign(s, patch);
+    // 编辑保存把状态改为「已完成」（手动完成）时，同样补齐区间（与 toggleSubDone 同口径）
+    if (!_wasDone && isSubComplete(s)) fillSubSpanOnDone(s);
     touch(s);
     persist();
   }
@@ -6933,6 +6951,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       s.done_at = Date.now(); // 记录完成时刻 → 完成区内按完成先后排列
       s.status = '已完成';   // 标记完成 → 工作流状态同步为已完成
       s.isEmergency = false;  // 标记完成即清空紧急标记（视为已处理）
+      fillSubSpanOnDone(s);             // 未设开始 / 结束时间 → 完成当日为结束、首次填报日为开始
       linkSubRemindArchive(sid, true);  // 母本标记完成 → 提醒副本同步归档（双向镜像 markCopyDone）
     }
     touch(s); persist();
@@ -16061,9 +16080,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 if (s.is_archived) return;
                 if (this.taskScheduled(s)) return;
               }
-              if (onlyArchived && !s.is_archived) return; // 「已归档」筛选：子任务仅保留已归档
+              // 展示层「生效归档」判定：父任务已归档 → 其子任务条目在搜索结果中一并按「已归档」
+              // 灰置、置后并带「📦 已归档」徽标（纯展示标记：不写归档库、不改子任务数据，
+              // 其下未归档的子任务副本不会被复制进全局归档库）。
+              const effArch = !!s.is_archived || !!t.is_archived;
+              if (onlyArchived && !effArch) return;   // 「已归档」筛选：父任务/子任务任一归档即命中
               if (this.subMatches(t, s, kws)) {
-                const item = { isSub: true, sub: s, parent: t, folder: fv, archived: !!s.is_archived };
+                const item = { isSub: true, sub: s, parent: t, folder: fv, archived: effArch };
                 (item.archived ? arch : out).push(item);
               }
             });
@@ -16679,7 +16702,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                 <span v-if="r.isSub ? isCollTask(r.sub) : isCollTask(r.task)" class="tag coll">📦</span>
                 <span v-if="!r.isSub && r.task.is_template" class="tag tpl">📋</span>
                 <span v-if="!r.isSub && r.task.is_archived" class="tag arch">📦 已归档</span>
-                <span v-if="r.isSub && r.sub.is_archived" class="tag arch">📦 已归档</span>
+                <!-- 子任务：自身归档或父任务归档（搜索结果的生效归档判定）均带「已归档」徽标 -->
+                <span v-if="r.isSub && r.archived" class="tag arch">📦 已归档</span>
                 <span v-if="r.isSub ? (!isCollTask(r.sub) && cap(r.sub)) : (!isCollTask(r.task) && cap(r.task))" class="cap" :class="'cap-'+ (r.isSub ? cap(r.sub) : cap(r.task)).kind"><span class="cap-ico">{{ (r.isSub ? cap(r.sub) : cap(r.task)).icon }}</span><span class="cap-txt">{{ (r.isSub ? cap(r.sub) : cap(r.task)).text }}</span></span>
                 </span>
               </div>
@@ -21366,8 +21390,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <div class="psub-span-wrap" v-if="s.sub_start">
             <div class="psub-span-text" :class="{overdue: isOverdue(s.sub_end)}">📅 {{ spanText(s) }}</div>
           </div>
-          <!-- 子任务剩余天数（无 sub_end 不显示；到期红 / 过期灰，复用倒计时配色；日期并入括号） -->
-          <div class="psub-cd" v-if="s.sub_end">
+          <!-- 子任务剩余天数（无 sub_end 不显示；到期红 / 过期灰，复用倒计时配色；日期并入括号）。
+               任务完成后整行隐藏：剩余天数 / 今天到期 / 已过期均为进行时信息，已完成状态不再提醒 -->
+          <div class="psub-cd" v-if="s.sub_end && !isSubComplete(s)">
             <span v-if="subRemain(s) > 0" class="cd-ok">⏳ 剩余 {{ subRemain(s) }} 天（{{ s.sub_end }}）</span>
             <span v-else-if="subRemain(s) === 0" class="cd-warn">⏰ 今天到期（{{ s.sub_end }}）</span>
             <span v-else class="cd-over">⚠️ 已过期 {{ -subRemain(s) }} 天（{{ s.sub_end }}）</span>
