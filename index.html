@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261101.5" />
+  <meta name="mp-version" content="20261109.4" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -846,6 +846,26 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .bars.dense .bar-v, .bars.dense .bar-m { display: none; }
 .bars.dense .bar-m.axis-key { display: block; font-size: 9px; line-height: 1; bottom: -15px; color: var(--sub); }
 .bars.dense .bar { min-height: 3px; }
+/* —— 当前日「虚线柱体」：在「今天」所在列叠一根虚线描边的空心柱 ——
+   用 ::after 生成（.bar 已 position:relative）。柱体严格收在绘图区内：
+   bottom:0 让底边与横轴（柱体基线）齐平，绝不再向下越过横坐标、压到刻度数字上；
+   height 取 dense/year 的内容区高（120 - 16 = 104px / 120 - 18 = 102px），
+   顶边恰好到柱图顶部、不再向上冒出。不加任何「今」文字标记。
+   不拦截点击、不改变布局。 */
+.bars .bar.is-today::after {
+  content: '';
+  position: absolute;
+  left: -1px; right: -1px; bottom: 0;
+  height: 104px;
+  box-sizing: border-box;
+  border: 2px dashed var(--primary);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, rgba(91, 108, 255, .12), rgba(91, 108, 255, .02));
+  pointer-events: none;
+  z-index: 1;
+}
+.bars.bars-year .bar.is-today::after { height: 102px; }
 .chart-pace { margin-top: 10px; font-size: 12px; color: var(--sub); line-height: 1.6; }
 /* 年视图柱图下方为绝对定位的月份标签预留空间，避免与节奏小结重叠 */
 .bars.bars-year { padding-bottom: 18px; }
@@ -2313,7 +2333,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
   function pad(n) { return String(n).padStart(2, '0'); }
   function fmt(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
-  function todayStr() { return fmt(new Date()); }
+  // —— 工作钟：以「北京时间 06:00」作为一天的分界 ——
+  // 06:00:00 ~ 次日 05:59:59 归属同一个工作日；凌晨未到 6 点仍算「前一天」，到 6 点才跳转第二天。
+  // 固定按 UTC+8 取「北京墙钟」，不随设备本地时区 / 夏令时漂移。全站「今天」统一由 todayStr() 提供，
+  // 因此今日 tab、项目 tab 任务表、惰性日切、周期投射、逾期/倒计时、填报/归档日期一并按此口径生效。
+  // 注：Date.now()/toISOString() 一类真实时间戳（排序、归档时刻、导出时间）不受影响。
+  const WORK_DAY_START_HOUR = 6;
+  const BJ_TZ_OFFSET_MS = 8 * 60 * 60 * 1000;
+  function workTodayStr(at) {
+    const now = at || new Date();
+    // 把真实时刻平移成北京墙钟：用 UTC 字段读出即北京时间的年/月/日/时
+    const bj = new Date(now.getTime() + BJ_TZ_OFFSET_MS);
+    if (bj.getUTCHours() < WORK_DAY_START_HOUR) bj.setUTCDate(bj.getUTCDate() - 1);
+    return bj.getUTCFullYear() + '-' + pad(bj.getUTCMonth() + 1) + '-' + pad(bj.getUTCDate());
+  }
+  function todayStr() { return workTodayStr(); }
   function parseDate(s) { const p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
   function addDays(s, n) { const d = parseDate(s); d.setDate(d.getDate() + n); return fmt(d); }
   function dateDiffDays(a, b) { // 返回 b - a 的整天数（可为负）
@@ -2750,6 +2784,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     ensureQuickView();
     flushPersist();
     _needsSeed = false;
+    // 工作钟日切基线：load() 成功路径已在 _applyLoaded 内赋值，但「首次运行 seed / IDB 异步加载」
+    // 等路径不会经过那里 → _rollLastDay 一直是空，常驻页面跨北京 6 点便派不出跳转事件。
+    // 数据最终化后统一补建（幂等），保证所有启动路径都能正确触发跨日跳转。
+    _rollLastDay = todayStr();
   }
   function _upgradeFromIdb() {
     if (typeof indexedDB === 'undefined') {
@@ -5532,10 +5570,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   function ensureDayRoll(force) {
     const today = todayStr();
     if (!force && _rollLastDay === today) return false;
+    const _prevDay = _rollLastDay;
     _rollLastDay = today;
     autoRollOverdueSpecified();      // 逾期「指定周/月」与单点/区间任务顺延 + 打「逾期未完成」标记
     autoExtendOverdue();             // 过期任务自动延期（开关开启时生效）
     autoArchiveCompletedCycles();    // 周期母本副本全完成批量校验（本就声明跨天补触发）
+    // 工作钟跨日（北京 6 点）：通知常驻视图把仍停在「旧工作日」的按日视图推进到新的一天。
+    // 页面在后台时由 visibilitychange / focus 补触发，切回 App 即完成跳转。
+    if (_prevDay && _prevDay !== today) {
+      try { window.dispatchEvent(new CustomEvent('mp:workday-roll', { detail: { from: _prevDay, to: today } })); } catch (e) {}
+    }
     return true;
   }
 
@@ -5939,6 +5983,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     // 段内优先级：项目 > 习惯 > 子任务 > 任务（「子任务」含「任务」，先判子任务）
     const typeSet = new Set();
     const textKws = [];   // 剥离类型词后的文本关键词，全部需命中（AND）
+    // 状态词「已放弃」（或简写「放弃」）：仅显示带 🚫 已放弃 徽标的归档条目，可与类型词/文本词组合。
+    const onlyAbandoned = segs.some(sg => sg.indexOf('已放弃') >= 0 || sg.trim() === '放弃');
     segs.forEach(sg => {
       if (sg.indexOf('项目') >= 0) typeSet.add('project');
       else if (sg.indexOf('习惯') >= 0) typeSet.add('habit');
@@ -5946,8 +5992,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       else if (sg.indexOf('任务') >= 0) typeSet.add('task');
       // 段内剥离类型/状态词，剩余文本仍参与匹配（如「任务紧急」→ 类型 task + 文本「紧急」）；
       // 「已归档」为状态词：仓库内本就全部为已归档条目，识别后剥离、不当文本匹配（保证「已归档#旅行」等组合可用）
+      // 「已放弃」同理剥离：它只是 UI 徽标（由 arch_kind='abandon' 派生），不存于标题/标签文本。
       let rest = sg;
-      ['项目', '习惯', '子任务', '任务', '已归档'].forEach(w => { rest = rest.split(w).join(' '); });
+      ['项目', '习惯', '子任务', '任务', '已归档', '已放弃', '放弃'].forEach(w => { rest = rest.split(w).join(' '); });
       rest = rest.trim().toLowerCase();
       if (rest) textKws.push(rest);
     });
@@ -6052,7 +6099,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           (!textKws.length || textKws.every(k => projHitKw(p, k))))
         .forEach(p => out.push(norm(p, 'project')));
     }
-    return out;
+    // 「已放弃」状态词：徽标由 arch_kind='abandon' 派生，统一在最后按 _abandoned 过滤，
+    // 覆盖任务 / 子任务 / 项目子任务 / 周期展开条目（模版流水、习惯、项目无此标记 → 自动排除）。
+    return onlyAbandoned ? out.filter(o => o._abandoned) : out;
   }
 
   /* ============================ 分类相关方法（第 3 层模块 2：支持一级+二级层级） ============================ */
@@ -9014,7 +9063,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     state,
     // 首屏渲染完成信号：与「数据就绪」共同决定「撤销上一步」提示的启用时机（启动期一律不弹）
     markUiReady: function () { _markUiReady(); },
-    util: { uid, todayStr, fmt, parseDate, addDays, dateDiffDays, weekdayName, inHolidayRanges, cycleHits, parseWeekday, parseCycleRule, normalizeCycleRule, isoWeek, weekRange, validateDateInput, autoFormatDate, validateMonthInput, autoFormatMonth },
+    util: { uid, todayStr, workTodayStr, WORK_DAY_START_HOUR, fmt, parseDate, addDays, dateDiffDays, weekdayName, inHolidayRanges, cycleHits, parseWeekday, parseCycleRule, normalizeCycleRule, isoWeek, weekRange, validateDateInput, autoFormatDate, validateMonthInput, autoFormatMonth },
     // 习惯
     findHabit, getHabitRecord, markHabitRecord, removeHabitRecord, settleHabitPoints,
     setHolidayRange, removeHolidayRange, isHoliday,
@@ -14238,6 +14287,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       showSubEdit: false, editSubPid: '', editSubSid: '',
       // —— 今日页合并区块「按日查看」：选中日期（默认今天），切换昨日/次日仅影响本区块 ——
       selectedDate: '',
+      // 工作钟「当前工作日」：响应式字段，跨北京 6 点由 mp:workday-roll 事件推进（表头 / 是否今日判定随之刷新）
+      workday: this.$store.util.todayStr(),
       // —— 本周 / 本月待办折叠模块开合状态（默认收起，点击标题展开加载）——
       planOpen: { week: false, month: false },
       // —— 周/月计划区块 ➕ 新建：预填时间窗口（与看板时间标签 ➕ 同步）——
@@ -14252,6 +14303,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // focusMode 为会话态（每日手动开关）；focusFilterTags 经 settings 持久化（长按编辑后保存记忆，下次开启直接套用）
       focusMode: false, focusPickerOpen: false, focusEditTags: [], _focusLP: false, _focusTimer: null }; },
     created() {
+      // —— 工作钟跨日联动：北京 6 点才跳转第二天，常驻页面自动推进选中日期 ——
+      this._onWorkdayRoll = (e) => {
+        const d = e && e.detail;
+        if (d && this.selectedDate === d.from) this.selectedDate = d.to;
+        if (d && d.to) this.workday = d.to;   // 表头「今日 ·」与倒数模块跟随工作钟
+      };
+      window.addEventListener('mp:workday-roll', this._onWorkdayRoll);
       // —— 原路返回恢复视图 ——
       // 分两类，语义不同：
       // ① 视图偏好（专注筛选开关 / 按日查看日期）：从任一非今日页面返回时都还原
@@ -14297,7 +14355,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       }, 1000);
     },
     computed: {
-      today() { return this.$store.util.todayStr(); },
+      today() { return this.workday; },
       // —— 今日页日期表头倒数小模块 ——
       // 距本周日剩余天数：0=今天就是周日；1~6=还需几天到周日
       daysToSunday() {
@@ -14968,6 +15026,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
     },
     beforeUnmount() {
+      if (this._onWorkdayRoll) window.removeEventListener('mp:workday-roll', this._onWorkdayRoll);
       // —— 离开今日页：保存视图快照（专注筛选开关 / 按日查看日期 / 周月折叠开合），
       //    供「进子任务页 → 原路返回」时恢复视图（created 判 prevRoute 以 /subtask/ 开头才恢复）；
       //    切主 tab 再回来不恢复，保持既有「新会话」语义 ——
@@ -16155,13 +16214,16 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!segs.length) return [];
         // 状态词识别：任一段含「已归档」→ 仅命中已归档条目（父任务/子任务）；该词剥离后不参与文本匹配
         const onlyArchived = segs.some(sg => sg.indexOf('已归档') >= 0);
+        // 状态词识别：任一段含「已放弃」（或简写「放弃」）→ 仅命中 arch_kind='abandon' / status='已放弃' 的条目；
+        // 该词剥离后不作为文本匹配（徽标由归档种类派生，不存于标题/标签文本）。
+        const onlyAbandoned = segs.some(sg => sg.indexOf('已放弃') >= 0 || sg.trim() === '放弃');
         // 状态词识别：任一段精确为「未安排」→ 仅搜「任务夹」下未安排（无任何日期且安排按钮未关闭）的任务/子任务；
         // 该词剥离后不作为文本匹配，仅作范围与状态筛选（其他搜索保持原三文件夹全量范围）。
         const kws = [];
         let unplanned = false;
         segs.forEach(sg => {
           if (sg.trim().toLowerCase() === '未安排') { unplanned = true; return; }
-          const rest = sg.split('已归档').join(' ').trim().toLowerCase();
+          const rest = sg.split('已归档').join(' ').split('已放弃').join(' ').split('放弃').join(' ').trim().toLowerCase();
           if (rest) kws.push(rest);
         });
         // 结果分两组：未归档（out）在前、已归档（arch）置后，保证「已归档条目始终排在搜索结果末尾」。
@@ -16178,6 +16240,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               if (this.taskScheduled(t)) return;          // 已安排（有日期或关闭安排按钮）跳过
             }
             if (onlyArchived && !t.is_archived) return;   // 「已归档」筛选：父任务仅保留已归档
+            if (onlyAbandoned && !(t.arch_kind === 'abandon' || t.status === '已放弃')) return;  // 「已放弃」筛选
             if (this.taskMatches(t, kws)) {
               const item = { isSub: false, task: t, folder: fv, archived: !!t.is_archived };
               (item.archived ? arch : out).push(item);
@@ -16192,6 +16255,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               // 其下未归档的子任务副本不会被复制进全局归档库）。
               const effArch = !!s.is_archived || !!t.is_archived;
               if (onlyArchived && !effArch) return;   // 「已归档」筛选：父任务/子任务任一归档即命中
+              if (onlyAbandoned && !(s.arch_kind === 'abandon' || s.status === '已放弃')) return;
               if (this.subMatches(t, s, kws)) {
                 const item = { isSub: true, sub: s, parent: t, folder: fv, archived: effArch };
                 (item.archived ? arch : out).push(item);
@@ -16199,7 +16263,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
             });
           });
         });
-        return out.concat(arch);  // 已归档整体置后
+        // 组内统一「由近及远」排序：按条目日期（任务 execute_date/date_end，子任务 execute_date/sub_end）
+        // 降序（YYYY-MM-DD 字典序即时间序）；无日期的条目排最后。已归档组仍整体置后。
+        const dOf = it => { const o = it.isSub ? it.sub : it.task; return (o && (o.execute_date || o.date_end || o.sub_end)) || ''; };
+        const byDateDesc = list => list.slice().sort((a, b) => { const da = dOf(a), db = dOf(b); return da < db ? 1 : da > db ? -1 : 0; });
+        return byDateDesc(out).concat(byDateDesc(arch));  // 已归档整体置后
       },
     },
     created() { this.restoreUiState(); },
@@ -16786,7 +16854,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <!-- 全局搜索（切换按钮下方，选项卡上方；跨任务夹/收藏夹/模版夹全量检索，含已归档；不持久化，刷新/切Tab自动清空） -->
       <div class="inbox-search">
         <div class="arch-filter">
-          <input v-model="searchKeyword" placeholder="搜索标题/描述/素材备注/灵感素材/标签…（用 # 分隔多关键词，需同时满足；输入「已归档」筛已归档；输入「未安排」搜任务夹下未安排任务）" />
+          <input v-model="searchKeyword" placeholder="搜索标题/描述/素材备注/灵感素材/标签…（用 # 分隔多关键词，需同时满足；输入「已归档」筛已归档；输入「已放弃」筛已放弃；输入「未安排」搜任务夹下未安排任务）" />
           <button v-if="searchKeyword" class="search-clear" @click="searchKeyword=''" title="清空搜索">✕</button>
         </div>
         <template v-if="searchKeyword.trim()">
@@ -17232,15 +17300,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     components: { MaterialBadges: C.MaterialBadges, TaskDetailModal: C.TaskDetailModal, TaskAddModal: C.TaskAddModal, HabitEditModal: C.HabitEditModal, HabitManageModal: C.HabitManageModal, ProjectEditModal: C.ProjectEditModal, TimelineTimeModal: C.TimelineTimeModal, CycleSummaryModal: C.CycleSummaryModal },
     mixins: [C.MP_UI],
     data() {
+      const _wd = this.$store.util.todayStr();   // 工作钟「今天」：北京 6 点分界
       return {
         uiKey: 'stats', uiFields: ['collapsed', 'tab', 'archView', 'archType', 'archCat', 'archKeyword', 'archYear', 'archMonth'],
-        tab: 'month', year: new Date().getFullYear(), month: new Date().getMonth() + 1,
+        // 图表默认时段 / 归档仓库日历 与「今日虚线柱」统一按工作钟取，避免凌晨 0–6 点用 new Date() 落到次日而错位
+        workday: _wd,
+        tab: 'month', year: +_wd.slice(0, 4), month: +_wd.slice(5, 7),
         chartHabitId: null, showHabitPicker: false, archCat: '__all__', archKeyword: '', detailId: null,
         // 时间线编辑弹窗 / 周期任务汇总弹窗 状态（点击时间线条目 / 查看汇总按钮时写入）
         tlEditItem: null, csTasks: [],
         showHabitEdit: false, editHabitId: null, manageHabitId: null, manageFromEdit: false, suppressTitleClick: false, titleTimer: null,
         // 归档仓库：独立日历状态 + 日期筛选
-        archYear: new Date().getFullYear(), archMonth: new Date().getMonth() + 1, archView: 'month',
+        archYear: +_wd.slice(0, 4), archMonth: +_wd.slice(5, 7), archView: 'month',
         archSelDate: null, archSelMonth: null, archRange: { start: '', end: '' }, showArchCal: true,
         // 归档仓库：类型折叠筛选（全部 / 任务 / 习惯 / 项目）
         archType: 'all',
@@ -17265,6 +17336,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         relayToken: '', relayVaultId: '',
         // —— 选择性备份 / 恢复：导出勾选 + 导入勾选 ——
         // 默认勾选：项目 + 归档（其余模块按需手动勾选）
+        // 复盘（review）默认勾选，便于直接单独导出复盘报告（勾选后显示月份选择器）。
+        // 但点「全选」时会由 allChecked 的 setter 取消：复盘是导出专用的派生报告、不可导入恢复，
+        // 不该混进整库备份；需要连同备份一起导出时，用户可在全选后再手动勾回来。
         backupSel: { core: false, projects: false, finance: false, career: false, archive: false, inbox: false, review: true },
         reviewMonth: '',              // 复盘导出月份（YYYY-MM；空则导出时回落到当月）
         importFileRaw: '',            // 已读取的导入文件原文
@@ -17298,19 +17372,36 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         window.MPRelay.onStatus((s) => { this.relayStatus = Object.assign({}, this.relayStatus, s); });
       }
       this.refreshAutoBackups(); // 进入统计页即加载实时备份快照列表
+      // 工作钟：跨北京 6 点推进响应式 workday，使「今日虚线柱」/ 日历今日格 / 节奏小结随之刷新
+      this._onWorkdayRoll = (e) => {
+        const d = e && e.detail;
+        if (d && d.to) this.workday = d.to;
+      };
+      window.addEventListener('mp:workday-roll', this._onWorkdayRoll);
+    },
+    beforeUnmount() {
+      if (this._onWorkdayRoll) window.removeEventListener('mp:workday-roll', this._onWorkdayRoll);
     },
     computed: {
-      today() { return this.$store.util.todayStr(); },
+      today() { return this.workday; },   // 响应式：跨北京 6 点由 mp:workday-roll 事件推进
+      // 习惯统计柱状图「当前日」列下标（0-based）：仅当图表浏览的时段包含「今天」时返回对应列，否则 -1。
+      // 月视图定位到「日」、年视图定位到「月」；口径统一走工作钟（北京 6 点分界）。
+      chartTodayIndex() {
+        const p = this.today.split('-');
+        const ty = +p[0], tm = +p[1], td = +p[2];
+        if (this.tab === 'year') return this.year === ty ? tm - 1 : -1;
+        return (this.year === ty && this.month === tm) ? td - 1 : -1;
+      },
       // 「回到本月 / 回到本年」按钮仅在「当前不在本月/本年」时显示（位于 › 右侧）
       showArchNow() {
-        const now = new Date();
-        if (this.archView === 'year') return this.archYear !== now.getFullYear();
-        return this.archYear !== now.getFullYear() || this.archMonth !== now.getMonth() + 1;
+        const p = this.today.split('-'), y = +p[0], m = +p[1];
+        if (this.archView === 'year') return this.archYear !== y;
+        return this.archYear !== y || this.archMonth !== m;
       },
       showHabitNow() {
-        const now = new Date();
-        if (this.tab === 'year') return this.year !== now.getFullYear();
-        return this.year !== now.getFullYear() || this.month !== now.getMonth() + 1;
+        const p = this.today.split('-'), y = +p[0], m = +p[1];
+        if (this.tab === 'year') return this.year !== y;
+        return this.year !== y || this.month !== m;
       },
       habits() { return this.$store.state.habits.filter(h => !h.is_archived); }, // 统计下拉仅展示未归档活跃习惯
       monthGrid() {
@@ -17348,7 +17439,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const kws = [];
         segs.forEach(sg => {
           let rest = sg;
-          ['项目', '习惯', '子任务', '任务', '已归档'].forEach(w => { rest = rest.split(w).join(' '); });
+          ['项目', '习惯', '子任务', '任务', '已归档', '已放弃', '放弃'].forEach(w => { rest = rest.split(w).join(' '); });
           rest = rest.trim().toLowerCase();
           if (rest) kws.push(rest);
         });
@@ -17360,8 +17451,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       // 归档列表（UI 展示）：基础列表 + 日期/月份/年/区间筛选 + 关键词（关键词已在 buildArchBase 应用）
       // 顺序：统一按「归档时刻」升序 —— 先归档的排第一个，后归档的依次往后（跨类型统一排队，不再按类型分段）
       archList() {
-        // 升序稳定排序（ES2019 起 Array#sort 保证稳定）：归档时刻相同的条目保持原相对顺序
-        // 按「归档时间」升序（先归档排第一）。归档时间取值优先级：
+        // 由近及远降序稳定排序（ES2019 起 Array#sort 保证稳定）：归档时刻相同的条目保持原相对顺序
+        // 按「归档时间」降序（最近归档排第一）。归档时间取值优先级：
         //   archived_ms（精确毫秒，新数据均有）→ 归档日期（archived_at，老数据缺毫秒时兜底，保证按年-月-日排而非被当成 1970 挤到最前）。
         // 二者均落入同一时间轴（均为真实纪元毫秒），可正确交错；同日同刻仍并列时按标题字典序，保证稳定不抖动。
         const archTimeOf = t => {
@@ -17369,22 +17460,23 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           if (ms) return ms;
           return t._date ? (Date.parse(t._date + 'T00:00:00') || 0) : 0;
         };
-        const byArchAsc = list => list.slice().sort((a, b) => {
+        const byArchDesc = list => list.slice().sort((a, b) => {
           const ka = archTimeOf(a), kb = archTimeOf(b);
-          if (ka !== kb) return ka - kb;
+          if (ka !== kb) return kb - ka;
           return (a._title || '') < (b._title || '') ? -1 : 1;
         });
         let out = this.buildArchBase(this.archKeyword);
-        // 搜索关键词非空时跨全部日期范围查询（不受选中日期/年/月限制）；无搜索词时才按选中粒度筛选
-        if (this.archKeyword.trim()) return byArchAsc(out);
+        // 搜索关键词非空时跨全部日期范围查询（不受选中日期/年/月限制）；无搜索词时才按选中粒度筛选。
+        // 搜索结果统一「由近及远」（最近归档的排最前）。
+        if (this.archKeyword.trim()) return byArchDesc(out);
         // 月份（YYYY-MM）与日期（YYYY-MM-DD）共用 archSelDate，startsWith 前缀匹配天然覆盖两种粒度：
         // 年视图点月份传 'YYYY-MM' → 命中该月全部日期；月视图点某天传 'YYYY-MM-DD' → 命中当天。
-        if (this.archSelDate) return byArchAsc(out.filter(t => t._date && t._date.startsWith(this.archSelDate)));
-        if (this.archRange.start && this.archRange.end) return byArchAsc(out.filter(t => t._date && t._date >= this.archRange.start && t._date <= this.archRange.end));
+        if (this.archSelDate) return byArchDesc(out.filter(t => t._date && t._date.startsWith(this.archSelDate)));
+        if (this.archRange.start && this.archRange.end) return byArchDesc(out.filter(t => t._date && t._date >= this.archRange.start && t._date <= this.archRange.end));
         // 年视图未选月份时按「当前浏览年份」收敛：否则点 ‹ 切到往年，列表仍混入其它年份的条目，
         // 与上方写着「2025年」、格子也只统计 2025 的日历自相矛盾。
-        if (this.archView === 'year') return byArchAsc(out.filter(t => t._date && t._date.slice(0, 4) === String(this.archYear)));
-        return byArchAsc(out);
+        if (this.archView === 'year') return byArchDesc(out.filter(t => t._date && t._date.slice(0, 4) === String(this.archYear)));
+        return byArchDesc(out);
       },
       // —— 纵向时间线（统计页 · 全局已归档仓库）：选中日期 + 配置了提醒时间的归档任务/子任务 ——
       // 仅当 archSelDate 命中时计算；无提醒时间的归档任务仍只在下方归档列表展示，不进时间线。
@@ -17608,15 +17700,19 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         list = list.filter(d => d.indexOf(prefix) === 0);
         return list.sort();
       },
-      // 全选框（get 反映是否全部勾选；set 一键全选 / 全不选）
+      // 全选框：只覆盖「常规备份模块」。
+      // get 只反映非复盘模块是否全勾（否则点全选后复盘被取消、全选框自己会显示为未勾，像没生效）。
+      // set：勾选全部时把复盘一并取消，避免复盘报告混进整库备份；取消全选时则不动复盘，
+      // 保留用户自己的手动勾选（复盘默认勾着，可单独导出，也可全选后再手动勾回）。
       allChecked: {
         get() {
-          const mods = this.$store.backupModules;
+          const mods = this.$store.backupModules.filter(m => m.key !== 'review');
           return mods.length > 0 && mods.every(m => this.backupSel[m.key]);
         },
         set(v) {
           const next = Object.assign({}, this.backupSel);
-          this.$store.backupModules.forEach(m => { next[m.key] = !!v; });
+          this.$store.backupModules.forEach(m => { if (m.key !== 'review') next[m.key] = !!v; });
+          if (v) next.review = false;   // 勾选全部 → 取消复盘
           this.backupSel = next;
         },
       },
@@ -17698,15 +17794,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       },
       // 习惯图表「回到本月 / 回到本年」：与 ‹ › 方向导航互补，一键跳回当前月 / 当前年
       navHabitToday() {
-        const now = new Date();
-        if (this.tab === 'year') {
-          if (this.year === now.getFullYear()) return;
-          this.year = now.getFullYear();
-          return;
-        }
-        if (this.year === now.getFullYear() && this.month === now.getMonth() + 1) return;
-        this.year = now.getFullYear();
-        this.month = now.getMonth() + 1;
+        const p = this.today.split('-'), y = +p[0], m = +p[1];
+        if (this.tab === 'year') { this.year = y; return; }
+        if (this.year === y && this.month === m) return;
+        this.year = y; this.month = m;
       },
       openChart(h) { this.chartHabitId = h._id; },
       selectHabit(h) { this.chartHabitId = h._id; this.showHabitPicker = false; },
@@ -18346,7 +18437,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 
         </div>
         <div class="arch-filter">
-          <input v-model="archKeyword" placeholder="搜索标签/标题/描述…（输入「任务/子任务/习惯/项目」按类型筛选；用 # 分隔多关键词，需同时满足）" />
+          <input v-model="archKeyword" placeholder="搜索标签/标题/描述…（输入「任务/子任务/习惯/项目」按类型筛选；输入「已放弃」筛已放弃；用 # 分隔多关键词，需同时满足）" />
           <button v-if="archKeyword" class="search-clear" @click="archKeyword=''" title="清空搜索">✕</button>
         </div>
         <!-- 纵向时间线面板：选中日期 + 含提醒时间的归档任务/子任务；无提醒任务仍只在下方列表展示 -->
@@ -18454,7 +18545,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <template v-if="chartData.mode==='year'">
             <div class="chart-title">{{ chartData.name }} — {{ year }} 年 共 {{ chartData.annual }} 次</div>
             <div class="bars bars-year">
-              <div class="bar" v-for="(v,i) in chartData.byMonth" :key="i" :style="{height:(v/maxMonth()*100)+'%'}" :title="(i+1)+'月 · '+v+' 次'">
+              <div class="bar" v-for="(v,i) in chartData.byMonth" :key="i" :class="{ 'is-today': i === chartTodayIndex }" :style="{height:(v/maxMonth()*100)+'%'}" :title="(i+1)+'月 · '+v+' 次' + (i === chartTodayIndex ? ' · 本月' : '')">
                 <span class="bar-v">{{ v }}</span><span class="bar-m">{{ i+1 }}</span>
               </div>
             </div>
@@ -18464,7 +18555,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           <template v-else>
             <div class="chart-title">{{ chartData.name }} — {{ year }}年{{ month }}月 共 {{ chartData.monthTotal }} 次</div>
             <div class="bars dense">
-              <div class="bar" v-for="(v,i) in chartData.byDay" :key="i" :style="{height:(v/maxDay()*100)+'%'}" :title="(i+1)+'日 · '+v+' 次'">
+              <div class="bar" v-for="(v,i) in chartData.byDay" :key="i" :class="{ 'is-today': i === chartTodayIndex }" :style="{height:(v/maxDay()*100)+'%'}" :title="(i+1)+'日 · '+v+' 次' + (i === chartTodayIndex ? ' · 今天' : '')">
                 <span class="bar-v">{{ v }}</span><span class="bar-m axis-key" v-if="[1,5,10,15,20,25,31].indexOf(i+1) >= 0">{{ i+1 }}</span>
               </div>
             </div>
@@ -20353,9 +20444,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!segs.length) return [];
         // 状态词识别：任一段含「已归档」→ 仅命中已归档项目（含其子任务/灵感）；该词剥离后不参与文本匹配
         const onlyArchived = segs.some(sg => sg.indexOf('已归档') >= 0);
+        // 状态词识别：任一段含「已放弃」（或简写「放弃」）→ 仅命中标记为已放弃的项目子任务
+        const onlyAbandoned = segs.some(sg => sg.indexOf('已放弃') >= 0 || sg.trim() === '放弃');
         const kws = [];
         segs.forEach(sg => {
-          const rest = sg.split('已归档').join(' ').trim().toLowerCase();
+          const rest = sg.split('已归档').join(' ').split('已放弃').join(' ').split('放弃').join(' ').trim().toLowerCase();
           if (rest) kws.push(rest);
         });
         const hit = hay => { const text = hay.join(' ').toLowerCase(); return kws.every(k => text.indexOf(k) >= 0); };
@@ -20365,20 +20458,37 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 项目自身字段（标题/描述/素材备注/素材链接/一级#标签）：命中展示项目条目
           const phay = [ p.name || '', p.desc || '', p.material_notes || '', p.material_link || '' ];
           (p.tags || []).forEach(t => phay.push(t || ''));
-          if (hit(phay)) out.push({ type: 'project', p });
-          // 子任务：命中展示子任务条目（归属项目作上下文）
+          if (!onlyAbandoned && hit(phay)) out.push({ type: 'project', p });
+          // 子任务：命中展示子任务条目（归属项目作上下文）；「已放弃」状态词下只保留标记为已放弃的子任务
           this.$store.getSubs(p.pid).forEach(s => {
+            if (onlyAbandoned && !(s.arch_kind === 'abandon' || s.status === '已放弃')) return;
             const shay = [ s.title || '', s.desc || '', s.material_notes || '', s.material_link || '' ];
             (s.tags || []).forEach(t => shay.push(t || ''));
             if (hit(shay)) out.push({ type: 'sub', p, s });
           });
           // 灵感素材：标题/详细笔记/素材链接 命中 → 以灵感条目展示（而非所属项目条目）
-          this.$store.getIdeas(p.pid).forEach(i => {
+          if (!onlyAbandoned) this.$store.getIdeas(p.pid).forEach(i => {
             const ihay = [ i.title || '', i.content || '', i.link || '' ];
             if (hit(ihay)) out.push({ type: 'idea', p, i });
           });
         });
-        return out;
+        // 分组内统一「由近及远」排序：项目按总截止 deadline、子任务按结束/开始日、灵感按创建时刻降序；
+        // 无日期的条目排最后（灵感 createAt 为毫秒数值，与日期字符串分开比较）。
+        // 注意：结果数组内类型交错（项目→其子任务→其灵感→下一项目…），必须定义「类型优先级 + 组内降序」
+        // 的一致全序，否则稳定排序对「不同类型返回 0」不保证跨元素交换，组内排序会失效。
+        const typeRank = { project: 0, sub: 1, idea: 2 };
+        const dOf = r => r.type === 'project' ? (r.p.deadline || '')
+          : r.type === 'sub' ? ((r.s.sub_end || r.s.sub_start || ''))
+          : '';
+        const tOf = r => r.type === 'idea' ? (Number(r.i.createAt) || 0) : 0;
+        return out.slice().sort((a, b) => {
+          const ra = typeRank[a.type] || 0, rb = typeRank[b.type] || 0;
+          if (ra !== rb) return ra - rb;            // 类型分组顺序：项目 → 子任务 → 灵感（与展示分段一致）
+          const ta = tOf(a), tb = tOf(b);
+          if (ta !== tb) return tb - ta;            // 灵感：创建时刻降序
+          const da = dOf(a), db = dOf(b);
+          return da < db ? 1 : da > db ? -1 : 0;    // 项目 / 子任务：日期降序，无日期排最后
+        });
       },
       searchProjects() { return this.searchResults.filter(r => r.type === 'project'); },
       searchSubs() { return this.searchResults.filter(r => r.type === 'sub'); },
@@ -20723,7 +20833,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       <!-- 顶部搜索框（复用待归档列表搜索样式；不持久化，切Tab/刷新清空） -->
       <div class="inbox-search" v-if="tab!=='tb'">
         <div class="arch-filter">
-          <input v-model="searchKeyword" placeholder="搜索项目/子任务：标题/描述/素材/灵感/标签…（用 # 分隔多关键词，需同时满足；输入「已归档」筛已归档）" />
+          <input v-model="searchKeyword" placeholder="搜索项目/子任务：标题/描述/素材/灵感/标签…（用 # 分隔多关键词，需同时满足；输入「已归档」筛已归档；输入「已放弃」筛已放弃子任务）" />
           <button v-if="searchKeyword" class="search-clear" @click="searchKeyword=''" title="清空搜索">✕</button>
         </div>
       </div>
@@ -23717,6 +23827,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     data() {
       return {
         selectedDate: this.$store.util.todayStr(),
+        workday: this.$store.util.todayStr(),   // 工作钟当前工作日（响应式，跨北京 6 点推进）
         now: Date.now(),
         items: [],                 // 当日实例的本地响应式镜像（持久化走 store 方法）
         activeTimer: null,         // { iid }
@@ -23730,7 +23841,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       };
     },
     computed: {
-      today() { return this.$store.util.todayStr(); },
+      today() { return this.workday; },
       isToday() { return this.selectedDate === this.today; },
       // 未完成在前、已完成置底（done 标记）
       sortedItems() {
@@ -23796,10 +23907,18 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       selectedDate() { this.refresh(); },
     },
     created() {
+      // 工作钟跨日联动：北京 6 点才跳转第二天，常驻任务表页自动推进选中日期
+      this._onWorkdayRoll = (e) => {
+        const d = e && e.detail;
+        if (d && this.selectedDate === d.from) this.selectedDate = d.to;
+        if (d && d.to) this.workday = d.to;
+      };
+      window.addEventListener('mp:workday-roll', this._onWorkdayRoll);
       this.refresh();
       this._tick = setInterval(() => { this.now = Date.now(); }, 1000);
     },
     beforeUnmount() {
+      if (this._onWorkdayRoll) window.removeEventListener('mp:workday-roll', this._onWorkdayRoll);
       if (this._tick) clearInterval(this._tick);
       if (this.lpTimer) { clearTimeout(this.lpTimer); this.lpTimer = null; }
       this.stopActiveIfAny();
