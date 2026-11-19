@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>MindPocket</title>
   <!-- 发版标识：每次更新 index.html 后 +1（版本自检脚本据此发现新版本并自动强刷，见文件末尾 versionGuard） -->
-  <meta name="mp-version" content="20261116.3" />
+  <meta name="mp-version" content="20261119.3" />
   <meta name="theme-color" content="#5b6cff" />
   <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ctext y='52' font-size='52'%3E%F0%9F%93%8B%3C/text%3E%3C/svg%3E" />
@@ -1266,6 +1266,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
 .link-ico { flex: 0 0 auto; width: 28px; height: 28px; border: none; background: transparent; color: var(--primary); font-size: 16px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; vertical-align: middle; margin-left: 4px; cursor: pointer; padding: 0; border-radius: var(--radius-sm); }
 /* 子任务标题旁的 🔗：随标题字号缩小（点击热区仍保留 20px） */
 .psub-title .link-ico { width: 20px; height: 20px; font-size: 12px; margin-left: 2px; }
+/* 子任务标题旁的 📌：已进入任务表标记（紧贴标题文本，小号弱化，长按/悬停有 title 提示） */
+.psub-title .tb-pin { font-size: 12px; margin-left: 3px; vertical-align: 1px; }
 .link-ico:active { background: rgba(91,108,255,.12); }
 .pidea-acts { display: flex; flex-wrap: wrap; gap: 6px; }
 
@@ -4000,6 +4002,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           _ss.isEmergency = false;   // 保持进行中（完成时未写完成态，此处也不改 sub_done / status）
         } else {
           _ss.sub_done = false; _ss.done_at = null; _ss.status = '进行中'; _ss.isEmergency = false;
+          // 撤销完成：真实填报满格时回算仍满格，需显式撤销标记让完成判定失效（进度保留 100%）
+          _ss.doneUndone = true;
           if (_ss.enableTotal && _ss.total > 0) {
             const _sum = state.project_records.filter(r => r.sid === _ss.sid && !r.deleted_at)
               .reduce((a, r) => a + (Number(r.actualNum) || 0), 0);
@@ -4805,7 +4809,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           _ss.remindBoardPrev = !!_ss.inTaskBoard;   // 撤销时回到这个值
           _ss.inTaskBoard = true;                    // 自动勾选「进入任务表」
           _ss.remindBoardAuto = true;                // 联动标记：放宽任务表生成条件 / 撤销回滚依据
-          if (_ss.status === '已完成') _ss.status = '进行中';  // 保持非完成；历史残留「已完成」也回到进行中
+          if (_ss.status === '已完成') { _ss.status = '进行中'; _ss.doneUndone = true; }  // 保持非完成；历史残留「已完成」也回到进行中（满格进度需撤销标记）
           ensureTaskBoardInstances(today, _ss.sid);   // 幂等生成当日打卡项（完成当日豁免日期范围）
           touch(_ss); persist();
         } else {
@@ -4913,7 +4917,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       syncCycleAnchor(s);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算
       // 子任务母本自动归档：与顶层任务口径一致 —— 有限周期全部出现日打卡完成 → 子任务母本自动归档
       // 父任务不受影响（父子时间独立，规范⑥）；无限循环周期（无结束日）恒为 false，仅手动归档
-      if (allOccurrencesDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = today; s.autoArchivedByCopies = true; }
+      // 归档即完成（复选框自动勾上）：与 archiveSubTask 同口径，副本全部打卡完成后母本自动归档时同步置 is_done=true，
+      // 撤销自动归档（subCopyUndone）时对称复位，保证「已归档 ⇔ 复选框已勾」始终一致。
+      if (allOccurrencesDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = today; s.autoArchivedByCopies = true; s.is_done = true; }
     } else if (s.date_mode === 'range' && s.date_start) {
       // 与主任务区间同口径：逾期补卡时延长结束日（保留起始日），并按「按时=原日期 / 延期=今天」写 real_done
       if (s.date_end && s.date_end < today) s.date_end = today;
@@ -4925,7 +4931,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const pts = Math.max(0, 12 - delay);
         addPoints(pts, 'cycle_task', (delay > 0 ? '子任务延期完成(' + delay + '天): ' : '子任务正常完成: ') + s.title, t._id + '_' + subId + '_' + ws);
       }
-      if (allOccurrencesDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = today; s.autoArchivedByCopies = true; }
+      if (allOccurrencesDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = today; s.autoArchivedByCopies = true; s.is_done = true; }
     } else {
       const key = copyKey(s, ws);
       s.doneDates = s.doneDates || [];
@@ -4938,7 +4944,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         addPoints(subPts, 'sub_task', (subDelay > 0 ? '子任务延期完成(' + subDelay + '天): ' : '子任务完成: ') + s.title, t._id + '_' + subId);
       }
       // 子任务全部日期副本完成 → 自动归档子任务母本（与主任务 markCopyDone 口径一致）
-      if (copiesAllDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = today; s.autoArchivedByCopies = true; }
+      if (copiesAllDone(s) && !s.is_archived) { archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = today; s.autoArchivedByCopies = true; s.is_done = true; }
     }
     // 规则③联动（修复：任务夹父任务在今日页归档全部子任务副本后未自动归档）：
     // 父任务下全部子任务均已归档 → 父任务母本自动归档（与 setArchived 子任务归档路径完全同口径；
@@ -5004,13 +5010,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
       }
       if (removed) syncCycleAnchor(s);   // 撤销后按剩余打卡历史重算浮动锚点（被撤销完成日的 real_done 不再驱动未来排期）
-      if (s.autoArchivedByCopies && s.is_archived && !allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
+      if (s.autoArchivedByCopies && s.is_archived && !allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; s.is_done = false; }
     } else if (s.date_mode === 'range' && s.date_start) {
       const idx = s.cycle_history.map(h => h.execute_date).lastIndexOf(ws);
       if (idx >= 0) s.cycle_history.splice(idx, 1);
       // 积分联动：撤销自定义区间子任务 → cycle_task（出现日级 refId）
       reversePoints(t._id + '_' + subId + '_' + ws, 'cycle_task');
-      if (s.autoArchivedByCopies && s.is_archived && !allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
+      if (s.autoArchivedByCopies && s.is_archived && !allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; s.is_done = false; }
     } else if (s.doneDates) {
       const key = copyKey(s, ws);
       s.doneDates = s.doneDates.filter(d => d !== key);
@@ -5019,7 +5025,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         reversePoints(t._id + '_' + subId, 'sub_task');
       }
       // 撤销打卡后未全完成 → 子任务母本退回活跃态（仅自动归档情形）
-      if (s.autoArchivedByCopies && s.is_archived && !copiesAllDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
+      if (s.autoArchivedByCopies && s.is_archived && !copiesAllDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; s.is_done = false; }
     }
     // 父任务联动：子任务副本撤销若使子任务母本复活（或其归档前提不成立），
     // 因「子任务全部归档」而自动归档的父任务一并撤回（与全局归档库按日撤销同口径）
@@ -5976,6 +5982,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       (t.sub_tasks || []).forEach(s => { if (isArchiveRelevant(s) && archiveDatesOf(s).indexOf(date) >= 0) n++; });
     });
     state.habits.forEach(h => { if (h.is_archived && archiveDateOf(h) === date) n++; });
+    // 项目子任务：归属日 = 结束日期 sub_end（未填时首次归档自动补为归档当日），与仓库列表口径一致
+    (state.project_subs || []).forEach(s => {
+      if (s.is_archived && !s.deleted_at && (s.sub_end || s.archived_at) === date) n++;
+    });
     state.projects.forEach(p => { if (p.status === 'archive' && !p.deleted_at && (p.archived_at || '') === date) n++; });
     // 模版归档流水：每完成归档一次计 1（与母本副本状态解耦，重置不清）
     ledgerList().forEach(e => { if (e.date === date) n++; });
@@ -6061,7 +6071,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         _realId: type === 'project' ? (obj.pid || obj._id) : (obj._id || obj.sid || obj.pid),
         _title: type === 'project' ? (obj.name || '') : (obj.title || ''),
         _typeLabel: type === 'task' ? '任务' : (type === 'habit' ? '习惯' : (type === 'project' ? '项目' : '子任务')),
-        _date: (type === 'project' || type === 'project_sub') ? (obj.archived_at || '') : date,
+        _date: type === 'project' ? (obj.archived_at || '') : (type === 'project_sub' ? (date || obj.archived_at || '') : date),
         _archMs: archMsOf(obj),          // 归档时刻（升序排序依据）
       });
       if (type === 'project_sub' || type === 'subtask') {
@@ -6113,11 +6123,13 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         if (!expandCycle(s, 'subtask')) out.push(norm(s, 'subtask', archiveDateOf(s)));
       });
       // 项目子任务（项目 Tab 内子任务）：滑动归档（已全部完成 / 已放弃）当日进入仓库；
-      // 归属日 = archived_at（选择归档当天）；已放弃条目格外标记「已放弃」，支持左滑撤销恢复
+      // 归属日 = 结束日期 sub_end（未填时首次归档已自动补为归档当日，二者等价）——
+      // 已过期子任务归属到历史结束日期；撤销归档 / 再次归档不改变归属日，
+      // 只有手动修改结束日期才随之调整（与日历点阵 _archivedCountOnDateCore 口径一致）。
       (state.project_subs || []).forEach(s => {
         if (!s.is_archived || s.deleted_at) return;
         if (textKws.length && !textKws.every(k => (s.title || '').toLowerCase().includes(k))) return;
-        out.push(norm(s, 'project_sub', s.archived_at));
+        out.push(norm(s, 'project_sub', s.sub_end || s.archived_at));
       });
     }
     // 习惯：独立筛选，仅在「全部分类」下并入（习惯无分类归属）
@@ -6901,11 +6913,30 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       s.sub_start = first || td;
     }
   }
+  // 「进入任务表」取消勾选后清理该子任务的空打卡实例（内存修剪，由 updateSub 同一次 persist 落盘）。
+  // 只删未打卡 / 无耗时 / 未计时 / 非模式②完成当日补登的空实例；已打卡 / 有耗时的历史留痕一律保留。
+  function pruneTaskBoardDisabled(sid) {
+    const tb = state.taskBoard;
+    if (!tb || !Array.isArray(tb.instances) || !sid) return false;
+    const s = state.project_subs.find(x => x.sid === sid);
+    const keepAuto = !!(s && s.remindBoardAuto);   // 模式②仍在：完成当日补登实例保留；模式已切回①：一并清理
+    const before = tb.instances.length;
+    tb.instances = tb.instances.filter(it => {
+      if (!it || it.sid !== sid) return true;
+      if (it.autoRemind && keepAuto) return true;                       // 模式②完成当日补登
+      if (it.done || it.timing || Number(it.durationSec) > 0 || it.manualMin != null) return true; // 历史留痕 / 计时中
+      return false;
+    });
+    return tb.instances.length !== before;
+  }
   function updateSub(sid, patch) {
     const s = state.project_subs.find(x => x.sid === sid);
     if (!s) return;
     const _wasDone = isSubComplete(s);
+    const _wasInBoard = !!s.inTaskBoard;
     Object.assign(s, patch);
+    // 取消勾选「进入任务表」→ 立即清掉空打卡实例，避免任务表里残留（历史留痕保留）
+    if (_wasInBoard && !s.inTaskBoard) pruneTaskBoardDisabled(sid);
     // 编辑保存把状态改为「已完成」（手动完成）时，同样补齐区间（与 toggleSubDone 同口径）
     if (!_wasDone && isSubComplete(s)) fillSubSpanOnDone(s);
     touch(s);
@@ -7053,7 +7084,11 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       if (!s) return true;                               // 历史日期且母本已不在：保留历史展示
       // 日期范围：未填即无限制；已打卡/有耗时的留痕实例与完成当日补登实例不受范围收敛
       const hasTrace = !!it.done || Number(it.durationSec) > 0 || it.manualMin != null;
-      if (!hasTrace && !it.autoRemind) {
+      const keepAuto = !!(it.autoRemind && s.remindBoardAuto);  // 模式②联动标记仍在才算有效补登
+      // 「进入任务表」取消勾选后：该母本的空打卡实例不再出现在任务表（历史留痕与模式②有效补登保留）。
+      // 双保险：编辑保存时已由 updateSub 清理一次；此处兜住历史数据 / 其他入口未清理的残留实例。
+      if (!s.inTaskBoard && !keepAuto && !hasTrace) return false;
+      if (!hasTrace && !keepAuto) {
         if (s.sub_start && date < s.sub_start) return false;  // 早于开始日
         if (s.sub_end && date > s.sub_end) return false;      // 晚于结束日
       }
@@ -7113,7 +7148,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
   //  · 计数任务：开启总目标且进度达 100%
   //  · 任意任务：被「标记完成」显式置为已完成（sub_done）
   function isSubComplete(s) {
-    return !!(s && (s.sub_done || (s.enableTotal && s.total > 0 && (Number(s.finished) || 0) >= Number(s.total))));
+    // doneUndone：显式「撤销完成」标记。真实填报进度已满格（如 21/21 节）时，右滑撤销完成
+    // 不能靠回算 finished 消除完成态（记录还在，回算仍满格）——改用标记让完成判定显式失效，
+    // 进度条保留真实 100%，但卡片不再灰置置底、状态回到待进行；再次标记完成即清除标记。
+    return !!(s && !s.doneUndone && (s.sub_done || (s.enableTotal && s.total > 0 && (Number(s.finished) || 0) >= Number(s.total))));
   }
   // 完成态判定（用于「已完成恒后置」分组）：显式完成 / 计数达标 / 状态字段为「已完成」
   function isSubDoneLike(s) { return isSubComplete(s) || (!!s && s.status === SUB_STATUS_DONE); }
@@ -7127,6 +7165,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       s.sub_done = false;
       s.done_at = null; // 复位完成时间戳 → 重新回到未完成分区
       s.status = '进行中'; // 取消完成 → 回到进行中（自定义非完成状态可再手动设回）
+      // 真实填报已满格时回算 finished 仍是 total（记录还在），需显式撤销标记让完成判定失效
+      s.doneUndone = true;
       if (s.enableTotal && s.total > 0) {
         const sum = state.project_records.filter(r => r.sid === sid && !r.deleted_at)
           .reduce((a, r) => a + (Number(r.actualNum) || 0), 0);
@@ -7138,6 +7178,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
       s.sub_done = true;
       s.done_at = Date.now(); // 记录完成时刻 → 完成区内按完成先后排列
       s.status = '已完成';   // 标记完成 → 工作流状态同步为已完成
+      s.doneUndone = false;  // 重新完成 → 清除撤销标记
       s.isEmergency = false;  // 标记完成即清空紧急标记（视为已处理）
       fillSubSpanOnDone(s);             // 未设开始 / 结束时间 → 完成当日为结束、首次填报日为开始
       linkSubRemindArchive(sid, true);  // 母本标记完成 → 提醒副本同步归档（双向镜像 markCopyDone）
@@ -7156,6 +7197,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     s.arch_prev_done = !!s.sub_done;                 // 记录归档前完成态（撤销归档时恢复）
     s.arch_prev_status = s.status || '进行中';       // 记录归档前工作流状态
     s.arch_prev_finished = Number(s.finished) || 0;  // 记录归档前进度（撤销归档时还原）
+    s.arch_prev_undone = !!s.doneUndone;             // 记录归档前「显式撤销完成」标记（撤销归档时恢复）
+    s.doneUndone = false;                            // 归档态由 is_archived 驱动，标记不参与判定
     if (k === 'done') {
       // 已全部完成：进度拉满 100% + 完成态（isSubComplete=true → 任务表母本停生成）
       if (s.enableTotal && s.total > 0) s.finished = Number(s.total);
@@ -7167,6 +7210,10 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     }
     s.is_archived = true; s.archived_ms = Date.now();
     s.archived_at = todayStr();
+    // 首次归档自动补结束日期：全局归档库归属日 = 结束日期（sub_end），未填时补为归档当日（二者等价）。
+    // 已过期子任务自带历史 sub_end 归档 → 归属到该结束日期而非归档当日；撤销归档不清 sub_end，
+    // 再次归档不会重置归属日；只有手动修改结束日期，归属日才会随之调整。
+    if (!s.sub_end) s.sub_end = s.archived_at;
     s.arch_kind = k;
     s.isEmergency = false;
     touch(s); persist();
@@ -7179,7 +7226,8 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     if (s.sub_done && !s.arch_prev_done) { s.sub_done = false; s.done_at = null; }
     s.status = s.arch_prev_status || '进行中';
     s.finished = (s.arch_prev_finished != null) ? s.arch_prev_finished : s.finished;
-    delete s.arch_prev_done; delete s.arch_prev_status; delete s.arch_prev_finished;
+    s.doneUndone = !!s.arch_prev_undone;   // 还原归档前的「显式撤销完成」标记（满格进度撤销归档后仍不灰置）
+    delete s.arch_prev_done; delete s.arch_prev_status; delete s.arch_prev_finished; delete s.arch_prev_undone;
     touch(s); persist();
   }
   // —— 子任务「是否提醒」副本：母本子任务（project_subs）↔ 副本（tasks: is_sub_remind_copy）双向互联 ——
@@ -7206,15 +7254,20 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     s.sub_done = false; s.done_at = null; s.status = '进行中'; s.isEmergency = false;
     // 计数子任务的完成态常来自「finished 被拉满到 total」（标记完成 / 已全部完成归档）。
     // 只复位 sub_done 仍会被 isSubComplete 判为完成 → 右滑后灰置不消失。
-    // 按真实填报留痕回算 finished，与 toggleSubDone 的取消完成口径一致。
+    // 按真实填报留痕回算 finished，与 toggleSubDone 的取消完成口径一致；
+    // 真实填报本身已满格（如 21/21 节）时回算仍满格 → 置显式撤销标记让完成判定失效（进度保留 100%）。
+    s.doneUndone = true;
     if (s.enableTotal && s.total > 0) {
       const sum = state.project_records.filter(r => r.sid === sid && !r.deleted_at)
         .reduce((a, r) => a + (Number(r.actualNum) || 0), 0);
       s.finished = sum;
     }
     touch(s);
-    if (wasComplete) linkSubRemindArchive(sid, false);  // 仅当确实撤销了完成时，才联动副本移出归档库
-    else persist();
+    // wasComplete 时联动把提醒副本移出归档库；但副本不存在时 linkSubRemindArchive 直接 return
+    // 不会落盘 —— 若只在 else 分支 persist，右滑撤销仅存于内存，App 重启/数据重载后灰置回滚。
+    // 故无论联动与否一律 persist（联动内部自行 persist，重复调用仅合并防抖窗口，幂等无害）。
+    if (wasComplete) linkSubRemindArchive(sid, false);
+    persist();
   }
 
   /* —— 项目子任务状态：按项目隔离 + 可自定义颜色 + 可自定义排序 ——
@@ -12045,9 +12098,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         }
         if (!onTime) this.$store.syncCycleAnchor(s);   // 浮动锚点：最近一次真实完成日，驱动未来排期重新推算（按时完成·补卡不重算）
         // 全部完成 → 自动归档子任务母本（先写快照，保证撤销按历史打卡日期完整恢复）
-        if (this.$store.allOccurrencesDone(s) && !s.is_archived) { this.$store.archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; }
-        // 撤销后未全完成 → 子任务母本退回待归档（仅自动归档情形）
-        if (!done && s.is_archived && s.autoArchivedByCopies && !this.$store.allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; }
+        if (this.$store.allOccurrencesDone(s) && !s.is_archived) { this.$store.archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; s.is_done = true; }
+        // 撤销后未全完成 → 子任务母本退回待归档（仅自动归档情形），复选框同步复位
+        if (!done && s.is_archived && s.autoArchivedByCopies && !this.$store.allOccurrencesDone(s)) { s.is_archived = false; s.autoArchivedByCopies = false; s.is_done = false; }
         this.$store.persist();
       },
       // 执行历史：点击某日期 → 弹窗确认标记完成 / 撤销完成
@@ -12140,7 +12193,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         // 保存后兜底：若编辑了 cycle_end_date 且此时全部日期已打卡完成 → 立即触发自动归档（先写快照保证可撤销恢复）
         const s = this.sub;
         if (s && s.cycle && this.$store.allOccurrencesDone(s) && !s.is_archived) {
-          this.$store.archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; this.$store.persist();
+          this.$store.archiveMasterCopies(s); s.is_archived = true; s.archived_ms = Date.now(); s.archived_at = this.$store.util.todayStr(); s.autoArchivedByCopies = true; s.is_done = true; this.$store.persist();
         }
         // 数据已落盘（persist → notifyChange 自增 revision），周/月看板副本池自动重算同步刷新
         this.$emit('close');
@@ -19228,6 +19281,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
           // 工作流状态：选「已完成」即标记完成（sub_done=true），否则为非完成（含自定义状态）
           status: this.status || '进行中',
           sub_done: nowDone,
+          // 状态从「已完成」改回非完成 = 撤销完成：真实填报满格时回算仍满格，需显式撤销标记才不灰置；
+          // 改回「已完成」或本就非完成时保持/清除标记
+          doneUndone: nowDone ? false : (wasDone ? true : !!(cur && cur.doneUndone)),
           // 是否进入任务表：常规需开启目标计划；模式②「完成后自动进入任务表」的联动勾选即便未开目标计划也保留
           inTaskBoard: !!this.inTaskBoard && (!!this.enableTotal || autoBoard),
           // 是否提醒：勾选后以开始日期为锚点生成主任务副本进入今日与周看板
@@ -21490,7 +21546,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
               if (!s.is_archived) this.archChoiceSid = s.sid;   // 左滑 → 归档选择弹窗（已全部完成 / 已放弃）
             } else {  // 右滑
               if (s.is_archived) this.undoSubArchive(s.sid);              // 已归档 → 右滑撤销归档（保留原语义）
-              else if (this.isSubComplete(s)) this.undoSubRemind(s.sid);  // 已完成（未归档）→ 撤销完成 + 副本移出归档库
+              else if (this.$store.isSubDoneLike(s)) this.undoSubRemind(s.sid);  // 已完成（未归档；含仅状态字段为「已完成」）→ 撤销完成 + 副本移出归档库
               else { this.moveSubSid = s.sid; this.moveIdeaId = ''; }     // 非归档、未完成 → 打开「选择归属项目」移动弹层
             }
           }
@@ -21763,7 +21819,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
                Chromium 会把后续的兼容 click 事件重定向到捕获元素（.psub），
                挂在 .psub-top 上将永远收不到真实鼠标点击（JS 派发的 .click() 不受影响，易漏测）。 -->
           <div class="psub-top">
-            <div class="psub-title" :class="{ 'arch-abandon': s.is_archived && s.arch_kind==='abandon' }">{{ s.title }}<span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span><button class="link-ico" v-if="isValidMaterialLink(s.material_link)" @pointerdown.stop @click.stop="openMaterialLink(s.material_link)" title="打开素材链接" aria-label="打开素材链接">🔗</button></div>
+            <div class="psub-title" :class="{ 'arch-abandon': s.is_archived && s.arch_kind==='abandon' }">{{ s.title }}<span v-if="s.inTaskBoard" class="tb-pin" title="已进入任务表">📌</span><span v-if="isEmg(s)" class="tag emergency">🚨 紧急</span><button class="link-ico" v-if="isValidMaterialLink(s.material_link)" @pointerdown.stop @click.stop="openMaterialLink(s.material_link)" title="打开素材链接" aria-label="打开素材链接">🔗</button></div>
             <span class="psub-status" :class="subStatusClass(s)" :style="subStatusStyle(s)" :data-status="subStatusLabel(s)">{{ subStatusLabel(s) }}</span>
           </div>
           <!-- 任务描述（material_notes）：直接显示在行上，最多 2 行截断；不再显示 📎 徽标（全文经长按编辑弹窗查看/编辑） -->
@@ -24029,6 +24085,9 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
     },
     watch: {
       selectedDate() { this.refresh(); },
+      // 数据变更（子任务改日期 / 归档 / 完成 / 撤销等）→ 看板即时同步：
+      // 补生成选中日期的打卡实例并重载本地镜像，不必切页 / 切日期才刷新。
+      '$store.state.revision'() { this.syncItems(); },
     },
     created() {
       // 工作钟跨日联动：北京 6 点才跳转第二天，常驻任务表页自动推进选中日期
@@ -24057,6 +24116,21 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
         const t = this.items.find(x => x.timing);
         this.activeTimer = t ? { iid: t.iid } : null;
       },
+      // 数据变更后的轻量同步（不打断进行中的专注计时，区别于切日期的 refresh）：
+      // ① 按母本最新日期范围补生成「选中日期」的打卡实例（改短改后移都不再漏生成）；
+      // ② 重载本地镜像——范围外的实例由 getTaskBoardInstances 按母本当前状态收敛。
+      syncItems() {
+        try { this.$store.ensureTaskBoardInstances(this.selectedDate); } catch (e) {}
+        const list = this.$store.getTaskBoardInstances(this.selectedDate).map(x => Object.assign({}, x));
+        // 计时中的实例若因日期范围变更 / 归档被收敛掉：先停表累计，再退出专注态
+        if (this.activeTimer && !list.some(x => x.iid === this.activeTimer.iid)) {
+          this.stopActiveIfAny();
+          this.activeTimer = null;
+        }
+        this.items = list;
+      },
+      // 页内编辑弹窗关闭：清空 sid 并立即同步（改日期 / 改范围 / 改完成态都即时反映到看板）
+      closeEdit() { this.editSid = ''; this.syncItems(); },
       // —— 饼图三级钻取：标签 → 项目 → 子任务 ——
       drillPie(row) {
         if (!row) return;
@@ -24311,7 +24385,7 @@ h4 { font-size: 14px; margin: 8px 0 5px; }
            日期默认跟随看板选中日期——补卡往日历时默认落该日，不再错记成今天 -->
       <ProjectRecordModal v-if="recordSid" :sid="recordSid" :default-date="selectedDate" @close="onRecordClose" />
 
-      <ProjectSubEditModal v-if="editSid" :sid="editSid" @close="editSid=''" />
+      <ProjectSubEditModal v-if="editSid" :sid="editSid" @close="closeEdit" />
 
       <!-- 全屏专注计时：计时中常驻；完成=单次计时作为一条填报写入母本并退出；放弃=丢弃本次 -->
       <transition name="pop">
